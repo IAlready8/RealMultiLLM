@@ -1,1 +1,6 @@
 Multi-LLM-Platform/node_modules/
+*.DS_Store
+Multi-LLM-Platform/.next/
+Multi-LLM-Platform/.env
+Multi-LLM-Platform/.env.local
+Multi-LLM-Platform/.claude
