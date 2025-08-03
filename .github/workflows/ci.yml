@@ -1,0 +1,34 @@
+# GitHub Actions CI Workflow for RealMultiLLM
+# This workflow runs linting, type checking, and tests on every push.
+
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: macos-latest # Must run on macOS per requirements
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install Poetry
+      run: pip install poetry
+
+    - name: Install dependencies
+      run: poetry install
+
+    - name: Run Linters and Formatters
+      run: |
+        poetry run black --check .
+        poetry run flake8 .
+        poetry run mypy src/
+
+    - name: Run Tests with Coverage
+      run: poetry run pytest --cov=src
