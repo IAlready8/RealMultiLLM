@@ -1,0 +1,23 @@
+# Core Dependencies - Performance-First Selection
+fastapi==0.104.1          # Async web framework for minimal memory usage
+uvicorn[standard]==0.24.0 # ASGI server with native concurrency
+httpx==0.25.2             # Async HTTP client for provider integrations
+pydantic==2.5.0           # Type validation with optimization
+redis==5.0.1              # Local caching for dynamic synergy
+
+# LLM Provider SDKs - Lazy loading compatible
+openai==1.3.7
+anthropic==0.7.8
+cohere==4.37
+
+# Development Tools - Best practices enforced
+black==23.11.0            # Code formatting
+flake8==6.1.0             # Linting with complexity checks
+mypy==1.7.1               # Static typing
+pytest==7.4.3            # Testing framework
+pytest-asyncio==0.21.1   # Async test support
+pytest-cov==4.1.0        # Coverage reporting
+
+# Monitoring & Optimization
+psutil==5.9.6             # System monitoring for barrier identification
+structlog==23.2.0         # Structured logging for scalability
