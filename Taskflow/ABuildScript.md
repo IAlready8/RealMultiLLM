@@ -1,3 +1,14 @@
+
+# Navigate to your desktop and run:
+cd ~/Desktop/taskflow-build/taskflow-multiagent
+
+# Set up environment:
+cp .env.example .env.local
+# Edit .env.local with your OpenAI API key
+
+# Start the system:
+npm start
+
 #!/bin/bash
 
 # TaskFlow Multi-Agent System - Complete Build Script
