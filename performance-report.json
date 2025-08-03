@@ -1,0 +1,31 @@
+{
+  "timestamp": "2025-08-03T17:55:17.403Z",
+  "duration": 2669,
+  "system": {
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v20.19.4",
+    "memoryLimit": "6144MB"
+  },
+  "bundle": {},
+  "memory": {
+    "rss": 42,
+    "heapTotal": 4,
+    "heapUsed": 4,
+    "external": 1
+  },
+  "api": {
+    "latencies": {
+      "openai": 867,
+      "anthropic": 1023,
+      "google": 771
+    }
+  },
+  "recommendations": [
+    {
+      "type": "macos-optimization",
+      "priority": "low",
+      "message": "For optimal performance on MacBook Air M2, ensure NODE_OPTIONS=\"--max-old-space-size=6144\""
+    }
+  ]
+}
