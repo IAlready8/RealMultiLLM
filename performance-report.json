@@ -1,0 +1,39 @@
+{
+  "timestamp": "2025-08-03T17:58:59.571Z",
+  "duration": 2538,
+  "system": {
+    "platform": "linux",
+    "arch": "x64",
+    "nodeVersion": "v20.19.4",
+    "memoryLimit": "6144MB"
+  },
+  "bundle": {
+    "size": 1.4991397857666016,
+    "threshold": 10
+  },
+  "memory": {
+    "rss": 46,
+    "heapTotal": 4,
+    "heapUsed": 4,
+    "external": 1
+  },
+  "api": {
+    "latencies": {
+      "openai": 1044,
+      "anthropic": 1148,
+      "google": 338
+    }
+  },
+  "recommendations": [
+    {
+      "type": "chunks",
+      "priority": "medium",
+      "message": "1 chunks exceed 500KB. Consider code splitting."
+    },
+    {
+      "type": "macos-optimization",
+      "priority": "low",
+      "message": "For optimal performance on MacBook Air M2, ensure NODE_OPTIONS=\"--max-old-space-size=6144\""
+    }
+  ]
+}

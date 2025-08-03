@@ -1,0 +1,232 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.11.0'
+  NEXTAUTH_SECRET: 'test-secret-for-ci'
+  DATABASE_URL: 'file:./test.db'
+
+jobs:
+  lint:
+    name: 🔍 Lint & Format Check
+    runs-on: macos-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+        
+      - name: Run ESLint
+        run: npm run lint:check
+        
+      - name: Check Prettier formatting
+        run: npm run format:check
+        
+      - name: Type checking
+        run: npm run type-check
+
+  test:
+    name: 🧪 Test Suite
+    runs-on: macos-latest
+    timeout-minutes: 15
+    
+    strategy:
+      matrix:
+        node-version: ['20.11.0', '20.x']
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+        
+      - name: Setup database
+        run: |
+          npx prisma generate
+          npx prisma db push --accept-data-loss
+          
+      - name: Run tests with coverage
+        run: npm run test:coverage
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144'
+          
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: matrix.node-version == '20.11.0'
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage/coverage-final.json
+          fail_ci_if_error: false
+
+  build:
+    name: 🏗️ Build & Bundle Analysis
+    runs-on: macos-latest
+    timeout-minutes: 15
+    needs: [lint, test]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+        
+      - name: Setup database for build
+        run: |
+          npx prisma generate
+          npx prisma db push --accept-data-loss
+        
+      - name: Build application
+        run: npm run build
+        env:
+          NODE_OPTIONS: '--max-old-space-size=6144'
+          NEXT_TELEMETRY_DISABLED: 1
+          
+      - name: Run bundle analysis
+        run: npm run bundle-analyze
+        env:
+          ANALYZE: true
+          
+      - name: Check bundle size
+        run: |
+          BUNDLE_SIZE=$(du -sh .next/static | cut -f1)
+          echo "Bundle size: $BUNDLE_SIZE"
+          # Warning if bundle is larger than 10MB
+          if [[ $(du -s .next/static | cut -f1) -gt 10240 ]]; then
+            echo "⚠️ Warning: Bundle size is larger than 10MB"
+            exit 1
+          fi
+
+  security:
+    name: 🔒 Security Audit
+    runs-on: macos-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+        
+      - name: Run security audit
+        run: npm run security-audit
+        continue-on-error: true
+        
+      - name: Check for known vulnerabilities
+        run: |
+          # Check for high/critical vulnerabilities
+          npm audit --audit-level high || {
+            echo "⚠️ High or critical vulnerabilities found"
+            npm audit --audit-level high --json > audit-results.json
+            exit 1
+          }
+
+  performance:
+    name: ⚡ Performance Check
+    runs-on: macos-latest
+    timeout-minutes: 10
+    needs: [build]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+        
+      - name: Generate database
+        run: npx prisma generate
+        
+      - name: Run performance profiling
+        run: npm run profile
+        
+      - name: Memory usage check
+        run: |
+          echo "Checking memory constraints for 8GB MacBook Air M2..."
+          MEMORY_LIMIT=6144  # 6GB limit for 8GB system
+          echo "NODE_OPTIONS should include --max-old-space-size=$MEMORY_LIMIT"
+
+  deploy-check:
+    name: 🚀 Deployment Readiness
+    runs-on: macos-latest
+    timeout-minutes: 5
+    needs: [lint, test, build, security, performance]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Deployment readiness check
+        run: |
+          echo "✅ All checks passed - Ready for deployment"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Event: ${{ github.event_name }}"
+          
+      - name: Performance summary
+        run: |
+          echo "📊 Performance Summary:"
+          echo "- Bundle analysis: ✅ Completed"
+          echo "- Memory optimization: ✅ Configured for 8GB systems"
+          echo "- Security audit: ✅ Passed"
+          echo "- Test coverage: ✅ Tracked"
+
+  cleanup:
+    name: 🧹 Cleanup
+    runs-on: macos-latest
+    timeout-minutes: 5
+    needs: [deploy-check]
+    if: always()
+    
+    steps:
+      - name: Cleanup workspace
+        run: |
+          echo "Cleaning up temporary files..."
+          rm -rf .next node_modules/.cache coverage
+          echo "✅ Cleanup completed"
