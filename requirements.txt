@@ -11,7 +11,7 @@ anthropic==0.7.8
 cohere==4.37
 
 # Development Tools - Best practices enforced
-black==23.11.0            # Code formatting
+black==24.3.0            # Code formatting
 flake8==6.1.0             # Linting with complexity checks
 mypy==1.7.1               # Static typing
 pytest==7.4.3            # Testing framework
