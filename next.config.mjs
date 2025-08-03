@@ -1,11 +1,6 @@
 
 /** @type {import('next').NextConfig} */
 
-// optimization: Bundle analyzer for performance monitoring
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
-
 const nextConfig = {
   // Performance optimizations for M2 MacBook Air (8GB RAM)
   experimental: {
@@ -50,6 +45,18 @@ const nextConfig = {
           },
         },
       };
+    }
+
+    // Bundle analyzer when ANALYZE=true
+    if (process.env.ANALYZE === 'true') {
+      const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
+      config.plugins.push(
+        new BundleAnalyzerPlugin({
+          analyzerMode: 'static',
+          openAnalyzer: false,
+          reportFilename: 'bundle-analyzer.html',
+        })
+      );
     }
 
     return config;
@@ -98,7 +105,7 @@ const nextConfig = {
 // 2. Bundle analysis for performance monitoring  
 // 3. Security headers and TypeScript strict mode
 
-module.exports = withBundleAnalyzer(nextConfig);
+export default nextConfig;
 
 // Self-audit compliance notes:
 // ✅ FULL MODULES ONLY principle followed

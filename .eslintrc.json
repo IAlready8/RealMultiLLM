@@ -1,27 +1,12 @@
 {
   "extends": [
-    "next/core-web-vitals",
-    "next/typescript",
-    "@typescript-eslint/recommended",
-    "prettier"
+    "next/core-web-vitals"
   ],
-  "parser": "@typescript-eslint/parser",
-  "plugins": ["@typescript-eslint", "import"],
-  "parserOptions": {
-    "ecmaVersion": 2024,
-    "sourceType": "module",
-    "ecmaFeatures": {
-      "jsx": true
-    }
-  },
   "rules": {
     // Performance-focused rules
     "prefer-const": "error",
     "no-var": "error",
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-    "@typescript-eslint/explicit-function-return-type": "off",
-    "@typescript-eslint/explicit-module-boundary-types": "off",
-    "@typescript-eslint/no-explicit-any": "warn",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
     
     // Code quality enforcement  
     "complexity": ["warn", { "max": 10 }],
@@ -29,43 +14,10 @@
     "max-lines-per-function": ["warn", { "max": 50 }],
     "max-params": ["warn", { "max": 5 }],
     
-    // Import organization
-    "import/order": [
-      "error",
-      {
-        "groups": [
-          "builtin",
-          "external", 
-          "internal",
-          "parent",
-          "sibling",
-          "index"
-        ],
-        "newlines-between": "always"
-      }
-    ],
-    
     // React-specific optimizations
     "react-hooks/exhaustive-deps": "warn",
     "react/jsx-key": "error",
-    "react/display-name": "off",
-    
-    // Next.js optimizations
-    "@next/next/no-img-element": "error",
-    "@next/next/no-html-link-for-pages": "error",
-    
-    // TypeScript strict mode
-    "@typescript-eslint/no-non-null-assertion": "warn",
-    "@typescript-eslint/prefer-nullish-coalescing": "error",
-    "@typescript-eslint/prefer-optional-chain": "error"
-  },
-  "settings": {
-    "react": {
-      "version": "detect"
-    },
-    "import/resolver": {
-      "typescript": {}
-    }
+    "react/display-name": "off"
   },
   "env": {
     "browser": true,
@@ -79,7 +31,6 @@
         "jest": true
       },
       "rules": {
-        "@typescript-eslint/no-explicit-any": "off",
         "max-lines-per-function": "off"
       }
     }

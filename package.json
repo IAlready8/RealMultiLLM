@@ -31,7 +31,8 @@
     "precommit": "npm run lint && npm run format:check && npm run type-check",
     "postinstall": "prisma generate || echo 'Prisma generation skipped - network issues'",
     "clean-build": "./clean-build.sh",
-    "performance-report": "node scripts/performance-profiler.js"
+    "performance-report": "node scripts/performance-profiler.js",
+    "db:optimize": "node scripts/database-optimizer.js"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "1.0.7",
