@@ -43,4 +43,4 @@ yarn-error.log*
 .DS_Store
 
 # Database
-prisma/dev.db
+prisma/dev.db.env
