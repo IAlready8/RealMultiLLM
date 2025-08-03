@@ -7,6 +7,7 @@
 
 # Testing
 /coverage
+/test-results.json
 
 # Next.js build output
 /.next/
@@ -44,3 +45,36 @@ yarn-error.log*
 
 # Database
 prisma/dev.db.env
+
+# Performance monitoring
+/.performance/
+.performance/
+
+# Bundle analyzer
+/bundle-analyzer/
+.bundle-analyzer/
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
+
+# Backup files
+README_OLD.md
+*.backup
+
+# Prisma generated files
+/prisma/migrations/
+
+# Coverage reports
+/coverage/
+/.nyc_output/
+
+# Logs
+*.log
+/logs/
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
