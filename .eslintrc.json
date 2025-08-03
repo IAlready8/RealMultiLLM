@@ -1,3 +1,87 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": [
+    "next/core-web-vitals",
+    "next/typescript",
+    "@typescript-eslint/recommended",
+    "prettier"
+  ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "import"],
+  "parserOptions": {
+    "ecmaVersion": 2024,
+    "sourceType": "module",
+    "ecmaFeatures": {
+      "jsx": true
+    }
+  },
+  "rules": {
+    // Performance-focused rules
+    "prefer-const": "error",
+    "no-var": "error",
+    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    
+    // Code quality enforcement  
+    "complexity": ["warn", { "max": 10 }],
+    "max-depth": ["warn", { "max": 4 }],
+    "max-lines-per-function": ["warn", { "max": 50 }],
+    "max-params": ["warn", { "max": 5 }],
+    
+    // Import organization
+    "import/order": [
+      "error",
+      {
+        "groups": [
+          "builtin",
+          "external", 
+          "internal",
+          "parent",
+          "sibling",
+          "index"
+        ],
+        "newlines-between": "always"
+      }
+    ],
+    
+    // React-specific optimizations
+    "react-hooks/exhaustive-deps": "warn",
+    "react/jsx-key": "error",
+    "react/display-name": "off",
+    
+    // Next.js optimizations
+    "@next/next/no-img-element": "error",
+    "@next/next/no-html-link-for-pages": "error",
+    
+    // TypeScript strict mode
+    "@typescript-eslint/no-non-null-assertion": "warn",
+    "@typescript-eslint/prefer-nullish-coalescing": "error",
+    "@typescript-eslint/prefer-optional-chain": "error"
+  },
+  "settings": {
+    "react": {
+      "version": "detect"
+    },
+    "import/resolver": {
+      "typescript": {}
+    }
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
+      "env": {
+        "jest": true
+      },
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off",
+        "max-lines-per-function": "off"
+      }
+    }
+  ]
 }

@@ -1,0 +1,34 @@
+# Prettier ignore file
+# Build artifacts
+.next/
+dist/
+build/
+
+# Dependencies
+node_modules/
+
+# Generated files
+*.generated.*
+.prisma/
+
+# Environment files
+.env*
+
+# Coverage reports
+coverage/
+
+# Logs
+*.log
+
+# Package lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
