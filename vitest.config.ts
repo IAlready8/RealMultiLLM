@@ -18,11 +18,13 @@ export default defineConfig({
       exclude: ['node_modules', 'test', '**/*.d.ts', '.next', 'out']
     },
     // Memory optimization for 8GB RAM machines
-    threads: false,
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     maxConcurrency: 1,
-    maxWorkers: 1,
-    minThreads: 1,
-    isolate: false,
     // Increase timeout for slower machines
     testTimeout: 10000,
     hookTimeout: 10000,

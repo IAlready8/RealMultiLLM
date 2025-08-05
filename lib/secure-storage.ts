@@ -90,7 +90,7 @@ export async function encryptString(text: string, password: string = 'default-ap
     combinedData.set(iv);
     combinedData.set(new Uint8Array(encryptedData), iv.length);
     
-    return arrayBufferToBase64(combinedData);
+    return arrayBufferToBase64(combinedData.buffer);
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt data');
@@ -220,3 +220,8 @@ export async function importApiKeys(encryptedData: string, password: string): Pr
     throw new Error('Failed to import API keys. The password may be incorrect.');
   }
 }
+
+// Aliases for compatibility with existing code
+export const secureStore = storeApiKey;
+export const secureRetrieve = getStoredApiKey;
+export const secureRemove = removeApiKey;
