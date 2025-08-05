@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { getServerSession } from 'next-auth/next';
 
 // Mock Prisma
 const mockPrisma = {
@@ -47,8 +48,7 @@ describe('Personas API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock authenticated session
-    const { getServerSession } = require('next-auth/next');
-    getServerSession.mockResolvedValue({
+    (getServerSession as vi.Mock).mockResolvedValue({
       user: { id: 'user1', email: 'test@example.com' }
     });
   });
@@ -82,8 +82,7 @@ describe('Personas API', () => {
     });
 
     it('should return unauthorized for unauthenticated users', async () => {
-      const { getServerSession } = require('next-auth/next');
-      getServerSession.mockResolvedValue(null);
+      (getServerSession as vi.Mock).mockResolvedValue(null);
 
       const { GET } = await import('@/app/api/personas/route');
       const mockRequest = new (await import('next/server')).NextRequest('http://localhost/api/personas');

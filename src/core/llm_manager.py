@@ -9,18 +9,21 @@ from typing import Protocol, Dict, Any, List
 # // TODO: scalability - Implement a more robust request queuing system.
 # // TODO: security - Use a secure vault for API key storage instead of plain env vars.
 
+
 class LLMProvider(Protocol):
     """
     A protocol defining the standard interface for all LLM providers.
     This ensures that the LLMManager can treat all models uniformly.
     """
-    async def get_response(self, prompt: str) -> str:
-        ...
+
+    async def get_response(self, prompt: str) -> str: ...
+
 
 class OpenAIProvider:
     """
     Implementation for OpenAI models.
     """
+
     def __init__(self, api_key: str, model: str = "gpt-4"):
         self.api_key = api_key
         self.model = model
@@ -37,17 +40,22 @@ class OpenAIProvider:
             "messages": [{"role": "user", "content": prompt}],
         }
         async with httpx.AsyncClient() as client:
-            response = await client.post(self.api_url, headers=headers, json=json_data, timeout=30.0)
-            response.raise_for_status() # Raise an exception for bad status codes
+            response = await client.post(
+                self.api_url, headers=headers, json=json_data, timeout=30.0
+            )
+            response.raise_for_status()  # Raise an exception for bad status codes
             return response.json()["choices"][0]["message"]["content"]
 
+
 # ✅ Progress Marker: Core provider structure defined.
+
 
 class LLMManager:
     """
     Manages a collection of LLM providers and orchestrates concurrent requests.
     This is where the "MultiLLM" dynamic synergy happens.
     """
+
     def __init__(self, config: Dict[str, Any]):
         self._providers: Dict[str, LLMProvider] = {}
         # // optimization: Lazily initialize providers only when they are first used.
@@ -58,12 +66,14 @@ class LLMManager:
         provider_config = self._config.get(name)
         if not provider_config:
             raise ValueError(f"Configuration for provider '{name}' not found.")
-        
+
         provider_type = provider_config.get("type")
         api_key = provider_config.get("api_key")
 
         if provider_type == "openai":
-            return OpenAIProvider(api_key=api_key, model=provider_config.get("model", "gpt-4"))
+            return OpenAIProvider(
+                api_key=api_key, model=provider_config.get("model", "gpt-4")
+            )
         # Add other providers like "anthropic", "local_llama" here
         else:
             raise ValueError(f"Unsupported provider type: {provider_type}")
@@ -80,22 +90,23 @@ class LLMManager:
         """
         # // optimization: Uses asyncio.gather for concurrent API calls.
         tasks = []
-        provider_names = list(self._config.keys()) # Query all providers from config
-        
+        provider_names = list(self._config.keys())  # Query all providers from config
+
         for name in provider_names:
             provider = self.get_provider(name)
             tasks.append(provider.get_response(prompt))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         response_map = {}
         for name, result in zip(provider_names, results):
             if isinstance(result, Exception):
                 response_map[name] = f"Error: {str(result)}"
             else:
                 response_map[name] = result
-        
+
         return response_map
+
 
 # Self-Audit Compliance Summary:
 # - Adheres to local-first (no Docker/cloud).
