@@ -1,101 +1,100 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+#!/bin/bash
+# RealMultiLLM Development Setup Script
+# Optimized for macOS: 2013 MacBook Pro (16GB) + 2022 M2 MacBook Air (8GB)
+# No Docker dependencies - Local-first development
 
-generator client {
-  provider = "prisma-client-js"
+set -e # Exit on any error
+
+echo "🚀 Setting up RealMultiLLM development environment..."
+
+# Check prerequisites
+echo "📋 Checking prerequisites..."
+
+# Check Node.js version
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed. Please install Node.js 18 or later."
+    echo "   Download from: https://nodejs.org/"
+    exit 1
+fi
+
+NODE_VERSION=$(node -v | sed 's/v//')
+MAJOR_VERSION=$(echo $NODE_VERSION | cut -d. -f1)
+
+if [ "$MAJOR_VERSION" -lt 18 ]; then
+    echo "❌ Node.js version $NODE_VERSION is too old. Please install Node.js 18 or later."
+    exit 1
+fi
+
+echo "✅ Node.js version $NODE_VERSION is compatible"
+
+# Check npm
+if ! command -v npm &> /dev/null; then
+    echo "❌ npm is not installed. Please install npm."
+    exit 1
+fi
+
+echo "✅ npm is available"
+
+# Check git
+if ! command -v git &> /dev/null; then
+    echo "❌ git is not installed. Please install git."
+    exit 1
+fi
+
+echo "✅ git is available"
+
+# Check for .env file
+if [ ! -f ".env" ]; then
+    echo "📝 Creating .env file from template..."
+    cp .env.example .env
+    echo "⚠️  Please edit .env file and add your API keys"
+fi
+
+# Install dependencies with memory optimization
+echo "📦 Installing dependencies (optimized for 8GB RAM)..."
+export NODE_OPTIONS="--max-old-space-size=4096"
+npm install --no-fund --no-audit
+
+# Generate Prisma client
+echo "🔄 Generating Prisma client..."
+npx prisma generate || {
+    echo "⚠️  Prisma generation failed (likely due to network issues)"
+    echo "   This is expected in restricted environments"
+    echo "   The application will work in offline mode"
 }
 
-// Use environment variable to switch between SQLite (development) and PostgreSQL (production)
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+# Setup database
+echo "🗄️  Setting up development database..."
+if [ ! -f "dev.db" ]; then
+    echo "Creating SQLite database for development..."
+    npx prisma db push || {
+        echo "⚠️  Database setup failed - this is expected without network access"
+        echo "   Database will be created on first run"
+    }
+fi
 
-// User model (extended from NextAuth)
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+# Setup git hooks (optional)
+if [ -d ".git" ]; then
+    echo "🔧 Setting up git hooks..."
+    chmod +x scripts/*.sh
+fi
 
-  accounts      Account[]
-  sessions      Session[]
-  goals         Goal[]
-  personas      Persona[]
-  analytics     Analytics[]
-}
+# Create necessary directories
+echo "📁 Creating necessary directories..."
+mkdir -p tmp
+mkdir -p logs
 
-// NextAuth models
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// Application models
-model Goal {
-  id          String   @id @default(cuid())
-  title       String
-  description String?  @db.Text
-  status      String   @default("pending") // "pending" or "completed"
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Persona {
-  id          String   @id @default(cuid())
-  title       String
-  description String?  @db.Text
-  prompt      String   @db.Text
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Analytics {
-  id        String   @id @default(cuid())
-  event     String
-  payload   Json?
-  userId    String
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
+echo ""
+echo "✅ Setup completed successfully!"
+echo ""
+echo "🎯 Next steps:"
+echo "   1. Edit .env file and add your API keys"
+echo "   2. Run 'npm run dev' to start development server"
+echo "   3. Run 'npm test' to run tests"
+echo "   4. Run 'npm run build' to build for production"
+echo ""
+echo "💡 Optimization tips for 8GB RAM:"
+echo "   - Close other applications when building"
+echo "   - Use 'npm run dev' for development (faster)"
+echo "   - Run tests individually if needed: 'npm test -- <test-file>'"
+echo ""

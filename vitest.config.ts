@@ -1,7 +1,5 @@
-// 3-STEP PLAN:
-// 1. Configure Vitest to work properly with Next.js
-// 2. Set up test environment for both client and server components
-// 3. Optimize for performance on limited hardware
+// Fixed Vitest configuration for Next.js 14 App Router compatibility
+// Optimized for 8GB RAM environments with proper path resolution
 
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
@@ -14,23 +12,39 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./test/setup.tsx'],
     include: ['**/*.test.{ts,tsx}'],
-    exclude: ['node_modules', '.next', 'out'],
+    exclude: ['node_modules', '.next', 'out', 'build'],
     coverage: {
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules', 'test', '**/*.d.ts']
+      exclude: ['node_modules', 'test', '**/*.d.ts', '.next', 'out']
     },
-    threads: false, // Disable threading for more stable tests on limited RAM
-    maxConcurrency: 1, // Run tests sequentially to avoid memory issues
-    maxWorkers: 1, // Limit to 1 worker for smaller memory footprint
+    // Memory optimization for 8GB RAM machines
+    threads: false,
+    maxConcurrency: 1,
+    maxWorkers: 1,
     minThreads: 1,
-    isolate: false, // Disable isolation to reduce memory overhead
+    isolate: false,
+    // Increase timeout for slower machines
+    testTimeout: 10000,
+    hookTimeout: 10000,
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './app'),
-      '@components': resolve(__dirname, './components'),
-      '@lib': resolve(__dirname, './lib'),
-      '@services': resolve(__dirname, './services'),
+      // Fix path resolution for Next.js App Router
+      '@': resolve(__dirname, '.'),
+      '@/app': resolve(__dirname, './app'),
+      '@/components': resolve(__dirname, './components'),
+      '@/lib': resolve(__dirname, './lib'),
+      '@/services': resolve(__dirname, './services'),
+      '@/test': resolve(__dirname, './test'),
+      '@/hooks': resolve(__dirname, './hooks'),
+      '@/types': resolve(__dirname, './types'),
     }
+  },
+  define: {
+    // Mock environment variables for tests
+    'process.env.NODE_ENV': JSON.stringify('test'),
+    'process.env.DATABASE_URL': JSON.stringify('file:./test.db'),
+    'process.env.NEXTAUTH_SECRET': JSON.stringify('test-secret'),
+    'process.env.NEXTAUTH_URL': JSON.stringify('http://localhost:3000'),
   },
 })

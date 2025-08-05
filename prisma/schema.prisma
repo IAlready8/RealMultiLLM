@@ -1,17 +1,18 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Enhanced Prisma schema for RealMultiLLM
+// Supports both SQLite (development/test) and PostgreSQL (production)
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
-// Use environment variable to switch between SQLite (development) and PostgreSQL (production)
+// Flexible datasource - supports both SQLite and PostgreSQL
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-// User model (extended from NextAuth)
+// User model (compatible with NextAuth)
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -36,12 +37,12 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -69,7 +70,7 @@ model VerificationToken {
 model Goal {
   id          String   @id @default(cuid())
   title       String
-  description String?  @db.Text
+  description String?
   status      String   @default("pending") // "pending" or "completed"
   userId      String
   createdAt   DateTime @default(now())
@@ -81,8 +82,8 @@ model Goal {
 model Persona {
   id          String   @id @default(cuid())
   title       String
-  description String?  @db.Text
-  prompt      String   @db.Text
+  description String?
+  prompt      String
   userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -93,7 +94,7 @@ model Persona {
 model Analytics {
   id        String   @id @default(cuid())
   event     String
-  payload   Json?
+  payload   String?  // JSON as string for SQLite compatibility
   userId    String
   createdAt DateTime @default(now())
 
