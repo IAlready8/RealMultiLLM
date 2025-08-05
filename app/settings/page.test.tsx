@@ -5,9 +5,9 @@ import SettingsPage from './page'
 
 // Mock services
 vi.mock('@/lib/secure-storage', () => ({
-  secureStore: vi.fn(),
-  secureRetrieve: vi.fn(),
-  secureRemove: vi.fn(),
+  storeApiKey: vi.fn(),
+  getStoredApiKey: vi.fn(),
+  removeApiKey: vi.fn(),
 }))
 
 vi.mock('@/services/export-import-service', () => ({
@@ -79,7 +79,7 @@ describe('Settings Page', () => {
 
   it('allows saving API keys', async () => {
     const user = userEvent.setup()
-    const { secureStore } = await import('@/lib/secure-storage')
+    const { storeApiKey } = await import('@/lib/secure-storage')
     
     render(<SettingsPage />)
     
@@ -91,7 +91,7 @@ describe('Settings Page', () => {
     await user.click(saveButton)
     
     await waitFor(() => {
-      expect(secureStore).toHaveBeenCalledWith('apiKey_openai', 'sk-test123')
+      expect(storeApiKey).toHaveBeenCalledWith('openai', 'sk-test123')
     })
   })
 
@@ -217,8 +217,8 @@ describe('Settings Page', () => {
   })
 
   it('displays success indicators when API keys are configured', async () => {
-    const { secureRetrieve } = await import('@/lib/secure-storage')
-    vi.mocked(secureRetrieve).mockResolvedValue('sk-test123')
+    const { getStoredApiKey } = await import('@/lib/secure-storage')
+    vi.mocked(getStoredApiKey).mockResolvedValue('sk-test123')
     
     render(<SettingsPage />)
     

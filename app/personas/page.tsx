@@ -111,7 +111,7 @@ export default function PersonasPage() {
         prompt: formData.prompt.trim(),
       };
 
-      await updatePersona(updateData);
+      await updatePersona(updateData.id, updateData);
       
       toast({
         title: "Success",
