@@ -8,42 +8,33 @@
 # 3. PERFORMANCE OPTIMIZATION: Optimize memory and secure the app
 
 [build]
-  # Build command: Installs deps, generates Prisma client, builds Next.js
   command = "npm install && npx prisma generate && npm run build"
-  # Publish directory: Correct for Next.js (not dist, you dumbass previous configs)
   publish = ".next"
 
 [build.environment]
-  # Optimized for your shitty 8GB M2 MacBook Air
   NODE_VERSION = "18"
-  NODE_OPTIONS = "--max-old-space-size=4096"  # Prevents memory crashes
-  NEXT_TELEMETRY_DISABLED = "1"              # Speeds up build
-  NODE_ENV = "production"                    # Production mode
-  
-  # Your fucking LLM API keys - FILL THESE IN
-  OPENAI_API_KEY = ""
-  ANTHROPIC_API_KEY = ""
-  GOOGLE_AI_API_KEY = ""
-  LLAMA_API_KEY = ""
-  GITHUB_API_KEY = ""
-  GROK_API_KEY = ""
-  
-  # NextAuth shit - FILL THESE IN TOO
-  NEXTAUTH_SECRET = ""                       # Run `openssl rand -base64 32` to generate
-  NEXTAUTH_URL = "https://real-multi-llm.netlify.app"  # Your site URL
-  GOOGLE_CLIENT_ID = ""
-  GOOGLE_CLIENT_SECRET = ""
-  GITHUB_CLIENT_ID = ""
-  GITHUB_CLIENT_SECRET = ""
-  
-  # Database - PUT YOUR SUPABASE URL HERE
-  DATABASE_URL = ""
+  NODE_OPTIONS = "--max-old-space-size=4096"
+  NEXT_TELEMETRY_DISABLED = "1"
+  NODE_ENV = "production"
+  NEXTAUTH_URL = "https://real-multi-llm.netlify.app"  # Update this to your actual site URL
 
-# Netlify Next.js plugin: Handles all routing and serverless shit automatically
+# IMPORTANT: Set the following sensitive environment variables in the Netlify UI under "Environment variables":
+# - OPENAI_API_KEY = " "
+# - ANTHROPIC_API_KEY
+# - GOOGLE_AI_API_KEY = " "
+# - LLAMA_API_KEY (if using)
+# - GITHUB_API_KEY (if using)
+# - GROK_API_KEY (if using)
+ - NEXTAUTH_SECRET = "+67MKOk8aZcQxYj7djM9K9HSYquiJ17Fk0JtJqWzxYY="  #(generate with `openssl rand -base64 32`)
+# - GOOGLE_CLIENT_ID
+# - GOOGLE_CLIENT_SECRET
+# - GITHUB_CLIENT_ID
+# - GITHUB_CLIENT_SECRET
+# - DATABASE_URL (your Supabase PostgreSQL connection string)
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Security headers: Protects your ass in production
 [[headers]]
   for = "/*"
   [headers.values]
@@ -53,7 +44,6 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
-# Performance: Cache static assets so it doesn’t suck
 [[headers]]
   for = "/_next/static/*"
   [headers.values]
