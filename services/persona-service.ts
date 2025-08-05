@@ -103,6 +103,6 @@ export const DEFAULT_PERSONAS: Omit<CreatePersonaRequest, 'userId'>[] = [
   }
 ];
 
-export function applyPersonaToPrompt(persona: Persona, userPrompt: string): string {
+export function applyPersonaPrompt(persona: Persona, userPrompt: string): string {
   return `${persona.prompt}\n\nUser Request: ${userPrompt}`;
 }
