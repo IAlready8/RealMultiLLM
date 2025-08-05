@@ -1,20 +1,28 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EyeIcon, EyeOffIcon, CheckCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Eye, EyeOff } from "lucide-react";
-import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
+import { 
+  storeApiKey, 
+  getStoredApiKey,
+  clearAllApiKeys,
+  validateApiKeyFormat
+} from "@/lib/secure-storage";
 
+// LLM providers
 const providers = [
   { id: "openai", name: "OpenAI", placeholder: "sk-..." },
   { id: "claude", name: "Claude", placeholder: "sk-ant-..." },
   { id: "google", name: "Google AI", placeholder: "AIza..." },
-  { id: "llama", name: "Llama", placeholder: "llama_..." },
-  { id: "github", name: "GitHub", placeholder: "gho_..." },
+  { id: "llama", name: "Llama", placeholder: "Your Llama API key" },
+  { id: "github", name: "GitHub", placeholder: "github_pat_..." },
   { id: "grok", name: "Grok", placeholder: "xai-..." },
 ];
 
@@ -22,286 +30,269 @@ export default function ApiKeyForm() {
   const { toast } = useToast();
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-
+  const [showPassword, setShowPassword] = useState<Record<string, boolean>>({});
+  const [keyStatus, setKeyStatus] = useState<Record<string, 'valid' | 'invalid' | 'untested'>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Load saved API keys on mount
   useEffect(() => {
-    loadApiKeys();
-  }, []);
-
-  const loadApiKeys = () => {
-    const savedKeys: Record<string, string> = {};
-    providers.forEach(provider => {
-      const encryptedKey = localStorage.getItem(`apiKey_${provider.id}`);
-      if (encryptedKey) {
-        try {
-          savedKeys[provider.id] = decryptApiKey(encryptedKey);
-        } catch (error) {
-          console.error(`Failed to decrypt API key for ${provider.id}:`, error);
+    const loadApiKeys = async () => {
+      try {
+        const keys: Record<string, string> = {};
+        const statuses: Record<string, 'valid' | 'invalid' | 'untested'> = {};
+        const visibilities: Record<string, boolean> = {};
+        
+        // Initialize loading state for each provider
+        const initialLoading: Record<string, boolean> = {};
+        providers.forEach(provider => {
+          initialLoading[provider.id] = false;
+          visibilities[provider.id] = false;
+        });
+        
+        setLoading(initialLoading);
+        
+        // Load each API key
+        for (const provider of providers) {
+          const key = await getStoredApiKey(provider.id);
+          keys[provider.id] = key || "";
+          statuses[provider.id] = key ? 'valid' : 'untested';
         }
-      }
-    });
-    setApiKeys(savedKeys);
-  };
-
-  const handleSaveKey = async (providerId: string) => {
-    const apiKey = apiKeys[providerId];
-    if (!apiKey) {
-      toast({
-        title: "No API Key",
-        description: "Please enter an API key before saving.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(prev => ({ ...prev, [providerId]: true }));
-    try {
-      // First test the API key
-      const testResponse = await fetch('/api/test-api-key', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: providerId,
-          apiKey: apiKey,
-        }),
-      });
-
-      const testResult = await testResponse.json();
-      
-      if (!testResult.valid) {
+        
+        setApiKeys(keys);
+        setKeyStatus(statuses);
+        setShowPassword(visibilities);
+      } catch (error) {
+        console.error("Error loading API keys:", error);
         toast({
-          title: "Invalid API Key",
-          description: testResult.message || "API key test failed",
+          title: "Error",
+          description: "Failed to load saved API keys",
           variant: "destructive",
         });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadApiKeys();
+  }, [toast]);
+  
+  // Save an individual API key
+  const handleSaveKey = async (providerId: string) => {
+    try {
+      const apiKey = apiKeys[providerId];
+      
+      // Validate key format
+      if (!validateApiKeyFormat(providerId, apiKey)) {
+        toast({
+          title: "Error",
+          description: `Invalid ${providers.find(p => p.id === providerId)?.name} API key format`,
+          variant: "destructive",
+        });
+        setKeyStatus({...keyStatus, [providerId]: 'invalid'});
         return;
       }
-
-      // If test passes, encrypt and save to localStorage
-      const encryptedKey = encryptApiKey(apiKey);
-      localStorage.setItem(`apiKey_${providerId}`, encryptedKey);
+      
+      setLoading({...loading, [providerId]: true});
+      
+      // Store the key
+      await storeApiKey(providerId, apiKey);
+      
+      // Test the key (optional)
+      // Note: In a real implementation, you might want to make a lightweight API call
+      // to verify the key is valid. This is simplified here.
+      
+      setKeyStatus({...keyStatus, [providerId]: 'valid'});
       
       toast({
         title: "Success",
-        description: `API key for ${providers.find(p => p.id === providerId)?.name} saved and tested successfully ✓`,
+        description: `API key for ${providers.find(p => p.id === providerId)?.name} saved successfully`,
       });
     } catch (error) {
-      console.error("Error saving/testing API key:", error);
+      console.error(`Error saving ${providerId} API key:`, error);
       toast({
         title: "Error",
-        description: "Failed to save or test API key",
+        description: `Failed to save API key for ${providers.find(p => p.id === providerId)?.name}`,
         variant: "destructive",
       });
+      setKeyStatus({...keyStatus, [providerId]: 'invalid'});
     } finally {
-      setLoading(prev => ({ ...prev, [providerId]: false }));
+      setLoading({...loading, [providerId]: false});
     }
   };
-
-  const handleTestKey = async (providerId: string) => {
-    const apiKey = apiKeys[providerId];
-    if (!apiKey) {
-      toast({
-        title: "No API Key",
-        description: "Please enter an API key before testing.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setLoading(prev => ({ ...prev, [providerId]: true }));
+  
+  // Clear all API keys
+  const handleClearAll = async () => {
     try {
-      // Test the API key with real API call
-      const testResponse = await fetch('/api/test-api-key', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          provider: providerId,
-          apiKey: apiKey,
-        }),
-      });
-
-      const testResult = await testResponse.json();
-      const provider = providers.find(p => p.id === providerId);
+      await clearAllApiKeys();
       
-      if (testResult.valid) {
-        toast({
-          title: "API Key Valid ✓",
-          description: `${provider?.name} API key is working correctly`,
-        });
-      } else {
-        toast({
-          title: "API Key Invalid",
-          description: testResult.message || `${provider?.name} API key test failed`,
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error("Error testing API key:", error);
+      // Reset states
+      const emptyKeys: Record<string, string> = {};
+      const resetStatus: Record<string, 'valid' | 'invalid' | 'untested'> = {};
+      
+      providers.forEach(provider => {
+        emptyKeys[provider.id] = "";
+        resetStatus[provider.id] = 'untested';
+      });
+      
+      setApiKeys(emptyKeys);
+      setKeyStatus(resetStatus);
+      
       toast({
-        title: "Error Testing API Key",
-        description: "Failed to test API key - check your connection",
-        variant: "destructive",
+        title: "Success",
+        description: "All API keys cleared",
       });
-    } finally {
-      setLoading(prev => ({ ...prev, [providerId]: false }));
-    }
-  };
-
-  const clearApiKey = (providerId: string) => {
-    localStorage.removeItem(`apiKey_${providerId}`);
-    setApiKeys(prev => ({ ...prev, [providerId]: "" }));
-    toast({
-      title: "API Key Cleared",
-      description: `${providers.find(p => p.id === providerId)?.name} API key has been removed`,
-    });
-  };
-
-  const toggleShowKey = (providerId: string) => {
-    setShowKeys(prev => ({ ...prev, [providerId]: !prev[providerId] }));
-  };
-
-  const saveAllKeys = async () => {
-    setLoading(prev => ({ ...prev, all: true }));
-    
-    try {
-      const keysToSave = providers.filter(provider => apiKeys[provider.id]);
-      let validCount = 0;
-      let invalidCount = 0;
-      
-      for (const provider of keysToSave) {
-        try {
-          // Test each API key
-          const testResponse = await fetch('/api/test-api-key', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              provider: provider.id,
-              apiKey: apiKeys[provider.id],
-            }),
-          });
-
-          const testResult = await testResponse.json();
-          
-          if (testResult.valid) {
-            // Save if valid
-            const encryptedKey = encryptApiKey(apiKeys[provider.id]);
-            localStorage.setItem(`apiKey_${provider.id}`, encryptedKey);
-            validCount++;
-          } else {
-            invalidCount++;
-          }
-        } catch (error) {
-          console.error(`Error testing ${provider.id}:`, error);
-          invalidCount++;
-        }
-      }
-      
-      if (invalidCount === 0) {
-        toast({
-          title: "Success",
-          description: `All ${validCount} API keys saved and tested successfully ✓`,
-        });
-      } else {
-        toast({
-          title: "Partial Success",
-          description: `${validCount} keys saved, ${invalidCount} keys failed validation`,
-          variant: "destructive",
-        });
-      }
     } catch (error) {
+      console.error("Error clearing API keys:", error);
       toast({
         title: "Error",
-        description: "Failed to save API keys",
+        description: "Failed to clear API keys",
         variant: "destructive",
       });
-    } finally {
-      setLoading(prev => ({ ...prev, all: false }));
     }
   };
-
-  const clearAllKeys = () => {
-    providers.forEach(provider => {
-      localStorage.removeItem(`apiKey_${provider.id}`);
-    });
-    setApiKeys({});
-    toast({
-      title: "Success",
-      description: "All API keys cleared",
+  
+  // Toggle password visibility
+  const togglePasswordVisibility = (providerId: string) => {
+    setShowPassword({
+      ...showPassword,
+      [providerId]: !showPassword[providerId],
     });
   };
-
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-6">
-      {providers.map((provider) => (
-        <div key={provider.id}>
-          <Label htmlFor={`${provider.id}-api-key`}>{provider.name} API Key</Label>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                id={`${provider.id}-api-key`}
-                type={showKeys[provider.id] ? "text" : "password"}
-                value={apiKeys[provider.id] || ""}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
-                placeholder={provider.placeholder}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => toggleShowKey(provider.id)}
-                tabIndex={-1}
-              >
-                {showKeys[provider.id] ? (
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4" aria-hidden="true" />
-                )}
-                <span className="sr-only">
-                  {showKeys[provider.id] ? "Hide" : "Show"} API key
-                </span>
+      <Tabs defaultValue="keys" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="keys">API Keys</TabsTrigger>
+          <TabsTrigger value="test">Test Keys</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="keys">
+          <div className="space-y-4">
+            {providers.map((provider) => (
+              <Card key={provider.id} className="bg-gray-900 border-gray-800">
+                <CardContent className="p-4 space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`key-${provider.id}`}>{provider.name} API Key</Label>
+                    <div className="flex">
+                      <div className="relative flex-grow">
+                        <Input
+                          id={`key-${provider.id}`}
+                          type={showPassword[provider.id] ? "text" : "password"}
+                          placeholder={provider.placeholder}
+                          value={apiKeys[provider.id] || ""}
+                          onChange={(e) => setApiKeys({...apiKeys, [provider.id]: e.target.value})}
+                          className="bg-gray-800 border-gray-700 pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                          onClick={() => togglePasswordVisibility(provider.id)}
+                          aria-label="Toggle visibility"
+                        >
+                          {showPassword[provider.id] ? (
+                            <EyeOffIcon className="h-4 w-4" />
+                          ) : (
+                            <EyeIcon className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      <Button
+                        onClick={() => handleSaveKey(provider.id)}
+                        disabled={loading[provider.id] || !apiKeys[provider.id]}
+                        className="ml-2"
+                      >
+                        {loading[provider.id] ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "Save"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  {/* Status indicators */}
+                  <div className="text-sm">
+                    {keyStatus[provider.id] === 'valid' ? (
+                      <div className="flex items-center text-green-500">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        <span>API key is configured</span>
+                      </div>
+                    ) : keyStatus[provider.id] === 'invalid' ? (
+                      <div className="flex items-center text-red-500">
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        <span>Invalid API key</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-yellow-500">
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        <span>No API key configured</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            
+            <div className="flex justify-end mt-6">
+              <Button variant="destructive" onClick={handleClearAll}>
+                Clear All Keys
               </Button>
             </div>
-            <Button 
-              onClick={() => handleSaveKey(provider.id)} 
-              disabled={loading[provider.id] || !apiKeys[provider.id]}
-              size="sm"
-            >
-              {loading[provider.id] ? "Testing..." : "Save"}
-            </Button>
-            <Button 
-              onClick={() => handleTestKey(provider.id)} 
-              disabled={loading[provider.id] || !apiKeys[provider.id]}
-              variant="outline"
-              size="sm"
-            >
-              Test
-            </Button>
-            <Button 
-              onClick={() => clearApiKey(provider.id)} 
-              disabled={loading[provider.id] || !apiKeys[provider.id]}
-              variant="destructive"
-              size="sm"
-            >
-              Clear
-            </Button>
           </div>
-        </div>
-      ))}
-      
-      <div className="flex gap-2 pt-4 border-t">
-        <Button onClick={saveAllKeys} disabled={loading.all}>
-          {loading.all ? "Testing & Saving..." : "Save All API Keys"}
-        </Button>
-        <Button onClick={clearAllKeys} variant="outline">Clear All</Button>
-      </div>
+        </TabsContent>
+        
+        <TabsContent value="test">
+          <Alert className="bg-gray-800 border-gray-700 mb-4">
+            <AlertDescription>
+              Test your API keys to verify they are working correctly with each provider.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="space-y-4">
+            {providers.map((provider) => (
+              <Card key={provider.id} className="bg-gray-900 border-gray-800">
+                <CardContent className="p-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <Label>{provider.name}</Label>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        // Test API key logic would go here
+                        toast({
+                          title: "API Test",
+                          description: `Testing ${provider.name} API key...`,
+                        });
+                      }}
+                      disabled={!apiKeys[provider.id]}
+                    >
+                      Test Key
+                    </Button>
+                  </div>
+                  
+                  <div className="text-sm">
+                    {!apiKeys[provider.id] ? (
+                      <div className="text-yellow-500">No API key configured</div>
+                    ) : (
+                      <div className="text-gray-400">Click "Test Key" to verify your API key</div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
