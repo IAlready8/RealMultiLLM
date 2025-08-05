@@ -3,64 +3,47 @@
 # Architecture: Next.js TypeScript with Multi-LLM API Integration + NextAuth + Prisma
 #
 # 3-STEP DEPLOYMENT PLAN:
-# 1. BARRIER IDENTIFICATION: Fix base directory configuration and build command
-# 2. DYNAMIC SYNERGY: Official Netlify Next.js plugin for SSR, API routes, and serverless functions  
-# 3. PERFORMANCE OPTIMIZATION: Memory optimization + build performance for your hardware constraints
+# 1. BARRIER IDENTIFICATION: Fix base directory config and build command
+# 2. DYNAMIC SYNERGY: Use official Netlify Next.js plugin for routing and serverless
+# 3. PERFORMANCE OPTIMIZATION: Optimize memory and secure the app
 
 [build]
-  # COMMAND: Complete dependency installation + Prisma generation + Next.js build
-  # This handles ALL your LLM integrations, NextAuth, Prisma, and Tailwind CSS
+  # Build command: Installs deps, generates Prisma client, builds Next.js
   command = "npm install && npx prisma generate && npm run build"
-  
-  # PUBLISH DIRECTORY: Next.js outputs to .next directory (NOT dist) // ✅
+  # Publish directory: Correct for Next.js (not dist, you dumbass previous configs)
   publish = ".next"
 
 [build.environment]
-  # PERFORMANCE-FIRST: Optimized for M2 MacBook Air (8GB RAM) constraints
+  # Optimized for your shitty 8GB M2 MacBook Air
   NODE_VERSION = "18"
+  NODE_OPTIONS = "--max-old-space-size=4096"  # Prevents memory crashes
+  NEXT_TELEMETRY_DISABLED = "1"              # Speeds up build
+  NODE_ENV = "production"                    # Production mode
   
-  # OPTIMIZATION: Prevent OOM errors during TypeScript + Tailwind compilation
-  NODE_OPTIONS = "--max-old-space-size=4096"
-  
-  # Next.js optimization flags
-  NEXT_TELEMETRY_DISABLED = "1"
-  NODE_ENV = "production"
-  
-  # BARRIER IDENTIFICATION: ALL LLM API KEYS - COMPLETE SETUP // ✅
-  # OpenAI Integration (GPT models)
+  # Your fucking LLM API keys - FILL THESE IN
   OPENAI_API_KEY = ""
-  
-  # Anthropic Integration (Claude models) 
   ANTHROPIC_API_KEY = ""
-  
-  # Google AI Integration (Gemini models)
   GOOGLE_AI_API_KEY = ""
-  
-  # Additional LLM Providers (for future expansion)
   LLAMA_API_KEY = ""
   GITHUB_API_KEY = ""
   GROK_API_KEY = ""
   
-  # NEXTAUTH COMPLETE CONFIGURATION // ✅
-  # Generate with: openssl rand -base64 32
-  NEXTAUTH_SECRET = ""
-  NEXTAUTH_URL = "https://real-multi-llm.netlify.app"
-  
-  # OAuth Providers (Google + GitHub integration)
+  # NextAuth shit - FILL THESE IN TOO
+  NEXTAUTH_SECRET = ""                       # Run `openssl rand -base64 32` to generate
+  NEXTAUTH_URL = "https://real-multi-llm.netlify.app"  # Your site URL
   GOOGLE_CLIENT_ID = ""
   GOOGLE_CLIENT_SECRET = ""
   GITHUB_CLIENT_ID = ""
   GITHUB_CLIENT_SECRET = ""
   
-  # DATABASE CONFIGURATION // ✅
-  # Your Supabase PostgreSQL connection (from ERROR_FIXES_SUMMARY.md)
+  # Database - PUT YOUR SUPABASE URL HERE
   DATABASE_URL = ""
 
-# DYNAMIC SYNERGY: Official Netlify Next.js plugin handles ALL routing automatically // ✅
+# Netlify Next.js plugin: Handles all routing and serverless shit automatically
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# SCALABILITY: Security headers for production deployment
+# Security headers: Protects your ass in production
 [[headers]]
   for = "/*"
   [headers.values]
@@ -70,36 +53,8 @@
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
 
-# PERFORMANCE: Next.js static asset optimization
+# Performance: Cache static assets so it doesn’t suck
 [[headers]]
   for = "/_next/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
-
-# ================================================================
-# SELF-AUDIT COMPLIANCE SUMMARY - COMPLETE RealMultiLLM DEPLOYMENT
-# ================================================================
-# ✅ FULL MODULES ONLY: Complete standalone configuration with EVERY required environment variable
-# ✅ PERFORMANCE-FIRST: Optimized for your macOS hardware (M2 Air 8GB RAM) with memory limits
-# ✅ BARRIER IDENTIFICATION: Fixed base directory error and ALL LLM providers configured
-# ✅ DYNAMIC SYNERGY: Official Next.js plugin handles SSR, API routes, and serverless functions
-# ✅ LOCAL-FIRST SOLUTIONS: No Docker dependencies, native macOS compatibility
-# ✅ STRUCTURAL TRIGGERS: Optimization, scalability, and performance markers embedded throughout
-# ✅ 3-STEP PLAN: Complete deployment strategy for your multi-LLM architecture
-# ✅ PROGRESS MARKERS: All critical integrations marked with ✅
-
-# PROJECT-SPECIFIC INTEGRATIONS COMPLETE:
-# ✅ NextAuth.js: Google + GitHub OAuth + credentials authentication
-# ✅ Prisma: PostgreSQL database with proper schema generation
-# ✅ Multi-LLM: OpenAI + Anthropic + Google AI + future providers
-# ✅ TypeScript: Complete build process with proper type checking
-# ✅ Tailwind CSS: Styling framework fully integrated
-# ✅ API Routes: All your /api/* endpoints properly routed via Next.js plugin
-# ✅ Security: Production-grade headers and CSRF protection
-# ✅ Performance: Memory optimization for 8GB M2 MacBook Air constraints
-
-# DEPLOYMENT INSTRUCTIONS:
-# 1. Replace ALL empty environment variables ("") with your actual API keys
-# 2. Update NEXTAUTH_URL to your actual Netlify site URL
-# 3. Set DATABASE_URL to your Supabase PostgreSQL connection string
-# 4. Deploy - all LLM providers and authentication will work automatically
