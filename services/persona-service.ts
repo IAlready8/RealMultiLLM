@@ -46,9 +46,9 @@ export async function createPersona(data: CreatePersonaRequest): Promise<Persona
   return response.json();
 }
 
-export async function updatePersona(data: UpdatePersonaRequest): Promise<Persona> {
-  const response = await fetch("/api/personas", {
-    method: "PUT",
+export async function updatePersona(id: string, data: Partial<UpdatePersonaRequest>): Promise<Persona> {
+  const response = await fetch(`/api/personas/${id}`, {
+    method: "PATCH",
     headers: {
       "Content-Type": "application/json",
     },
@@ -64,7 +64,7 @@ export async function updatePersona(data: UpdatePersonaRequest): Promise<Persona
 }
 
 export async function deletePersona(id: string): Promise<void> {
-  const response = await fetch(`/api/personas?id=${id}`, {
+  const response = await fetch(`/api/personas/${id}`, {
     method: "DELETE",
   });
   
@@ -103,6 +103,18 @@ export const DEFAULT_PERSONAS: Omit<CreatePersonaRequest, 'userId'>[] = [
   }
 ];
 
-export function applyPersonaPrompt(persona: Persona, userPrompt: string): string {
-  return `${persona.prompt}\n\nUser Request: ${userPrompt}`;
+export function getDefaultPersonas() {
+  return DEFAULT_PERSONAS;
+}
+
+export function applyPersonaPrompt(messages: any[], persona: Persona | null) {
+  if (!persona) {
+    return messages;
+  }
+
+  const systemMessage = { role: 'system', content: persona.prompt };
+
+  const otherMessages = messages.filter(m => m.role !== 'system');
+
+  return [systemMessage, ...otherMessages];
 }

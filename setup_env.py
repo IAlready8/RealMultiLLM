@@ -11,22 +11,24 @@ import sys
 import platform
 from pathlib import Path
 
+
 def setup_macos_environment():
     """LOCAL-FIRST environment setup for macOS 12+ with performance optimization"""
-    
+
     # Barrier identification: Memory constraints on M2 MacBook Air (8GB)
     print("🔍 Detecting macOS environment...")
-    
+
     if platform.system() != "Darwin":
         raise RuntimeError("This setup is optimized for macOS only")
-    
+
     # Create virtual environment with minimal overhead
     subprocess.run([sys.executable, "-m", "venv", "venv"], check=True)
-    
+
     # Upgrade pip for performance optimization
     subprocess.run(["venv/bin/pip", "install", "--upgrade", "pip"], check=True)
-    
+
     print("✅ Native macOS environment configured")
+
 
 if __name__ == "__main__":
     setup_macos_environment()
