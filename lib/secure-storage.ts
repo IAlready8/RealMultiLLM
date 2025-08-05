@@ -90,7 +90,7 @@ export async function encryptString(text: string, password: string = 'default-ap
     combinedData.set(iv);
     combinedData.set(new Uint8Array(encryptedData), iv.length);
     
-    return arrayBufferToBase64(combinedData);
+    return arrayBufferToBase64(combinedData.buffer);
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt data');
