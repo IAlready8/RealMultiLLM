@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 3-STEP PLAN:
+  // 1. Optimize for constrained hardware (8GB RAM)
+  // 2. Enable proper testing support
+  // 3. Configure for both development and production
+  
   reactStrictMode: true,
   swcMinify: true,
   images: {
@@ -38,6 +43,13 @@ const nextConfig = {
   },
   // Improve production performance
   productionBrowserSourceMaps: false,
+  // Enable easier debugging in development
+  typescript: {
+    ignoreBuildErrors: process.env.NODE_ENV === 'development',
+  },
+  eslint: {
+    ignoreDuringBuilds: process.env.NODE_ENV === 'development',
+  },
 };
 
 module.exports = nextConfig;
