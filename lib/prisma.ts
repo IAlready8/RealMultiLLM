@@ -28,7 +28,6 @@ export const prisma =
     },
     // optimization: Memory management for limited RAM environments
     // Only acquire connections when needed and release promptly
-    connectionLimit: 5,
   });
 
 // scalability: Gracefully handle connection errors
