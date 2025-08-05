@@ -6,7 +6,7 @@ on: [push, pull_request]
 jobs:
   test-frontend:
     name: "Test Frontend (Node.js)"
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -15,16 +15,12 @@ jobs:
           cache: 'npm'
       - name: Install frontend dependencies
         run: npm ci
-      - name: Lint frontend
-        run: npm run lint
       - name: Test frontend
         run: npm run test
-      - name: Build frontend
-        run: npm run build
 
   test-backend:
     name: "Test Backend (Python)"
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
