@@ -1,38 +1,84 @@
-name: CI
+name: CI/CD Pipeline
 
-on: [push, pull_request]
+# 3-STEP PLAN:
+# 1. Configure GitHub Actions to run tests on pull requests and merges to main
+# 2. Set up caching for faster builds
+# 3. Add deployment to Netlify on successful main branch builds
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
 
 jobs:
-  test-frontend:
-    name: "Test Frontend (Node.js)"
+  test:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - name: Install frontend dependencies
-        run: npm ci
-      - name: Test frontend
-        run: npm run test
+    
+    # optimization: Use smaller resource class for CI
+    resource_class: medium
 
-  test-backend:
-    name: "Test Backend (Python)"
-    runs-on: ubuntu-latest
+    env:
+      # optimization: Limit memory usage
+      NODE_OPTIONS: "--max-old-space-size=4096"
+      # Use test database
+      DATABASE_URL: "file:./test.db"
+      # Add a dummy secret for tests
+      NEXTAUTH_SECRET: "test-secret-do-not-use-in-production"
+      NEXTAUTH_URL: "http://localhost:3000"
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    - name: Install backend dependencies
-      run: pip install -r requirements.txt
-    - name: Run Linters and Formatters
-      run: |
-        black --check .
-        flake8 .
-        mypy src/
-    - name: Run Tests with Coverage
-      run: pytest --cov=src
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Generate Prisma client
+        run: npx prisma generate
+      
+      - name: Run type checking
+        run: npm run type-check
+        
+      - name: Run ESLint
+        run: npm run lint
+        
+      - name: Run tests
+        run: npm run test:ci
+  
+  # Only deploy on push to main/master
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v3
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Generate Prisma client
+        run: npx prisma generate
+        
+      - name: Build
+        run: npm run build
+        
+      - name: Deploy to Netlify
+        uses: netlify/actions/cli@master
+        with:
+          args: deploy --prod
+        env:
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
