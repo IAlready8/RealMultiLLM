@@ -3,34 +3,36 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  web-tests:
-    runs-on: macos-latest
+  test-frontend:
+    name: "Test Frontend (Node.js)"
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npm run lint
-      - run: npm run type-check || true
-      - run: npm run test:ci || npm run test || true
-      - run: npm run build
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Test frontend
+        run: npm run test
 
-  python-tests:
-    runs-on: macos-latest
+  test-backend:
+    name: "Test Backend (Python)"
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Install backend dependencies
-        run: pip install -r requirements.txt
-      - name: Run Linters and Formatters
-        run: |
-          black --check .
-          flake8 .
-          mypy src/
-      - name: Run Tests with Coverage
-        run: pytest --cov=src
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    - name: Install backend dependencies
+      run: pip install -r requirements.txt
+    - name: Run Linters and Formatters
+      run: |
+        black --check .
+        flake8 .
+        mypy src/
+    - name: Run Tests with Coverage
+      run: pytest --cov=src

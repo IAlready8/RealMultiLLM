@@ -5,26 +5,11 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: 'jsdom',
-    setupFiles: ['./test/setup.tsx'],
     globals: true,
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'test/',
-        '**/*.d.ts',
-        '**/*.config.*',
-        'coverage/**',
-        '.next/**',
-        'prisma/**'
-      ]
-    }
-  },
-  resolve: {
+    environment: 'jsdom',
+    setupFiles: './test/setup.tsx',
     alias: {
-      '@': path.resolve(__dirname, './'),
-    },
-  },
+      '@': path.resolve(__dirname, './')
+    }
+  }
 })
