@@ -1,4 +1,4 @@
-{
+echo '{
   "compilerOptions": {
     "target": "es2015",
     "lib": [
@@ -25,9 +25,13 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./app/*"
-      ]
+      "@/*": ["./*"],
+      "@/app/*": ["app/*"],
+      "@/components/*": ["components/*"],
+      "@/lib/*": ["lib/*"],
+      "@/services/*": ["services/*"],
+      "@/hooks/*": ["hooks/*"],
+      "@/test/*": ["test/*"]
     }
   },
   "include": [
@@ -39,4 +43,4 @@
   "exclude": [
     "node_modules"
   ]
-}
+}' > tsconfig.json
