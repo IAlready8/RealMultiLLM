@@ -148,3 +148,6 @@ async function callClaude(
     }
   };
 }
+
+// Alias for compatibility with existing code
+export const callLLMApi = callLLM;

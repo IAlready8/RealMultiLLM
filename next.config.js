@@ -1,54 +1,90 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 3-STEP PLAN:
-  // 1. Optimize for constrained hardware (8GB RAM)
-  // 2. Enable proper testing support
-  // 3. Configure for both development and production
+  // Optimized Next.js configuration for constrained hardware
+  // Target: 8GB RAM MacBook Air M2 + 16GB MacBook Pro 2013
   
   reactStrictMode: true,
   swcMinify: true,
+  
   images: {
     domains: ['avatars.githubusercontent.com', 'lh3.googleusercontent.com'],
+    // Optimize image loading
+    deviceSizes: [640, 750, 828, 1080, 1200],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
+  
   experimental: {
-    // Optimize for 8GB RAM machines
+    // Memory optimizations for 8GB RAM
     optimizeCss: true,
     scrollRestoration: true,
     serverActions: {
-      bodySizeLimit: '2mb', // Limit request size for better performance
+      bodySizeLimit: '2mb',
     },
   },
-  // Add analyzer in development mode only
+  
+  // Webpack optimizations
   webpack: (config, { dev, isServer }) => {
-    // Performance optimizations
+    // Memory-efficient chunk splitting
     config.optimization = {
       ...config.optimization,
-      // Avoid large chunks
       splitChunks: {
         chunks: 'all',
+        minSize: 20000,
+        maxSize: 70000,
         maxInitialRequests: 25,
         maxAsyncRequests: 25,
-        minSize: 20000,
-        maxSize: 80000,
+        cacheGroups: {
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: 'vendors',
+            priority: 10,
+            chunks: 'all',
+          },
+          common: {
+            name: 'common',
+            minChunks: 2,
+            chunks: 'all',
+            priority: 5,
+            reuseExistingChunk: true,
+            enforce: true,
+          },
+        },
       },
     };
 
+    // Disable source maps in production for memory efficiency
+    if (!dev) {
+      config.devtool = false;
+    }
+
     return config;
   },
-  // Optional: Enable strict mode in development only
+  
+  // Compiler optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {
       exclude: ['error', 'warn'],
     } : false,
   },
-  // Improve production performance
+  
+  // Performance optimizations
   productionBrowserSourceMaps: false,
-  // Enable easier debugging in development
+  poweredByHeader: false,
+  
+  // Development optimizations
   typescript: {
     ignoreBuildErrors: process.env.NODE_ENV === 'development',
   },
   eslint: {
     ignoreDuringBuilds: process.env.NODE_ENV === 'development',
+  },
+  
+  // Output configuration for static deployment
+  output: 'standalone',
+  
+  // Environment variables
+  env: {
+    NEXT_TELEMETRY_DISABLED: '1',
   },
 };
 

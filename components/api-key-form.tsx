@@ -284,7 +284,7 @@ export default function ApiKeyForm() {
                     {!apiKeys[provider.id] ? (
                       <div className="text-yellow-500">No API key configured</div>
                     ) : (
-                      <div className="text-gray-400">Click "Test Key" to verify your API key</div>
+                      <div className="text-gray-400">Click &ldquo;Test Key&rdquo; to verify your API key</div>
                     )}
                   </div>
                 </CardContent>
