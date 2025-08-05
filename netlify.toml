@@ -1,12 +1,5 @@
-
-
 # RealMultiLLM Netlify Configuration
-# Target Environment: macOS 12+ | 2013 MacBook Pro (16GB) + 2022 M2 MacBook Air (8GB)
-
-# 3-STEP DEPLOYMENT PLAN:
-# 1. Configure build settings for Next.js
-# 2. Set up proper environment variables handling
-# 3. Add security headers and performance optimizations
+# Optimized for deployment environments with limited resources
 
 [build]
   command = "npm run build"
@@ -14,20 +7,21 @@
   
 [build.environment]
   NODE_VERSION = "18"
-  # optimization: Allocate maximum memory for build process while leaving room for system
+  # Optimize memory usage for constrained environments (8GB RAM)
   NODE_OPTIONS = "--max-old-space-size=4096"
   # Disable telemetry for faster builds
   NEXT_TELEMETRY_DISABLED = "1"
   # Use production mode
   NODE_ENV = "production"
-  # scalability: Use environment variables from Netlify UI for sensitive values
 
-# IMPORTANT: Set the following environment variables in the Netlify UI:
-# - DATABASE_URL (PostgreSQL connection string)
+# IMPORTANT: Set these environment variables in the Netlify UI:
+# - DATABASE_URL (your database connection string)
 # - NEXTAUTH_SECRET (generate with `openssl rand -base64 32`)
-# - NEXTAUTH_URL (your site URL)
-# - OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY
-# - OAuth credentials if using social login
+# - NEXTAUTH_URL (your deployed site URL, e.g., https://your-app.netlify.app)
+# - OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY (your API keys)
+# - OAuth credentials if using social login:
+#   - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+#   - GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -35,7 +29,7 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    # security: Add security headers
+    # Security headers
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
@@ -46,52 +40,11 @@
 [[headers]]
   for = "/_next/static/*"
   [headers.values]
-    # optimization: Add caching for static assets
+    # Cache static assets for performance
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Optional: Create redirects if needed
+# Redirect API routes to serverless functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
-
-
-
-
-
-
-
-
-# -------------------
-
-
-
-
-
-
-
-#[build]
-#  command = "npm install && npx prisma generate && npm run build"
-#  publish = ".next"
-
-#[build.environment]
-  #NODE_VERSION = "18"
-  #NODE_OPTIONS = "--max-old-space-size=4096"
-  #NEXT_TELEMETRY_DISABLED = "1"
- # NODE_ENV = "production"
-#  NEXTAUTH_URL = "https://real-multi-llm.netlify.app"  # Update this to your actual site URL
-
-# IMPORTANT: Set the following sensitive environment variables in the Netlify UI under "Environment variables":
-# - OPENAI_API_KEY = " "
-# - ANTHROPIC_API_KEY
-# - GOOGLE_AI_API_KEY = " "
-# - LLAMA_API_KEY (if using)
-# - GITHUB_API_KEY (if using)
-# - GROK_API_KEY (if using)
-#NEXTAUTH_SECRET = "+67MKOk8aZcQxYj7djM9K9HSYquiJ17Fk0JtJqWzxYY="  #(generate with `openssl rand -base64 32`)
-# - GOOGLE_CLIENT_ID
-# - GOOGLE_CLIENT_SECRET
-# - GITHUB_CLIENT_ID
-# - GITHUB_CLIENT_SECRET
-# - DATABASE_URL (your Supabase PostgreSQL connection string)
-
