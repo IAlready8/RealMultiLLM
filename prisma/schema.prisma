@@ -1,25 +1,48 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
 }
 
+// Use environment variable to switch between SQLite (development) and PostgreSQL (production)
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model (extended from NextAuth)
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  goals         Goal[]
+  personas      Persona[]
+  analytics     Analytics[]
+}
+
+// NextAuth models
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -34,21 +57,6 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // For credential-based authentication
-  accounts      Account[]
-  sessions      Session[]
-  conversations Conversation[]
-  providerConfigs ProviderConfig[]
-  goals         Goal[]
-  personas      Persona[]
-}
-
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -57,53 +65,37 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Conversation {
-  id        String   @id @default(cuid())
-  title     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  String
-}
-
-model ProviderConfig {
-  id        String   @id @default(cuid())
-  provider  String
-  apiKey    String?
-  settings  String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, provider])
-}
-
-model Analytics {
-  id        String   @id @default(cuid())
-  event     String
-  payload   String?
-  createdAt DateTime @default(now())
-  userId    String
-}
-
+// Application models
 model Goal {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   title       String
-  description String?
-  status      String    @default("pending")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  description String?  @db.Text
+  status      String   @default("pending") // "pending" or "completed"
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Persona {
   id          String   @id @default(cuid())
   title       String
-  description String?
-  prompt      String
+  description String?  @db.Text
+  prompt      String   @db.Text
+  userId      String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Analytics {
+  id        String   @id @default(cuid())
+  event     String
+  payload   Json?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
