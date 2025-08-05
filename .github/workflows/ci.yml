@@ -32,14 +32,12 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    - name: Install Poetry
-      run: pip install poetry
     - name: Install backend dependencies
-      run: poetry install
+      run: pip install -r requirements.txt
     - name: Run Linters and Formatters
       run: |
-        poetry run black --check .
-        poetry run flake8 .
-        poetry run mypy src/
+        black --check .
+        flake8 .
+        mypy src/
     - name: Run Tests with Coverage
-      run: poetry run pytest --cov=src
+      run: pytest --cov=src
