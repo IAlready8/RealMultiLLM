@@ -17,38 +17,71 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: '2mb', // Limit request size for better performance
     },
+    // Reduce memory usage during development
+    esmExternals: 'loose',
   },
-  // Add analyzer in development mode only
+  
+  // Memory and performance optimizations
   webpack: (config, { dev, isServer }) => {
-    // Performance optimizations
+    // Performance optimizations for memory-constrained environments
     config.optimization = {
       ...config.optimization,
-      // Avoid large chunks
+      // Reduce bundle size and memory usage
       splitChunks: {
         chunks: 'all',
         maxInitialRequests: 25,
         maxAsyncRequests: 25,
         minSize: 20000,
         maxSize: 80000,
+        cacheGroups: {
+          // Separate vendor chunks for better caching
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: 'vendors',
+            priority: 10,
+            chunks: 'all',
+          },
+        },
       },
     };
 
+    // Reduce memory usage in development
+    if (dev) {
+      config.watchOptions = {
+        poll: 1000,
+        aggregateTimeout: 300,
+        ignored: ['**/node_modules', '**/.next'],
+      };
+    }
+
     return config;
   },
-  // Optional: Enable strict mode in development only
+  
+  // Build-time optimizations
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production' ? {
       exclude: ['error', 'warn'],
     } : false,
   },
+  
   // Improve production performance
   productionBrowserSourceMaps: false,
-  // Enable easier debugging in development
+  
+  // Enable easier debugging in development while being stricter in production
   typescript: {
     ignoreBuildErrors: process.env.NODE_ENV === 'development',
   },
   eslint: {
     ignoreDuringBuilds: process.env.NODE_ENV === 'development',
+  },
+  
+  // Output configuration
+  output: 'standalone',
+  
+  // Environment variables validation
+  env: {
+    // Add runtime environment variable validation
+    NODE_ENV: process.env.NODE_ENV,
   },
 };
 

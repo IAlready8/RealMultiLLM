@@ -19,18 +19,24 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules', 'test', '**/*.d.ts']
     },
-    threads: false, // Disable threading for more stable tests on limited RAM
-    maxConcurrency: 1, // Run tests sequentially to avoid memory issues
-    maxWorkers: 1, // Limit to 1 worker for smaller memory footprint
-    minThreads: 1,
-    isolate: false, // Disable isolation to reduce memory overhead
+    pool: 'forks', // Use forks instead of threads for better stability
+    poolOptions: {
+      forks: {
+        singleFork: true, // Use single fork for memory constraints
+      }
+    }
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, './app'),
-      '@components': resolve(__dirname, './components'),
-      '@lib': resolve(__dirname, './lib'),
-      '@services': resolve(__dirname, './services'),
+      '@': resolve(__dirname, '.'),
+      '@/app': resolve(__dirname, './app'),
+      '@/components': resolve(__dirname, './components'),
+      '@/lib': resolve(__dirname, './lib'),
+      '@/services': resolve(__dirname, './services'),
+      '@/hooks': resolve(__dirname, './hooks'),
+      '@/test': resolve(__dirname, './test'),
+      '@/types': resolve(__dirname, './types'),
+      '@/prisma': resolve(__dirname, './prisma'),
     }
   },
 })
