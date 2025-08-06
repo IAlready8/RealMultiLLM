@@ -20,7 +20,11 @@
     "setup": "./scripts/setup.sh",
     "deploy": "./scripts/deploy.sh",
     "audit:security": "npm audit --audit-level moderate",
-    "benchmark": "node scripts/benchmark.js"
+    "benchmark": "node scripts/benchmark.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
