@@ -104,14 +104,13 @@ export default function PersonasPage() {
         return;
       }
 
-      const updateData: UpdatePersonaRequest = {
-        id: selectedPersona.id,
+      const updateData = {
         title: formData.title.trim(),
         description: formData.description.trim() || undefined,
         prompt: formData.prompt.trim(),
       };
 
-      await updatePersona(updateData);
+      await updatePersona(selectedPersona.id, updateData);
       
       toast({
         title: "Success",

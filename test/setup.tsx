@@ -36,6 +36,23 @@ if (typeof window !== 'undefined') {
     });
   }
 
+  // Mock matchMedia for next-themes
+  if (!window.matchMedia) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: (query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: () => {}, // deprecated
+        removeListener: () => {}, // deprecated
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => {},
+      }),
+    });
+  }
+
   // Mock localStorage
   if (!window.localStorage) {
     Object.defineProperty(window, 'localStorage', {
@@ -55,6 +72,15 @@ if (typeof window !== 'undefined') {
         }
       }
     });
+  }
+
+  // Mock ResizeObserver
+  if (!window.ResizeObserver) {
+    window.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
   }
 }
 

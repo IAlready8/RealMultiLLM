@@ -20,10 +20,15 @@ export default defineConfig({
       exclude: ['node_modules', 'test', '**/*.d.ts']
     },
     // Memory optimizations for constrained hardware
-    threads: false, // Disable threading for more stable tests on limited RAM
+    pool: 'threads', // Use thread pool but limit workers
+    poolOptions: {
+      threads: {
+        maxThreads: 1,
+        minThreads: 1,
+        singleThread: true,
+      }
+    },
     maxConcurrency: 1, // Run tests sequentially to avoid memory issues
-    maxWorkers: 1, // Limit to 1 worker for smaller memory footprint
-    minThreads: 1,
     isolate: false, // Disable isolation to reduce memory overhead
   },
   resolve: {
