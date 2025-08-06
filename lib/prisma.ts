@@ -13,30 +13,42 @@ import { PrismaClient } from '@prisma/client';
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 // barrier-identification: Connection issues need proper handling
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === 'development'
-        ? ['query', 'error', 'warn']
-        : ['error'],
-    // optimization: Connection pooling settings optimized for local hardware
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
+// Wrap in try-catch to handle missing Prisma client during build
+let prisma: PrismaClient;
+
+try {
+  prisma = 
+    globalForPrisma.prisma ||
+    new PrismaClient({
+      log:
+        process.env.NODE_ENV === 'development'
+          ? ['query', 'error', 'warn']
+          : ['error'],
+      // optimization: Connection pooling settings optimized for local hardware
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL || 'file:./prisma/dev.db',
+        },
       },
-    },
-    // optimization: Memory management for limited RAM environments
-    // Only acquire connections when needed and release promptly
-  });
+      // optimization: Memory management for limited RAM environments
+      // Only acquire connections when needed and release promptly
+    });
 
-// scalability: Gracefully handle connection errors
-prisma.$connect()
-  .catch((error) => {
-    console.error('Failed to connect to the database:', error);
-    process.exit(1); // Exit if we can't connect to database
-  });
+  // scalability: Gracefully handle connection errors
+  prisma.$connect()
+    .catch((error: any) => {
+      console.error('Failed to connect to the database:', error);
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1); // Exit if we can't connect to database in production
+      }
+    });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+  if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+} catch (error) {
+  console.warn('Prisma client not available during build:', error);
+  // Create a mock client for build time
+  prisma = {} as PrismaClient;
+}
 
+export { prisma };
 export default prisma;

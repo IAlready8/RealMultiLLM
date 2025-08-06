@@ -1,13 +1,10 @@
 
 import type { Metadata } from "next";
-import { Inter } from 'next/font/google';
 import "./globals.css";
 import Navbar from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { AuthGuard } from "@/components/auth-guard";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "MultiLLM Chat Assistant",
@@ -21,7 +18,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-gray-950 text-white`}>
+      <body className="font-sans bg-gray-950 text-white">
         <AuthProvider>
           <ThemeProvider
             attribute="class"
