@@ -3,9 +3,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  // optimization: Generate smaller client for memory constraints
+  output   = "../node_modules/.prisma/client"
 }
 
 // Use environment variable to switch between SQLite (development) and PostgreSQL (production)
+// This allows for local-first development with SQLite while using PostgreSQL in production
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")

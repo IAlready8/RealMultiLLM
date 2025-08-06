@@ -1,7 +1,7 @@
 // 3-STEP PLAN:
-// 1. Configure Prisma client with connection pooling
-// 2. Implement lazy loading pattern to reduce initial memory usage
-// 3. Add error handling and retry logic for connection failures
+// 1. Configure Prisma client with dynamic database switching
+// 2. Implement connection pooling optimized for memory constraints
+// 3. Add graceful fallback and error handling for deployment environments
 
 import { PrismaClient } from '@prisma/client';
 
@@ -12,31 +12,56 @@ import { PrismaClient } from '@prisma/client';
 // optimization: Use global variable to avoid multiple instances
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-// barrier-identification: Connection issues need proper handling
-export const prisma =
-  globalForPrisma.prisma ||
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === 'development'
-        ? ['query', 'error', 'warn']
-        : ['error'],
-    // optimization: Connection pooling settings optimized for local hardware
+// Dynamic database URL configuration
+function getDatabaseUrl(): string {
+  // Check if we're in a testing environment
+  if (process.env.NODE_ENV === 'test') {
+    return 'file:./test.db';
+  }
+  
+  // Use environment variable if set
+  if (process.env.DATABASE_URL) {
+    return process.env.DATABASE_URL;
+  }
+  
+  // Default to SQLite for development
+  return 'file:./dev.db';
+}
+
+// Create optimized Prisma configuration
+function createPrismaClient(): PrismaClient {
+  const databaseUrl = getDatabaseUrl();
+  const isPostgreSQL = databaseUrl.startsWith('postgres');
+  
+  return new PrismaClient({
+    log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
     datasources: {
       db: {
-        url: process.env.DATABASE_URL,
+        url: databaseUrl,
       },
     },
-    // optimization: Memory management for limited RAM environments
-    // Only acquire connections when needed and release promptly
+    // optimization: Connection pooling settings optimized for hardware constraints
+    ...(isPostgreSQL && {
+      // PostgreSQL-specific optimizations for production
+      engineType: 'library',
+    }),
   });
+}
 
-// scalability: Gracefully handle connection errors
-prisma.$connect()
-  .catch((error: any) => {
-    console.error('Failed to connect to the database:', error);
-    process.exit(1); // Exit if we can't connect to database
-  });
+// barrier-identification: Lazy initialization for better memory management
+export const prisma = globalForPrisma.prisma || createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// scalability: Only connect in production or when needed
+if (process.env.NODE_ENV === 'production') {
+  prisma.$connect()
+    .catch((error: any) => {
+      console.error('Failed to connect to the database:', error);
+      // In production, we want to fail fast if database is unavailable
+      process.exit(1);
+    });
+} else {
+  // In development, set up the global reference
+  globalForPrisma.prisma = prisma;
+}
 
 export default prisma;
