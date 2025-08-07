@@ -1,71 +1,77 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { sendChatMessage } from "@/services/api-service";
+import { callLLMApi } from "@/services/api-client";
 import { recordAnalyticsEvent } from "@/services/analytics-service";
+import { createRequestLogger } from "@/lib/logger";
+
+// OVERWRITTEN FILE: app/api/llm/chat/route.ts (complete rewrite)
+// Adds centralized logging and supports new Ollama provider via callLLMApi.
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
-
   if (!session || !session.user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  const startTime = Date.now();
-
+  const reqId = crypto.randomUUID();
+  const log = createRequestLogger("/api/llm/chat", reqId);
+  const start = Date.now();
   let provider = "unknown";
-  
-  try {
-    const requestBody = await request.json();
-    provider = requestBody.provider;
-    const { messages, options } = requestBody;
 
+  try {
+    const body = await request.json();
+    provider = body.provider;
+    const { messages, options } = body;
     if (!provider || !messages) {
       return new NextResponse("Provider and messages are required", { status: 400 });
     }
 
-    const response = await sendChatMessage(provider, messages, options);
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
+    log.info({ provider, options }, "llm.chat.begin");
+    const formattedPrompt = messages.map((m: any) => m.content);
+    const systemMessage = messages.find((m: any) => m.role === "system");
+    const response = await callLLMApi(provider, formattedPrompt, {
+      ...options,
+      systemPrompt: systemMessage?.content || options?.systemPrompt,
+    });
 
-    // Record successful analytics event
+    const ms = Date.now() - start;
     await recordAnalyticsEvent({
       event: "llm_request",
       payload: {
         provider,
         model: options?.model || "default",
-        promptTokens: response.metadata?.promptTokens || 0,
-        completionTokens: response.metadata?.completionTokens || 0,
-        totalTokens: response.metadata?.totalTokens || 0,
-        responseTime,
-        success: true
+        promptTokens: response.usage?.promptTokens || 0,
+        completionTokens: response.usage?.completionTokens || 0,
+        totalTokens: response.usage?.totalTokens || 0,
+        responseTime: ms,
+        success: true,
       },
-      userId: session.user.id!
+      userId: session.user.id!,
     });
+    log.info({ ms }, "llm.chat.success");
 
-    return NextResponse.json(response);
+    return NextResponse.json({
+      role: "assistant",
+      content: response.text,
+      timestamp: Date.now(),
+      metadata: {
+        ...(response.usage || {}),
+        ...(response.metadata || {}),
+      },
+    });
   } catch (error: any) {
-    const endTime = Date.now();
-    const responseTime = endTime - startTime;
-    
-    console.error("Error in LLM chat API:", error);
-    
-    // Record error analytics event
+    const ms = Date.now() - start;
+    log.error({ error: error?.message, provider, ms }, "llm.chat.error");
     try {
       await recordAnalyticsEvent({
         event: "llm_error",
-        payload: {
-          provider,
-          error: error.message,
-          responseTime,
-          success: false
-        },
-        userId: session.user.id!
+        payload: { provider, error: error?.message || "Unknown", responseTime: ms, success: false },
+        userId: session.user.id!,
       });
-    } catch (analyticsError) {
-      console.error("Failed to record analytics event:", analyticsError);
-    }
-    
-    return new NextResponse(error.message || "Internal Server Error", { status: 500 });
+    } catch {}
+    return new NextResponse(error?.message || "Internal Server Error", { status: 500 });
   }
 }
+
+

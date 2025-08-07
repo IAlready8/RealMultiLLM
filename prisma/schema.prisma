@@ -99,3 +99,11 @@ model Analytics {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// NEW: Persist per-user model settings to avoid server-side localStorage
+model UserSettings {
+  userId        String  @id
+  modelSettings Json
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
