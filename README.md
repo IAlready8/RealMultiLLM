@@ -5,7 +5,6 @@
 
 ## 🚀 Quick Deploy
 
-### Option 1: One-Click Deploy to Netlify (Recommended)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/IAlready8/RealMultiLLM)
 
 **✨ One-click deployment includes:**
@@ -16,7 +15,8 @@
 - ✅ Continuous deployment from GitHub
 - ✅ Production-optimized performance settings
 
-### Option 2: Deploy to Other Platforms
+
+### Deploy to Other Platforms
 - **Vercel**: [Import Project](https://vercel.com/import/git?s=https://github.com/IAlready8/RealMultiLLM)  
 - **Railway**: [Deploy](https://railway.app/template/deploy?referrer=realmultillm)
 - **Render**: [Deploy](https://render.com/deploy?repo=https://github.com/IAlready8/RealMultiLLM)
@@ -113,6 +113,65 @@ npm run dev
 ```
 
 The application should now be running at [http://localhost:3000](http://localhost:3000).
+
+## 🌐 Production Deployment
+
+### Post-Deployment Configuration
+
+After deploying with the one-click button, complete these steps:
+
+#### 1. **Environment Variables Setup**
+Configure the following variables in your Netlify dashboard:
+
+| Variable | Description | Required | Example |
+|----------|-------------|----------|---------|
+| `NEXTAUTH_SECRET` | JWT signing secret | ✅ | Generate with `openssl rand -base64 32` |
+| `NEXTAUTH_URL` | Your deployment URL | ✅ | `https://your-app.netlify.app` |
+| `DATABASE_URL` | Database connection string | ✅ | `file:./dev.db` (or PostgreSQL) |
+| `OPENAI_API_KEY` | OpenAI API access | 🔹 | `sk-proj-...` |
+| `ANTHROPIC_API_KEY` | Claude API access | 🔹 | `sk-ant-api03-...` |
+| `GOOGLE_AI_API_KEY` | Google AI access | 🔹 | `AIza...` |
+| `GOOGLE_CLIENT_ID` | Google OAuth (optional) | ⚪ | OAuth app credentials |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth secret | ⚪ | OAuth app credentials |
+| `GITHUB_CLIENT_ID` | GitHub OAuth (optional) | ⚪ | OAuth app credentials |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth secret | ⚪ | OAuth app credentials |
+
+**Legend:** ✅ Required | 🔹 At least one LLM API key required | ⚪ Optional
+
+#### 2. **Database Setup**
+- **SQLite (Default)**: No additional setup required
+- **PostgreSQL (Recommended for production)**: 
+  1. Create database on [Supabase](https://supabase.com) or [PlanetScale](https://planetscale.com)
+  2. Update `DATABASE_URL` environment variable
+  3. Deploy triggers automatic migrations
+
+#### 3. **OAuth Configuration (Optional)**
+If using social login:
+1. **Google**: [Console](https://console.developers.google.com/) → Create OAuth 2.0 Client
+2. **GitHub**: [Settings](https://github.com/settings/applications/new) → New OAuth App
+3. Set redirect URI: `https://your-app.netlify.app/api/auth/callback/[provider]`
+
+#### 4. **Verification Steps**
+- ✅ Visit your deployed site
+- ✅ Test API key configuration in Settings
+- ✅ Verify LLM providers are working
+- ✅ Check authentication flow (if configured)
+
+### Performance Optimization
+
+Your deployment is automatically optimized with:
+- 🚀 **Edge CDN**: Global content delivery
+- ⚡ **Static Generation**: Pre-built pages for speed
+- 🗜️ **Asset Compression**: Gzip/Brotli compression
+- 🔄 **Incremental Builds**: Only rebuild changed files
+- 📱 **Mobile Optimization**: Responsive and fast on all devices
+
+### Monitoring & Maintenance
+
+- **Build Status**: Check the Netlify badge above
+- **Analytics**: Available in Netlify dashboard
+- **Error Monitoring**: Browser dev tools + Netlify logs
+- **Updates**: Connected to GitHub for automatic deployments
 
 ## ⚙️ Usage
 
