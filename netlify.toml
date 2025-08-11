@@ -1,33 +1,35 @@
-
-
 # RealMultiLLM Netlify Configuration
-# Target Environment: macOS 12+ | 2013 MacBook Pro (16GB) + 2022 M2 MacBook Air (8GB)
-
-# 3-STEP DEPLOYMENT PLAN:
-# 1. Configure build settings for Next.js
-# 2. Set up proper environment variables handling
-# 3. Add security headers and performance optimizations
+# Production-ready deployment for Next.js multi-LLM platform
 
 [build]
   command = "npm run build"
   publish = ".next"
+  functions = "netlify/functions"
   
 [build.environment]
-  NODE_VERSION = "18"
-  # optimization: Allocate maximum memory for build process while leaving room for system
+  NODE_VERSION = "20"
+  # Optimize build performance
   NODE_OPTIONS = "--max-old-space-size=4096"
-  # Disable telemetry for faster builds
   NEXT_TELEMETRY_DISABLED = "1"
-  # Use production mode
   NODE_ENV = "production"
-  # scalability: Use environment variables from Netlify UI for sensitive values
 
-# IMPORTANT: Set the following environment variables in the Netlify UI:
-# - DATABASE_URL (PostgreSQL connection string)
-# - NEXTAUTH_SECRET (generate with `openssl rand -base64 32`)
-# - NEXTAUTH_URL (your site URL)
-# - OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_AI_API_KEY
-# - OAuth credentials if using social login
+# Template environment variables for Deploy to Netlify button
+# These will be prompted during deployment
+[template.environment]
+  NEXTAUTH_SECRET = "JWT signing secret - Generate with: openssl rand -base64 32"
+  NEXTAUTH_URL = "Your deployment URL (e.g., https://your-app.netlify.app)"
+  DATABASE_URL = "Database connection string (file:./dev.db or PostgreSQL URL)"
+  
+  # LLM API Keys (at least one required)
+  OPENAI_API_KEY = "OpenAI API key for GPT models (sk-proj-...)"
+  ANTHROPIC_API_KEY = "Anthropic Claude API key (sk-ant-api03-...)"
+  GOOGLE_AI_API_KEY = "Google AI Gemini API key (AIza...)"
+  
+  # Optional OAuth Configuration
+  GOOGLE_CLIENT_ID = "Google OAuth Client ID (optional)"
+  GOOGLE_CLIENT_SECRET = "Google OAuth Client Secret (optional)"
+  GITHUB_CLIENT_ID = "GitHub OAuth Client ID (optional)"  
+  GITHUB_CLIENT_SECRET = "GitHub OAuth Client Secret (optional)"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
@@ -54,44 +56,3 @@
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
-
-
-
-
-
-
-
-
-# -------------------
-
-
-
-
-
-
-
-#[build]
-#  command = "npm install && npx prisma generate && npm run build"
-#  publish = ".next"
-
-#[build.environment]
-  #NODE_VERSION = "18"
-  #NODE_OPTIONS = "--max-old-space-size=4096"
-  #NEXT_TELEMETRY_DISABLED = "1"
- # NODE_ENV = "production"
-#  NEXTAUTH_URL = "https://real-multi-llm.netlify.app"  # Update this to your actual site URL
-
-# IMPORTANT: Set the following sensitive environment variables in the Netlify UI under "Environment variables":
-# - OPENAI_API_KEY = " "
-# - ANTHROPIC_API_KEY
-# - GOOGLE_AI_API_KEY = " "
-# - LLAMA_API_KEY (if using)
-# - GITHUB_API_KEY (if using)
-# - GROK_API_KEY (if using)
-#NEXTAUTH_SECRET = "+67MKOk8aZcQxYj7djM9K9HSYquiJ17Fk0JtJqWzxYY="  #(generate with `openssl rand -base64 32`)
-# - GOOGLE_CLIENT_ID
-# - GOOGLE_CLIENT_SECRET
-# - GITHUB_CLIENT_ID
-# - GITHUB_CLIENT_SECRET
-# - DATABASE_URL (your Supabase PostgreSQL connection string)
-
