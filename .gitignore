@@ -79,4 +79,4 @@ coverage/
 .claude/settings.local.json
 test-api-key.js
 tsconfig.tsbuildinfo
-EOF < /dev/null
+EOF < /dev/nullprisma/dev.db

@@ -1,7 +1,7 @@
 # RealMultiLLM - Your Personal LLM Powerhouse
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Netlify Status](https://api.netlify.com/api/v1/badges/YOUR_NETLIFY_SITE_ID/deploy-status?branch=main)](https://app.netlify.com/sites/YOUR_NETLIFY_SITE_NAME/deploys)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/1be91b3d-fd72-4287-b53a-6afd5124a594/deploy-status)](https://app.netlify.com/projects/lustrous-kringle-b8f61b/deploys)
 
 # 🚀 Deploy to Netlify (One-Click)
 

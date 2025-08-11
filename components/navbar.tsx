@@ -8,7 +8,7 @@ import { MobileMenu } from "@/components/mobile-menu";
 export default function Navbar() {
   const pathname = usePathname();
   
-  const navItems = [
+  const baseNavItems = [
     { name: "Home", path: "/" },
     { name: "Multi-Chat", path: "/multi-chat" },
     { name: "Goal Hub", path: "/goal-hub" },
@@ -18,6 +18,11 @@ export default function Navbar() {
     { name: "Analytics", path: "/analytics" },
     { name: "Settings", path: "/settings" },
   ];
+
+  // Add deployment status in development mode
+  const navItems = process.env.NODE_ENV === 'development' 
+    ? [...baseNavItems, { name: "Deploy Status", path: "/deploy-status" }]
+    : baseNavItems;
 
   return (
     <nav className="border-b border-gray-800">
