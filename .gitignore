@@ -74,3 +74,9 @@ coverage/
 .vscode/
 .idea/
 .DS_Store
+# --- secrets / local only ---
+.env
+.claude/settings.local.json
+test-api-key.js
+tsconfig.tsbuildinfo
+EOF < /dev/null
