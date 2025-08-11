@@ -1,6 +1,25 @@
 # RealMultiLLM - Your Personal LLM Powerhouse
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Netlify Status](https://api.netlify.com/api/v1/badges/placeholder/deploy-status)](https://app.netlify.com/sites/realmultillm/deploys)
+
+## 🚀 Quick Deploy
+
+### Option 1: One-Click Deploy to Netlify (Recommended)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/IAlready8/RealMultiLLM)
+
+**✨ One-click deployment includes:**
+- ✅ Automatic Next.js build configuration
+- ✅ Environment variable setup prompts  
+- ✅ SSL certificate provisioning
+- ✅ Global CDN distribution
+- ✅ Continuous deployment from GitHub
+- ✅ Production-optimized performance settings
+
+### Option 2: Deploy to Other Platforms
+- **Vercel**: [Import Project](https://vercel.com/import/git?s=https://github.com/IAlready8/RealMultiLLM)  
+- **Railway**: [Deploy](https://railway.app/template/deploy?referrer=realmultillm)
+- **Render**: [Deploy](https://render.com/deploy?repo=https://github.com/IAlready8/RealMultiLLM)
 
 An open-source, locally-hosted Next.js application designed to be your ultimate companion for interacting with, comparing, and managing Large Language Models (LLMs).
 

@@ -61,6 +61,10 @@ export async function POST(request: Request) {
 }
 
 async function testOpenAI(apiKey: string): Promise<boolean> {
+  if (!apiKey.startsWith('sk-')) {
+    throw new Error("OpenAI API key must start with 'sk-'");
+  }
+  
   const response = await fetch("https://api.openai.com/v1/models", {
     method: "GET",
     headers: {
@@ -70,14 +74,35 @@ async function testOpenAI(apiKey: string): Promise<boolean> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || "Invalid OpenAI API key");
+    if (response.status === 401) {
+      throw new Error("Invalid OpenAI API key - authentication failed");
+    } else if (response.status === 429) {
+      throw new Error("OpenAI API rate limit exceeded - key is valid but temporarily blocked");
+    } else if (response.status === 403) {
+      throw new Error("OpenAI API key lacks necessary permissions");
+    }
+    
+    try {
+      const error = await response.json();
+      throw new Error(error.error?.message || `OpenAI API error (${response.status})`);
+    } catch {
+      throw new Error(`OpenAI API request failed with status ${response.status}`);
+    }
+  }
+
+  const data = await response.json();
+  if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+    throw new Error("OpenAI API returned unexpected response format");
   }
 
   return true;
 }
 
 async function testClaude(apiKey: string): Promise<boolean> {
+  if (!apiKey.startsWith('sk-ant-')) {
+    throw new Error("Claude API key must start with 'sk-ant-'");
+  }
+  
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -93,21 +118,57 @@ async function testClaude(apiKey: string): Promise<boolean> {
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || "Invalid Claude API key");
+    if (response.status === 401) {
+      throw new Error("Invalid Claude API key - authentication failed");
+    } else if (response.status === 429) {
+      throw new Error("Claude API rate limit exceeded - key is valid but temporarily blocked");
+    } else if (response.status === 403) {
+      throw new Error("Claude API key lacks necessary permissions");
+    }
+    
+    try {
+      const error = await response.json();
+      throw new Error(error.error?.message || `Claude API error (${response.status})`);
+    } catch {
+      throw new Error(`Claude API request failed with status ${response.status}`);
+    }
+  }
+
+  const data = await response.json();
+  if (!data.content || !Array.isArray(data.content)) {
+    throw new Error("Claude API returned unexpected response format");
   }
 
   return true;
 }
 
 async function testGoogleAI(apiKey: string): Promise<boolean> {
+  if (!apiKey.startsWith('AIza')) {
+    throw new Error("Google AI API key must start with 'AIza'");
+  }
+  
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
     method: "GET",
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error?.message || "Invalid Google AI API key");
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("Invalid Google AI API key - authentication failed or API not enabled");
+    } else if (response.status === 429) {
+      throw new Error("Google AI API quota exceeded - key is valid but temporarily blocked");
+    }
+    
+    try {
+      const error = await response.json();
+      throw new Error(error.error?.message || `Google AI API error (${response.status})`);
+    } catch {
+      throw new Error(`Google AI API request failed with status ${response.status}`);
+    }
+  }
+
+  const data = await response.json();
+  if (!data.models || !Array.isArray(data.models)) {
+    throw new Error("Google AI API returned unexpected response format");
   }
 
   return true;

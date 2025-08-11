@@ -133,35 +133,81 @@ export default function Settings() {
   
   // Save API key to localStorage
   const saveApiKey = async (providerId: string, key: string) => {
-    if (!key) return;
+    if (!key?.trim()) {
+      toast({
+        title: "Error",
+        description: "API key cannot be empty",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    console.log(`Saving API key for provider: ${providerId}`);
-    // Securely store the API key
-    await storeApiKey(providerId, key);
-    
-    // Update state
-    setApiKeys(prev => ({
-      ...prev,
-      [providerId]: key
-    }));
-    
-    // Add log entry
-    addLogEntry({
-      id: `log_${Date.now()}`,
-      timestamp: Date.now(),
-      provider: providerId,
-      type: "success",
-      message: `Updated API key for ${providers.find(p => p.id === providerId)?.name}`
-    });
-    console.log(`Finished saving API key for provider: ${providerId}`);
+    try {
+      setTestingStatus(prev => ({ ...prev, [providerId]: 'testing' }));
+      
+      // Securely store the API key
+      await storeApiKey(providerId, key.trim());
+      
+      // Update state
+      setApiKeys(prev => ({
+        ...prev,
+        [providerId]: key.trim()
+      }));
+      
+      // Add log entry for saving
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "success",
+        message: `Saved API key for ${providers.find(p => p.id === providerId)?.name}`
+      });
+      
+      toast({
+        title: "API Key Saved",
+        description: `Successfully saved API key for ${providers.find(p => p.id === providerId)?.name}`,
+      });
+      
+      // Automatically test the API key after saving
+      await testApiKey(providerId);
+      
+    } catch (error: any) {
+      setTestingStatus(prev => ({ ...prev, [providerId]: 'error' }));
+      
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "error",
+        message: `Failed to save API key for ${providers.find(p => p.id === providerId)?.name}: ${error.message}`
+      });
+      
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save API key",
+        variant: "destructive",
+      });
+      
+      console.error(`Error saving API key for ${providerId}:`, error);
+    }
   };
   
   // Test API key
   const testApiKey = async (providerId: string) => {
     const apiKey = apiKeys[providerId];
-    if (!apiKey) return;
+    
+    if (!apiKey?.trim()) {
+      toast({
+        title: "Error",
+        description: "No API key found to test. Please save an API key first.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setTestingStatus(prev => ({ ...prev, [providerId]: 'testing' }));
+    
+    const startTime = Date.now();
     
     try {
       const response = await fetch("/api/test-api-key", {
@@ -171,34 +217,72 @@ export default function Settings() {
         },
         body: JSON.stringify({
           provider: providerId,
-          apiKey: apiKey
+          apiKey: apiKey.trim()
         }),
       });
       
       const data = await response.json();
+      const responseTime = Date.now() - startTime;
       
       if (response.ok && data.valid) {
         setTestingStatus(prev => ({ ...prev, [providerId]: 'success' }));
-        toast({
-          title: "API Key Test Successful",
-          description: `Successfully validated ${providers.find(p => p.id === providerId)?.name} API key`,
+        
+        // Add success log entry with response time
+        addLogEntry({
+          id: `log_${Date.now()}`,
+          timestamp: Date.now(),
+          provider: providerId,
+          type: "success",
+          message: `API key test passed for ${providers.find(p => p.id === providerId)?.name}`,
+          details: `Response time: ${responseTime}ms`
         });
+        
+        toast({
+          title: "✅ API Key Valid",
+          description: `${providers.find(p => p.id === providerId)?.name} API key is working correctly (${responseTime}ms)`,
+        });
+        
       } else {
         setTestingStatus(prev => ({ ...prev, [providerId]: 'error' }));
+        
+        // Add error log entry
+        addLogEntry({
+          id: `log_${Date.now()}`,
+          timestamp: Date.now(),
+          provider: providerId,
+          type: "error",
+          message: `API key test failed for ${providers.find(p => p.id === providerId)?.name}`,
+          details: data.message || "Invalid API key"
+        });
+        
         toast({
-          title: "API Key Test Failed",
-          description: data.message || "Invalid API key",
+          title: "❌ API Key Invalid",
+          description: data.message || "The API key is not valid or has insufficient permissions",
           variant: "destructive",
         });
       }
-    } catch (error) {
+      
+    } catch (error: any) {
+      const responseTime = Date.now() - startTime;
       setTestingStatus(prev => ({ ...prev, [providerId]: 'error' }));
+      
+      // Add error log entry
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "error",
+        message: `API key test failed for ${providers.find(p => p.id === providerId)?.name}`,
+        details: `Network error: ${error.message} (${responseTime}ms)`
+      });
+      
       toast({
-        title: "API Key Test Failed",
-        description: "Failed to test API key",
+        title: "🔌 Connection Error",
+        description: `Failed to test API key: ${error.message}`,
         variant: "destructive",
       });
-      console.error("Error testing API key:", error);
+      
+      console.error(`Error testing API key for ${providerId}:`, error);
     }
   };
   
@@ -334,21 +418,49 @@ export default function Settings() {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor={`apiKey-${provider.id}`}>API Key</Label>
+                      <Label htmlFor={`apiKey-${provider.id}`}>
+                        API Key
+                        {testingStatus[provider.id] === 'success' && (
+                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            ✓ Verified
+                          </span>
+                        )}
+                        {testingStatus[provider.id] === 'error' && (
+                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
+                            ✗ Invalid
+                          </span>
+                        )}
+                      </Label>
                       <div className="flex space-x-2">
                         <Input
                           id={`apiKey-${provider.id}`}
                           type="password"
-                          placeholder={`Enter your ${provider.name} API key`}
+                          placeholder={`sk-... (${provider.name} API key)`}
                           value={apiKeys[provider.id] || ""}
                           onChange={(e) => setApiKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
-                          className="bg-gray-800 border-gray-700"
+                          className={`bg-gray-800 border-gray-700 ${
+                            testingStatus[provider.id] === 'success' ? 'border-green-500' :
+                            testingStatus[provider.id] === 'error' ? 'border-red-500' : ''
+                          }`}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              saveApiKey(provider.id, apiKeys[provider.id] || "");
+                            }
+                          }}
                         />
                         <Button 
                           onClick={() => saveApiKey(provider.id, apiKeys[provider.id] || "")}
-                          disabled={!apiKeys[provider.id]}
+                          disabled={!apiKeys[provider.id]?.trim() || testingStatus[provider.id] === 'testing'}
+                          className="min-w-[80px]"
                         >
-                          Save
+                          {testingStatus[provider.id] === 'testing' ? (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            'Save & Test'
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -375,32 +487,48 @@ export default function Settings() {
                       </Button>
                     </div>
                     
-                    <div className="text-sm">
-                      <div className="flex items-center space-x-2">
-                        {apiKeys[provider.id] ? (
-                          <>
-                            <Check className="h-4 w-4 text-green-500" />
-                            <span className="text-green-500">API key is configured</span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                            <span className="text-yellow-500">No API key configured</span>
-                          </>
+                    <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
+                      <div className="text-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            {apiKeys[provider.id] ? (
+                              <>
+                                <Check className="h-4 w-4 text-green-500" />
+                                <span className="text-green-500">API key configured</span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                                <span className="text-yellow-500">No API key</span>
+                              </>
+                            )}
+                          </div>
+                          {apiKeys[provider.id] && (
+                            <span className="text-xs text-gray-400">
+                              {apiKeys[provider.id].substring(0, 8)}...
+                            </span>
+                          )}
+                        </div>
+                        
+                        {testingStatus[provider.id] === 'success' && (
+                          <div className="flex items-center space-x-2 mt-2 p-2 bg-green-50 text-green-800 rounded">
+                            <Check className="h-4 w-4" />
+                            <span className="text-sm font-medium">✅ API key is valid and working</span>
+                          </div>
+                        )}
+                        {testingStatus[provider.id] === 'error' && (
+                          <div className="flex items-center space-x-2 mt-2 p-2 bg-red-50 text-red-800 rounded">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span className="text-sm font-medium">❌ API key test failed</span>
+                          </div>
+                        )}
+                        {testingStatus[provider.id] === 'testing' && (
+                          <div className="flex items-center space-x-2 mt-2 p-2 bg-blue-50 text-blue-800 rounded">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            <span className="text-sm font-medium">🔄 Testing API key...</span>
+                          </div>
                         )}
                       </div>
-                      {testingStatus[provider.id] === 'success' && (
-                        <div className="flex items-center space-x-2 mt-1 text-green-500">
-                          <Check className="h-4 w-4" />
-                          <span>API key is valid</span>
-                        </div>
-                      )}
-                      {testingStatus[provider.id] === 'error' && (
-                        <div className="flex items-center space-x-2 mt-1 text-red-500">
-                          <AlertTriangle className="h-4 w-4" />
-                          <span>API key test failed</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </CardContent>
