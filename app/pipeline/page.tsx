@@ -34,14 +34,11 @@ interface LogEntry {
   type: "info" | "success" | "error";
 }
 
-// LLM providers (should ideally come from a centralized config or API)
+// LLM providers (only supported ones)
 const providers = [
   { id: "openai", name: "OpenAI" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
-  { id: "llama", name: "Llama" },
-  { id: "github", name: "GitHub" },
-  { id: "grok", name: "Grok" },
 ];
 
 export default function Pipeline() {

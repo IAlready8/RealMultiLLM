@@ -51,6 +51,23 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("7d");
   const [activeTab, setActiveTab] = useState("overview");
 
+  const generateDailyStats = useCallback(() => {
+    const days = parseInt(timeRange);
+    const stats = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      stats.push({
+        date: date.toISOString().split('T')[0],
+        requests: Math.floor(Math.random() * 200) + 50,
+        tokens: Math.floor(Math.random() * 5000) + 1000,
+        errors: Math.floor(Math.random() * 5),
+        responseTime: parseFloat((Math.random() * 2 + 0.5).toFixed(1))
+      });
+    }
+    return stats;
+  }, [timeRange]);
+
   const fetchAnalytics = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -78,9 +95,6 @@ export default function AnalyticsPage() {
           { provider: "OpenAI", factualAccuracy: 4.5, creativity: 4.2, helpfulness: 4.7, coherence: 4.6, conciseness: 4.3 },
           { provider: "Claude", factualAccuracy: 4.6, creativity: 4.5, helpfulness: 4.8, coherence: 4.7, conciseness: 4.4 },
           { provider: "Google", factualAccuracy: 4.3, creativity: 4.0, helpfulness: 4.5, coherence: 4.4, conciseness: 4.2 },
-          { provider: "Llama", factualAccuracy: 4.0, creativity: 3.8, helpfulness: 4.2, coherence: 4.1, conciseness: 4.0 },
-          { provider: "GitHub", factualAccuracy: 4.2, creativity: 3.9, helpfulness: 4.3, coherence: 4.2, conciseness: 4.1 },
-          { provider: "Grok", factualAccuracy: 4.1, creativity: 4.3, helpfulness: 4.4, coherence: 4.3, conciseness: 4.2 },
         ]
       };
       
@@ -94,28 +108,11 @@ export default function AnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [timeRange, toast]);
+  }, [timeRange, toast, generateDailyStats]);
 
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
-
-  const generateDailyStats = () => {
-    const days = parseInt(timeRange);
-    const stats = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      stats.push({
-        date: date.toISOString().split('T')[0],
-        requests: Math.floor(Math.random() * 200) + 50,
-        tokens: Math.floor(Math.random() * 5000) + 1000,
-        errors: Math.floor(Math.random() * 5),
-        responseTime: parseFloat((Math.random() * 2 + 0.5).toFixed(1))
-      });
-    }
-    return stats;
-  };
 
   const exportData = () => {
     if (!analyticsData) return;

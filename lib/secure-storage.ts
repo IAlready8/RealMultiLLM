@@ -90,7 +90,7 @@ export async function encryptString(text: string, password: string = 'default-ap
     combinedData.set(iv);
     combinedData.set(new Uint8Array(encryptedData), iv.length);
     
-    return arrayBufferToBase64(combinedData);
+    return arrayBufferToBase64(combinedData.buffer);
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt data');
@@ -129,10 +129,14 @@ export async function decryptString(encryptedText: string, password: string = 'd
 // Store an API key securely
 export async function storeApiKey(provider: string, apiKey: string): Promise<void> {
   if (!apiKey) return;
+  if (typeof window === 'undefined') return; // Skip during SSR
   
   try {
+    console.log(`Storing API key for provider: ${provider}`);
     const encryptedKey = await encryptString(apiKey);
+    console.log(`Encrypted key for ${provider}:`, encryptedKey);
     localStorage.setItem(`${API_KEY_PREFIX}${provider}`, encryptedKey);
+    console.log(`Successfully stored API key for ${provider}`);
   } catch (error) {
     console.error(`Error storing API key for ${provider}:`, error);
     throw new Error(`Failed to store API key for ${provider}`);
@@ -141,11 +145,20 @@ export async function storeApiKey(provider: string, apiKey: string): Promise<voi
 
 // Retrieve an API key
 export async function getStoredApiKey(provider: string): Promise<string | null> {
+  if (typeof window === 'undefined') return null; // Skip during SSR
+  
   try {
+    console.log(`Retrieving API key for provider: ${provider}`);
     const encryptedKey = localStorage.getItem(`${API_KEY_PREFIX}${provider}`);
-    if (!encryptedKey) return null;
+    console.log(`Encrypted key for ${provider}:`, encryptedKey);
+    if (!encryptedKey) {
+      console.log(`No API key found for ${provider}`);
+      return null;
+    }
     
-    return await decryptString(encryptedKey);
+    const decryptedKey = await decryptString(encryptedKey);
+    console.log(`Decrypted key for ${provider}:`, decryptedKey);
+    return decryptedKey;
   } catch (error) {
     console.error(`Error retrieving API key for ${provider}:`, error);
     return null;
@@ -154,11 +167,13 @@ export async function getStoredApiKey(provider: string): Promise<string | null> 
 
 // Remove an API key
 export function removeApiKey(provider: string): void {
+  if (typeof window === 'undefined') return; // Skip during SSR
   localStorage.removeItem(`${API_KEY_PREFIX}${provider}`);
 }
 
 // Clear all stored API keys
 export function clearAllApiKeys(): void {
+  if (typeof window === 'undefined') return; // Skip during SSR
   Object.keys(localStorage)
     .filter(key => key.startsWith(API_KEY_PREFIX))
     .forEach(key => localStorage.removeItem(key));
@@ -183,6 +198,8 @@ export function validateApiKeyFormat(provider: string, apiKey: string): boolean 
 
 // Securely export all API keys (for backup/transfer)
 export async function exportApiKeys(password: string): Promise<string> {
+  if (typeof window === 'undefined') return ''; // Skip during SSR
+  
   const keys: Record<string, string> = {};
   
   // Collect all API keys

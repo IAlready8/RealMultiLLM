@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { callLLMApi } from "@/services/api-client";
+import { callLLM } from "@/lib/llm-api-client";
 import { recordAnalyticsEvent } from "@/services/analytics-service";
 import { createRequestLogger } from "@/lib/logger";
 
@@ -28,11 +28,20 @@ export async function POST(request: Request) {
     }
 
     log.info({ provider, options }, "llm.chat.begin");
-    const formattedPrompt = messages.map((m: any) => m.content);
+    // Format messages for the LLM API client
+    const formattedMessages = messages.map((m: any) => ({
+      role: m.role,
+      content: m.content
+    }));
+    
+    // Extract system prompt if present
     const systemMessage = messages.find((m: any) => m.role === "system");
-    const response = await callLLMApi(provider, formattedPrompt, {
+    const systemPrompt = systemMessage?.content || options?.systemPrompt;
+    
+    // Call the LLM with the properly formatted messages
+    const response = await callLLM(provider, formattedMessages, {
       ...options,
-      systemPrompt: systemMessage?.content || options?.systemPrompt,
+      systemPrompt
     });
 
     const ms = Date.now() - start;
@@ -70,7 +79,11 @@ export async function POST(request: Request) {
         userId: session.user.id!,
       });
     } catch {}
-    return new NextResponse(error?.message || "Internal Server Error", { status: 500 });
+    // Return a proper JSON response
+    return NextResponse.json(
+      { error: true, message: error?.message || "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 

@@ -224,5 +224,78 @@ async def test_concurrent_load(llm_manager):
 
 
 # ✅ Comprehensive test suite implemented with performance validation
-# TODO: scalability - Add stress testing for extreme loads
-# TODO: optimization - Add memory profiling tests
+
+@pytest.mark.asyncio
+async def test_stress_load():
+    """Stress testing for extreme loads"""
+    from src.core.llm_manager.manager import EnhancedLLMManager
+    
+    manager = EnhancedLLMManager(cache_size=1000, enable_batching=True)
+    provider = MockProvider("stress-test", latency_ms=5)
+    await manager.register_provider(ProviderType.OPENAI, provider)
+    
+    # Simulate extreme load
+    num_requests = 500
+    start_time = time.time()
+    
+    tasks = []
+    for i in range(num_requests):
+        request = LLMRequest(prompt=f"Stress test {i % 50}")  # Some duplicates for cache testing
+        task = asyncio.create_task(manager.generate(request))
+        tasks.append(task)
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    end_time = time.time()
+    
+    success_count = sum(1 for r in results if not isinstance(r, Exception))
+    execution_time = end_time - start_time
+    
+    print(f"Stress test: {num_requests} requests in {execution_time:.2f}s")
+    print(f"Success rate: {success_count/num_requests*100:.1f}%")
+    print(f"Throughput: {success_count/execution_time:.1f} req/s")
+    
+    # Performance assertions for extreme loads
+    assert success_count > num_requests * 0.95, "Should handle 95%+ of extreme load"
+    assert execution_time < 30.0, "Should complete extreme load in reasonable time"
+
+
+def test_memory_profiling():
+    """Memory profiling tests for optimization validation"""
+    import psutil
+    import os
+    
+    process = psutil.Process(os.getpid())
+    initial_memory = process.memory_info().rss / 1024 / 1024  # MB
+    
+    # Test with large cache
+    manager = LLMManager(cache_size=10000)
+    
+    # Simulate heavy memory usage
+    for i in range(5000):
+        request = LLMRequest(prompt=f"Memory test {i}" * 10)  # Larger prompts
+        from src.core.llm_manager.manager import LLMResponse, ProviderType
+        
+        response = LLMResponse(
+            content=f"Large response {i}" * 20,  # Larger responses
+            provider=ProviderType.OPENAI,
+            tokens_used=200,
+            latency_ms=100.0,
+            metadata={"test": f"data_{i}"}
+        )
+        
+        cache_key = manager._create_cache_key(request)
+        manager._update_cache(cache_key, response)
+    
+    final_memory = process.memory_info().rss / 1024 / 1024  # MB
+    memory_increase = final_memory - initial_memory
+    cache_size_mb = len(manager._request_cache) * 0.001  # Rough estimate
+    
+    print(f"Memory profile: {initial_memory:.1f}MB -> {final_memory:.1f}MB (+{memory_increase:.1f}MB)")
+    print(f"Cache entries: {len(manager._request_cache)}, Est. size: {cache_size_mb:.1f}MB")
+    
+    # Memory usage should be reasonable even with large cache
+    assert memory_increase < 200, f"Memory increase excessive: {memory_increase:.1f}MB"
+    assert len(manager._request_cache) <= manager._cache_size, "Cache size should be bounded"
+
+
+# ✅ Complete test suite with stress testing and memory profiling implemented

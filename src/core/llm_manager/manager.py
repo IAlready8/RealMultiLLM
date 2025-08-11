@@ -186,6 +186,116 @@ class LLMManager:
         }
 
 
-# ✅ Core LLM Manager implemented with performance optimization
-# TODO: scalability - Add provider pool management
-# TODO: optimization - Implement request batching for efficiency
+class ProviderPool:
+    """Provider pool management for enhanced scalability"""
+    
+    def __init__(self, max_pool_size: int = 10):
+        self._pools: Dict[ProviderType, List[LLMProvider]] = {}
+        self._max_pool_size = max_pool_size
+        self._pool_usage: Dict[ProviderType, int] = {}
+        
+    async def add_provider(self, provider_type: ProviderType, provider: LLMProvider):
+        """Add provider to pool with load balancing"""
+        if provider_type not in self._pools:
+            self._pools[provider_type] = []
+            self._pool_usage[provider_type] = 0
+            
+        if len(self._pools[provider_type]) < self._max_pool_size:
+            self._pools[provider_type].append(provider)
+            logger.info(f"Added provider to {provider_type} pool, size: {len(self._pools[provider_type])}")
+    
+    async def get_provider(self, provider_type: ProviderType) -> Optional[LLMProvider]:
+        """Get least used provider from pool"""
+        if provider_type not in self._pools or not self._pools[provider_type]:
+            return None
+            
+        # Simple round-robin selection
+        pool = self._pools[provider_type]
+        index = self._pool_usage[provider_type] % len(pool)
+        self._pool_usage[provider_type] += 1
+        
+        return pool[index]
+
+
+class RequestBatcher:
+    """Request batching system for improved efficiency"""
+    
+    def __init__(self, batch_size: int = 5, batch_timeout: float = 0.1):
+        self._batch_size = batch_size
+        self._batch_timeout = batch_timeout
+        self._pending_requests: List[tuple] = []
+        self._batch_lock = asyncio.Lock()
+        
+    async def add_request(self, request: LLMRequest, provider: LLMProvider) -> LLMResponse:
+        """Add request to batch and return response when ready"""
+        future = asyncio.Future()
+        
+        async with self._batch_lock:
+            self._pending_requests.append((request, provider, future))
+            
+            # Process batch if full or start timeout
+            if len(self._pending_requests) >= self._batch_size:
+                await self._process_batch()
+            else:
+                # Start timeout task if this is the first request
+                if len(self._pending_requests) == 1:
+                    asyncio.create_task(self._timeout_handler())
+        
+        return await future
+    
+    async def _process_batch(self):
+        """Process current batch of requests"""
+        if not self._pending_requests:
+            return
+            
+        batch = self._pending_requests.copy()
+        self._pending_requests.clear()
+        
+        # Execute all requests concurrently
+        tasks = []
+        for request, provider, future in batch:
+            task = asyncio.create_task(self._execute_request(request, provider, future))
+            tasks.append(task)
+        
+        await asyncio.gather(*tasks, return_exceptions=True)
+    
+    async def _execute_request(self, request: LLMRequest, provider: LLMProvider, future: asyncio.Future):
+        """Execute individual request and set result"""
+        try:
+            response = await provider.generate(request)
+            future.set_result(response)
+        except Exception as e:
+            future.set_exception(e)
+    
+    async def _timeout_handler(self):
+        """Handle batch timeout"""
+        await asyncio.sleep(self._batch_timeout)
+        async with self._batch_lock:
+            if self._pending_requests:
+                await self._process_batch()
+
+
+# Enhanced LLM Manager with pool management and batching
+class EnhancedLLMManager(LLMManager):
+    """Extended LLM Manager with advanced scalability features"""
+    
+    def __init__(self, cache_size: int = 1000, enable_batching: bool = True):
+        super().__init__(cache_size)
+        self._provider_pool = ProviderPool()
+        self._request_batcher = RequestBatcher() if enable_batching else None
+        
+    async def register_provider(self, provider_type: ProviderType, provider: LLMProvider):
+        """Register provider with pool management"""
+        await super().register_provider(provider_type, provider)
+        await self._provider_pool.add_provider(provider_type, provider)
+    
+    async def generate(self, request: LLMRequest) -> LLMResponse:
+        """Generate with batching if enabled"""
+        if self._request_batcher:
+            provider = await self._select_optimal_provider(request)
+            return await self._request_batcher.add_request(request, provider)
+        else:
+            return await super().generate(request)
+
+
+# ✅ Enhanced LLM Manager with pool management and request batching implemented

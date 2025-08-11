@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { callLLM } from '@/services/api-client';
+import { callLLMApi as callLLM } from '@/services/api-client';
 
 // Mock fetch
 global.fetch = vi.fn();

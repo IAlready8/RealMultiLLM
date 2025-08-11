@@ -111,7 +111,7 @@ function useToast() {
       const dismiss = () => dispatch({ type: actionTypes.DISMISS_TOAST, toastId: id })
       const remove = () => dispatch({ type: actionTypes.REMOVE_TOAST, toastId: id })
 
-      dispatch({ type: actionTypes.ADD_TOAST, toast: { ...props, id, open: true, onOpenChange: (open) => {
+      dispatch({ type: actionTypes.ADD_TOAST, toast: { ...props, id, open: true, onOpenChange: (open: boolean) => {
         if (!open) dismiss()
       } } })
 

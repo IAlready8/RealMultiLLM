@@ -1,7 +1,9 @@
+'use server';
 
-"use server";
-
-import { getAnalytics as get, recordAnalyticsEvent as record } from "@/services/analytics-service";
+import {
+  getAnalytics as get,
+  recordAnalyticsEvent as record,
+} from '@/services/analytics-service';
 
 export async function getAnalytics() {
   return await get();

@@ -38,6 +38,7 @@ export default function ApiKeyForm() {
   useEffect(() => {
     const loadApiKeys = async () => {
       try {
+        console.log("Loading API keys in API key form...");
         const keys: Record<string, string> = {};
         const statuses: Record<string, 'valid' | 'invalid' | 'untested'> = {};
         const visibilities: Record<string, boolean> = {};
@@ -53,14 +54,18 @@ export default function ApiKeyForm() {
         
         // Load each API key
         for (const provider of providers) {
+          console.log(`Loading API key for ${provider.id}`);
           const key = await getStoredApiKey(provider.id);
+          console.log(`Loaded API key for ${provider.id}:`, key);
           keys[provider.id] = key || "";
           statuses[provider.id] = key ? 'valid' : 'untested';
         }
         
+        console.log("Setting API keys in state:", keys);
         setApiKeys(keys);
         setKeyStatus(statuses);
         setShowPassword(visibilities);
+        console.log("Finished loading API keys in API key form");
       } catch (error) {
         console.error("Error loading API keys:", error);
         toast({
@@ -80,6 +85,7 @@ export default function ApiKeyForm() {
   const handleSaveKey = async (providerId: string) => {
     try {
       const apiKey = apiKeys[providerId];
+      console.log(`Saving API key for ${providerId}:`, apiKey);
       
       // Validate key format
       if (!validateApiKeyFormat(providerId, apiKey)) {
@@ -97,16 +103,34 @@ export default function ApiKeyForm() {
       // Store the key
       await storeApiKey(providerId, apiKey);
       
-      // Test the key (optional)
-      // Note: In a real implementation, you might want to make a lightweight API call
-      // to verify the key is valid. This is simplified here.
-      
-      setKeyStatus({...keyStatus, [providerId]: 'valid'});
-      
-      toast({
-        title: "Success",
-        description: `API key for ${providers.find(p => p.id === providerId)?.name} saved successfully`,
+      // Test the key
+      const response = await fetch("/api/test-api-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: providerId,
+          apiKey: apiKey
+        }),
       });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.valid) {
+        setKeyStatus({...keyStatus, [providerId]: 'valid'});
+        toast({
+          title: "Success",
+          description: `API key for ${providers.find(p => p.id === providerId)?.name} saved and validated successfully`,
+        });
+      } else {
+        setKeyStatus({...keyStatus, [providerId]: 'invalid'});
+        toast({
+          title: "Validation Failed",
+          description: data.message || `API key for ${providers.find(p => p.id === providerId)?.name} is invalid`,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error(`Error saving ${providerId} API key:`, error);
       toast({
@@ -157,7 +181,48 @@ export default function ApiKeyForm() {
       ...showPassword,
       [providerId]: !showPassword[providerId],
     });
-  };
+  }
+  
+  // Test API key
+  const testApiKey = async (providerId: string) => {
+    const apiKey = apiKeys[providerId];
+    if (!apiKey) return;
+    
+    try {
+      const response = await fetch("/api/test-api-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: providerId,
+          apiKey: apiKey
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.valid) {
+        toast({
+          title: "API Key Test Successful",
+          description: `Successfully validated ${providers.find(p => p.id === providerId)?.name} API key`,
+        });
+      } else {
+        toast({
+          title: "API Key Test Failed",
+          description: data.message || "Invalid API key",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "API Key Test Failed",
+        description: "Failed to test API key",
+        variant: "destructive",
+      });
+      console.error("Error testing API key:", error);
+    }
+  };;
   
   if (isLoading) {
     return (
@@ -221,6 +286,18 @@ export default function ApiKeyForm() {
                     </div>
                   </div>
                   
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => testApiKey(provider.id)}
+                      disabled={!apiKeys[provider.id]}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      Test Key
+                    </Button>
+                  </div>
+                  
                   {/* Status indicators */}
                   <div className="text-sm">
                     {keyStatus[provider.id] === 'valid' ? (
@@ -267,13 +344,7 @@ export default function ApiKeyForm() {
                     <Label>{provider.name}</Label>
                     <Button
                       size="sm"
-                      onClick={() => {
-                        // Test API key logic would go here
-                        toast({
-                          title: "API Test",
-                          description: `Testing ${provider.name} API key...`,
-                        });
-                      }}
+                      onClick={() => testApiKey(provider.id)}
                       disabled={!apiKeys[provider.id]}
                     >
                       Test Key
@@ -284,7 +355,7 @@ export default function ApiKeyForm() {
                     {!apiKeys[provider.id] ? (
                       <div className="text-yellow-500">No API key configured</div>
                     ) : (
-                      <div className="text-gray-400">Click "Test Key" to verify your API key</div>
+                      <div className="text-gray-400">Click &quot;Test Key&quot; to verify your API key</div>
                     )}
                   </div>
                 </CardContent>

@@ -54,3 +54,23 @@ performance-*.json
 *.tmp
 *.temp
 .cache/
+
+# --- secrets & local ---
+.env
+.claude/settings.local.json
+app/api/test-keys/
+test-api-keys.js
+app/api-test/
+tsconfig.tsbuildinfo
+
+# --- deps / builds / noise ---
+node_modules/
+.next/
+dist/
+coverage/
+*.log
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store

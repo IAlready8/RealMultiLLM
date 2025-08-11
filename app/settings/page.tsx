@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
@@ -8,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
-import { AlertTriangle, Check, Clock, FileDown, FileUp, Terminal, Trash2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Clock, FileDown, FileUp, Terminal, Trash2, RefreshCw, Play } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,17 +15,29 @@ import { UsageChart } from "@/components/analytics/usage-chart";
 import { ModelComparisonChart } from "@/components/analytics/model-comparison-chart";
 import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
-import { secureStore, secureRetrieve, secureRemove } from "@/lib/secure-storage";
+import { storeApiKey, getStoredApiKey, removeApiKey } from "@/lib/secure-storage";
 import { useSession } from "next-auth/react";
+import { useToast } from "@/components/ui/use-toast";
 
-// LLM providers we'll support
+// Helper function to get default model for each provider
+function getDefaultModelForProvider(providerId: string): string {
+  switch (providerId) {
+    case "openai":
+      return "gpt-4o";
+    case "claude":
+      return "claude-3-opus-20240229";
+    case "google":
+      return "gemini-pro";
+    default:
+      return "default";
+  }
+}
+
+// LLM providers we'll support (only those implemented)
 const providers = [
   { id: "openai", name: "OpenAI" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
-  { id: "llama", name: "Llama" },
-  { id: "github", name: "GitHub" },
-  { id: "grok", name: "Grok" },
 ];
 
 interface LogEntry {
@@ -40,6 +51,7 @@ interface LogEntry {
 
 export default function Settings() {
   const { data: session } = useSession();
+  const { toast } = useToast();
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [modelSettings, setModelSettings] = useState<Record<string, any>>({});
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -47,6 +59,7 @@ export default function Settings() {
   const [exportPassword, setExportPassword] = useState("");
   const [importData, setImportData] = useState("");
   const [importError, setImportError] = useState("");
+  const [testingStatus, setTestingStatus] = useState<Record<string, 'idle' | 'testing' | 'success' | 'error'>>({});
   
   // Generate some sample logs for demo purposes
   useEffect(() => {
@@ -76,14 +89,18 @@ export default function Settings() {
   // Load API keys and settings from localStorage
   useEffect(() => {
     const loadData = async () => {
+      console.log("Loading data...");
       // Load API keys
       const savedKeys: Record<string, string> = {};
       for (const provider of providers) {
-        const key = await secureRetrieve(`apiKey_${provider.id}`);
+        console.log(`Loading API key for provider: ${provider.id}`);
+        const key = await getStoredApiKey(provider.id);
+        console.log(`Loaded API key for ${provider.id}:`, key);
         if (key) {
           savedKeys[provider.id] = key;
         }
       }
+      console.log("Loaded API keys:", savedKeys);
       setApiKeys(savedKeys);
       
       // Load model settings
@@ -102,12 +119,13 @@ export default function Settings() {
           defaults[provider.id] = {
             temperature: 0.7,
             maxTokens: 2048,
-            defaultModel: "gpt-4"
+            defaultModel: getDefaultModelForProvider(provider.id)
           };
         });
         setModelSettings(defaults);
         localStorage.setItem("modelSettings", JSON.stringify(defaults));
       }
+      console.log("Finished loading data");
     };
     
     loadData();
@@ -117,8 +135,9 @@ export default function Settings() {
   const saveApiKey = async (providerId: string, key: string) => {
     if (!key) return;
     
+    console.log(`Saving API key for provider: ${providerId}`);
     // Securely store the API key
-    await secureStore(`apiKey_${providerId}`, key);
+    await storeApiKey(providerId, key);
     
     // Update state
     setApiKeys(prev => ({
@@ -134,6 +153,53 @@ export default function Settings() {
       type: "success",
       message: `Updated API key for ${providers.find(p => p.id === providerId)?.name}`
     });
+    console.log(`Finished saving API key for provider: ${providerId}`);
+  };
+  
+  // Test API key
+  const testApiKey = async (providerId: string) => {
+    const apiKey = apiKeys[providerId];
+    if (!apiKey) return;
+    
+    setTestingStatus(prev => ({ ...prev, [providerId]: 'testing' }));
+    
+    try {
+      const response = await fetch("/api/test-api-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: providerId,
+          apiKey: apiKey
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.valid) {
+        setTestingStatus(prev => ({ ...prev, [providerId]: 'success' }));
+        toast({
+          title: "API Key Test Successful",
+          description: `Successfully validated ${providers.find(p => p.id === providerId)?.name} API key`,
+        });
+      } else {
+        setTestingStatus(prev => ({ ...prev, [providerId]: 'error' }));
+        toast({
+          title: "API Key Test Failed",
+          description: data.message || "Invalid API key",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setTestingStatus(prev => ({ ...prev, [providerId]: 'error' }));
+      toast({
+        title: "API Key Test Failed",
+        description: "Failed to test API key",
+        variant: "destructive",
+      });
+      console.error("Error testing API key:", error);
+    }
   };
   
   // Save model settings to localStorage
@@ -168,7 +234,7 @@ export default function Settings() {
   const clearAllData = async () => {
     // Clear API keys
     for (const provider of providers) {
-      await secureRemove(`apiKey_${provider.id}`);
+      await removeApiKey(provider.id);
     }
     
     // Clear settings
@@ -287,6 +353,28 @@ export default function Settings() {
                       </div>
                     </div>
                     
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={() => testApiKey(provider.id)}
+                        disabled={!apiKeys[provider.id] || testingStatus[provider.id] === 'testing'}
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        {testingStatus[provider.id] === 'testing' ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Testing...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Test Key
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    
                     <div className="text-sm">
                       <div className="flex items-center space-x-2">
                         {apiKeys[provider.id] ? (
@@ -301,6 +389,18 @@ export default function Settings() {
                           </>
                         )}
                       </div>
+                      {testingStatus[provider.id] === 'success' && (
+                        <div className="flex items-center space-x-2 mt-1 text-green-500">
+                          <Check className="h-4 w-4" />
+                          <span>API key is valid</span>
+                        </div>
+                      )}
+                      {testingStatus[provider.id] === 'error' && (
+                        <div className="flex items-center space-x-2 mt-1 text-red-500">
+                          <AlertTriangle className="h-4 w-4" />
+                          <span>API key test failed</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -324,7 +424,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <Label htmlFor={`model-${provider.id}`}>Default Model</Label>
                         <Select
-                          defaultValue={settings.defaultModel || "default"}
+                          defaultValue={settings.defaultModel || getDefaultModelForProvider(provider.id)}
                           onValueChange={(value) => 
                             saveModelSettings(provider.id, { defaultModel: value })
                           }
@@ -351,22 +451,6 @@ export default function Settings() {
                               <>
                                 <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
                                 <SelectItem value="gemini-ultra">Gemini Ultra</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "llama" && (
-                              <>
-                                <SelectItem value="llama-3">Llama 3</SelectItem>
-                                <SelectItem value="llama-2-70b">Llama 2 70B</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "github" && (
-                              <>
-                                <SelectItem value="github-copilot">GitHub Copilot</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "grok" && (
-                              <>
-                                <SelectItem value="grok-1">Grok-1</SelectItem>
                               </>
                             )}
                             <SelectItem value="default">Default</SelectItem>
@@ -416,7 +500,7 @@ export default function Settings() {
                         onClick={() => saveModelSettings(provider.id, {
                           temperature: 0.7,
                           maxTokens: 2048,
-                          defaultModel: "default"
+                          defaultModel: getDefaultModelForProvider(provider.id)
                         })}
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />

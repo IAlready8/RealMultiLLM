@@ -5,8 +5,8 @@ import SettingsPage from './page'
 
 // Mock services
 vi.mock('@/lib/secure-storage', () => ({
-  secureStore: vi.fn(),
-  secureRetrieve: vi.fn(),
+  storeApiKey: vi.fn(),
+  getStoredApiKey: vi.fn(),
   secureRemove: vi.fn(),
 }))
 
@@ -79,19 +79,19 @@ describe('Settings Page', () => {
 
   it('allows saving API keys', async () => {
     const user = userEvent.setup()
-    const { secureStore } = await import('@/lib/secure-storage')
+    const { storeApiKey } = await import('@/lib/secure-storage')
     
     render(<SettingsPage />)
     
-    const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg')
-    const openaiInput = within(openAICard).getByPlaceholderText('Enter your OpenAI API key')
-    const saveButton = within(openAICard).getByRole('button', { name: /save/i })
+    const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg')!
+    const openaiInput = within(openAICard as HTMLElement).getByPlaceholderText('Enter your OpenAI API key')
+    const saveButton = within(openAICard as HTMLElement).getByRole('button', { name: /save/i })
     
     await user.type(openaiInput, 'sk-test123')
     await user.click(saveButton)
     
     await waitFor(() => {
-      expect(secureStore).toHaveBeenCalledWith('apiKey_openai', 'sk-test123')
+      expect(storeApiKey).toHaveBeenCalledWith('openai', 'sk-test123')
     })
   })
 
@@ -217,14 +217,14 @@ describe('Settings Page', () => {
   })
 
   it('displays success indicators when API keys are configured', async () => {
-    const { secureRetrieve } = await import('@/lib/secure-storage')
-    vi.mocked(secureRetrieve).mockResolvedValue('sk-test123')
+    const { getStoredApiKey } = await import('@/lib/secure-storage')
+    vi.mocked(getStoredApiKey).mockResolvedValue('sk-test123')
     
     render(<SettingsPage />)
     
     await waitFor(() => {
-      const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg')
-      expect(within(openAICard).getByText(/api key is configured/i)).toBeInTheDocument()
+      const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg')!
+      expect(within(openAICard as HTMLElement).getByText(/api key is configured/i)).toBeInTheDocument()
     })
   })
 

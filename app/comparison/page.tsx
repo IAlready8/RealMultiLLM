@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,11 @@ import { ResponsiveGrid } from "@/components/responsive-grid";
 import { PlusCircle, XCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
 
-// LLM providers (should ideally come from a centralized config or API)
+// LLM providers (only supported ones)
 const providers = [
   { id: "openai", name: "OpenAI" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
-  { id: "llama", name: "Llama" },
-  { id: "github", name: "GitHub" },
-  { id: "grok", name: "Grok" },
 ];
 
 interface LLMResponse {
@@ -36,15 +33,7 @@ export default function Comparison() {
   const [nextPanelId, setNextPanelId] = useState(0);
   const { toast } = useToast(); // Initialize toast
 
-  useEffect(() => {
-    // Initialize with two comparison panels by default
-    if (comparisonPanels.length === 0) {
-      addComparisonPanel();
-      addComparisonPanel();
-    }
-  }, []);
-
-  const addComparisonPanel = () => {
+  const addComparisonPanel = useCallback(() => {
     setComparisonPanels((prev) => [
       ...prev,
       {
@@ -56,7 +45,15 @@ export default function Comparison() {
       },
     ]);
     setNextPanelId((prev) => prev + 1);
-  };
+  }, [nextPanelId]);
+
+  useEffect(() => {
+    // Initialize with two comparison panels by default
+    if (comparisonPanels.length === 0) {
+      addComparisonPanel();
+      addComparisonPanel();
+    }
+  }, [comparisonPanels.length, addComparisonPanel]);
 
   const removeComparisonPanel = (id: string) => {
     setComparisonPanels((prev) => prev.filter((panel) => panel.id !== id));
@@ -229,15 +226,6 @@ export default function Comparison() {
                   <SelectItem value="google:gemini-pro">Google AI - Gemini Pro</SelectItem>
                   <SelectItem value="google:gemini-ultra">Google AI - Gemini Ultra</SelectItem>
                   
-                  {/* Llama Models */}
-                  <SelectItem value="llama:llama-3">Llama - Llama 3</SelectItem>
-                  <SelectItem value="llama:llama-2-70b">Llama - Llama 2 70B</SelectItem>
-                  
-                  {/* GitHub Models */}
-                  <SelectItem value="github:github-copilot">GitHub - Copilot</SelectItem>
-                  
-                  {/* Grok Models */}
-                  <SelectItem value="grok:grok-1">Grok - Grok-1</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="ghost" size="icon" onClick={() => removeComparisonPanel(panel.id)}>
