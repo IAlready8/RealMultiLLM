@@ -4,6 +4,12 @@ import { authOptions } from "@/lib/auth";
 import { callLLM } from "@/lib/llm-api-client";
 import { recordAnalyticsEvent } from "@/services/analytics-service";
 import { createRequestLogger } from "@/lib/logger";
+import { validateChatRequest } from "@/lib/validation-schemas";
+import { sanitizeChatMessage } from "@/lib/sanitize";
+import { safeHandleApiError, ErrorCodes, createApiError } from "@/lib/error-handler";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { z } from "zod";
+import { randomUUID } from "node:crypto";
 
 // OVERWRITTEN FILE: app/api/llm/chat/route.ts (complete rewrite)
 // Adds centralized logging and supports new Ollama provider via callLLMApi.
@@ -11,38 +17,59 @@ import { createRequestLogger } from "@/lib/logger";
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      createApiError(ErrorCodes.AUTHENTICATION_ERROR, "Authentication required"),
+      { status: 401 }
+    );
   }
 
-  const reqId = crypto.randomUUID();
+  // Apply rate limiting for LLM API calls
+  const rateLimitResult = await checkRateLimit(
+    request as any, 
+    'apiLLM', 
+    session.user.id
+  );
+  if (!rateLimitResult.success && rateLimitResult.error) {
+    return rateLimitResult.error;
+  }
+
+  const reqId = randomUUID();
   const log = createRequestLogger("/api/llm/chat", reqId);
   const start = Date.now();
   let provider = "unknown";
 
   try {
     const body = await request.json();
-    provider = body.provider;
-    const { messages, options } = body;
-    if (!provider || !messages) {
-      return new NextResponse("Provider and messages are required", { status: 400 });
-    }
+    
+    // Validate request structure
+    try {
+      const validatedRequest = validateChatRequest(body);
+      provider = validatedRequest.provider;
+      const { messages, options } = validatedRequest;
 
-    log.info({ provider, options }, "llm.chat.begin");
-    // Format messages for the LLM API client
-    const formattedMessages = messages.map((m: any) => ({
-      role: m.role,
-      content: m.content
-    }));
-    
-    // Extract system prompt if present
-    const systemMessage = messages.find((m: any) => m.role === "system");
-    const systemPrompt = systemMessage?.content || options?.systemPrompt;
-    
-    // Call the LLM with the properly formatted messages
-    const response = await callLLM(provider, formattedMessages, {
-      ...options,
-      systemPrompt
-    });
+      log.info({ provider, options }, "llm.chat.begin");
+      
+      // Sanitize message content
+      const sanitizedMessages = messages.map((m) => ({
+        role: m.role,
+        content: sanitizeChatMessage(m.content)
+      }));
+
+      // Format messages for the LLM API client
+      const formattedMessages = sanitizedMessages.map((m) => ({
+        role: m.role,
+        content: m.content
+      }));
+      
+      // Extract system prompt if present
+      const systemMessage = sanitizedMessages.find((m) => m.role === "system");
+      const systemPrompt = systemMessage?.content;
+      
+      // Call the LLM with the properly formatted messages
+      const response = await callLLM(provider, formattedMessages, {
+        ...options,
+        systemPrompt
+      });
 
     const ms = Date.now() - start;
     await recordAnalyticsEvent({
@@ -60,15 +87,20 @@ export async function POST(request: Request) {
     });
     log.info({ ms }, "llm.chat.success");
 
-    return NextResponse.json({
-      role: "assistant",
-      content: response.text,
-      timestamp: Date.now(),
-      metadata: {
-        ...(response.usage || {}),
-        ...(response.metadata || {}),
-      },
-    });
+      return NextResponse.json({
+        role: "assistant",
+        content: response.text,
+        timestamp: Date.now(),
+        metadata: {
+          ...(response.usage || {}),
+          ...(response.metadata || {}),
+        },
+      });
+    } catch (validationError) {
+      const ms = Date.now() - start;
+      log.error({ error: validationError, provider, ms }, "llm.chat.validation.error");
+      return safeHandleApiError(validationError, "/api/llm/chat", session.user.id);
+    }
   } catch (error: any) {
     const ms = Date.now() - start;
     log.error({ error: error?.message, provider, ms }, "llm.chat.error");
@@ -79,11 +111,7 @@ export async function POST(request: Request) {
         userId: session.user.id!,
       });
     } catch {}
-    // Return a proper JSON response
-    return NextResponse.json(
-      { error: true, message: error?.message || "Internal Server Error" },
-      { status: 500 }
-    );
+    return safeHandleApiError(error, "/api/llm/chat", session.user.id);
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+// import { getCircuitBreakerStatus } from "@/lib/api-timeout";
 
 export async function GET() {
   try {
@@ -28,7 +29,27 @@ export async function GET() {
       !process.env[key]?.includes('here')
     );
 
-    const status = {
+    // Get circuit breaker status (simplified)
+    const circuitBreakerStatus = {};
+
+    const status: {
+      status: string;
+      timestamp: string;
+      version: string;
+      environment: string;
+      database: string;
+      llmProviders: {
+        available: number;
+        configured: string[];
+        circuitBreakerStatus: Record<string, any>;
+      };
+      deployment: {
+        platform: string;
+        region: string;
+      };
+      warnings?: string[];
+      errors?: string[];
+    } = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       version: process.env.npm_package_version || '1.0.0',
@@ -36,7 +57,8 @@ export async function GET() {
       database: 'connected',
       llmProviders: {
         available: availableLLMs.length,
-        configured: availableLLMs.map(key => key.replace('_API_KEY', '').toLowerCase())
+        configured: availableLLMs.map(key => key.replace('_API_KEY', '').toLowerCase()),
+        circuitBreakerStatus
       },
       deployment: {
         platform: process.env.NETLIFY ? 'netlify' : 

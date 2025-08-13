@@ -30,12 +30,8 @@ export const prisma =
     // Only acquire connections when needed and release promptly
   });
 
-// scalability: Gracefully handle connection errors
-prisma.$connect()
-  .catch((error) => {
-    console.error('Failed to connect to the database:', error);
-    process.exit(1); // Exit if we can't connect to database
-  });
+// Removed forced connection attempt for production readiness
+// Connection will be established on first query
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 

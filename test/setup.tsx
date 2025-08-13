@@ -1,6 +1,6 @@
 // Import test setup utilities
 import '@testing-library/jest-dom';
-import { expect, afterEach } from 'vitest';
+import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 
@@ -56,6 +56,20 @@ if (typeof window !== 'undefined') {
       }
     });
   }
+}
+
+// Mock Next.js server functions
+vi.mock('next/headers', () => ({
+  headers: vi.fn(() => new Map([
+    ['user-agent', 'vitest'],
+    ['x-forwarded-for', '127.0.0.1']
+  ]))
+}));
+
+// Mock global crypto for Node.js environment
+if (typeof global !== 'undefined' && !global.crypto) {
+  const { webcrypto } = require('node:crypto');
+  global.crypto = webcrypto as any;
 }
 
 // Clean up after each test

@@ -2,12 +2,20 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { sanitizePersonaData } from "@/lib/sanitize";
+import { validatePersona } from "@/lib/validation-schemas";
+import { safeHandleApiError, ErrorCodes, createApiError } from "@/lib/error-handler";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { z } from "zod";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      createApiError(ErrorCodes.AUTHENTICATION_ERROR, "Authentication required"),
+      { status: 401 }
+    );
   }
 
   try {
@@ -21,8 +29,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(personas);
   } catch (error) {
-    console.error("Error fetching personas:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return safeHandleApiError(error, "/api/personas", session.user.id);
   }
 }
 
@@ -30,29 +37,60 @@ export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      createApiError(ErrorCodes.AUTHENTICATION_ERROR, "Authentication required"),
+      { status: 401 }
+    );
+  }
+
+  // Apply rate limiting for API calls
+  const rateLimitResult = await checkRateLimit(
+    request as any, 
+    'apiGeneral', 
+    session.user.id
+  );
+  if (!rateLimitResult.success && rateLimitResult.error) {
+    return rateLimitResult.error;
   }
 
   try {
     const body = await request.json();
-    const { title, description, prompt } = body;
+    
+    // Validate and sanitize input
+    try {
+      const validatedData = validatePersona({
+        name: body.title,
+        description: body.description || '',
+        systemPrompt: body.prompt
+      });
+      
+      // Sanitize user input
+      const sanitized = sanitizePersonaData({
+        name: validatedData.name,
+        description: validatedData.description
+      });
+      
+      const { name: title, description } = sanitized;
+      const prompt = body.prompt; // System prompts don't need HTML sanitization
+      
+      if (!title || !prompt) {
+        return new NextResponse("Title and prompt are required", { status: 400 });
+      }
 
-    if (!title || !prompt) {
-      return new NextResponse("Title and prompt are required", { status: 400 });
+      const newPersona = await prisma.persona.create({
+        data: {
+          title,
+          description: description || null,
+          prompt,
+          userId: session.user.id!,
+        },
+      });
+      return NextResponse.json(newPersona, { status: 201 });
+    } catch (validationError) {
+      return safeHandleApiError(validationError, "/api/personas", session.user.id);
     }
-
-    const newPersona = await prisma.persona.create({
-      data: {
-        title,
-        description: description || null,
-        prompt,
-        userId: session.user.id!,
-      },
-    });
-    return NextResponse.json(newPersona, { status: 201 });
   } catch (error) {
-    console.error("Error creating persona:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return safeHandleApiError(error, "/api/personas", session.user.id);
   }
 }
 
@@ -60,32 +98,58 @@ export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      createApiError(ErrorCodes.AUTHENTICATION_ERROR, "Authentication required"),
+      { status: 401 }
+    );
   }
 
   try {
     const body = await request.json();
-    const { id, title, description, prompt } = body;
+    const { id } = body;
 
-    if (!id || !title || !prompt) {
-      return new NextResponse("ID, title, and prompt are required", { status: 400 });
+    if (!id) {
+      return new NextResponse("ID is required", { status: 400 });
     }
 
-    const updatedPersona = await prisma.persona.update({
-      where: {
-        id,
-        userId: session.user.id!, // Ensure user can only update their own personas
-      },
-      data: {
-        title,
-        description: description || null,
-        prompt,
-      },
-    });
-    return NextResponse.json(updatedPersona);
+    // Validate and sanitize input
+    try {
+      const validatedData = validatePersona({
+        name: body.title,
+        description: body.description || '',
+        systemPrompt: body.prompt
+      });
+      
+      // Sanitize user input
+      const sanitized = sanitizePersonaData({
+        name: validatedData.name,
+        description: validatedData.description
+      });
+      
+      const { name: title, description } = sanitized;
+      const prompt = body.prompt; // System prompts don't need HTML sanitization
+      
+      if (!title || !prompt) {
+        return new NextResponse("Title and prompt are required", { status: 400 });
+      }
+
+      const updatedPersona = await prisma.persona.update({
+        where: {
+          id,
+          userId: session.user.id!, // Ensure user can only update their own personas
+        },
+        data: {
+          title,
+          description: description || null,
+          prompt,
+        },
+      });
+      return NextResponse.json(updatedPersona);
+    } catch (validationError) {
+      return safeHandleApiError(validationError, "/api/personas", session.user.id);
+    }
   } catch (error) {
-    console.error("Error updating persona:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return safeHandleApiError(error, "/api/personas", session.user.id);
   }
 }
 
@@ -93,7 +157,10 @@ export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      createApiError(ErrorCodes.AUTHENTICATION_ERROR, "Authentication required"),
+      { status: 401 }
+    );
   }
 
   try {
@@ -112,7 +179,6 @@ export async function DELETE(request: Request) {
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Error deleting persona:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return safeHandleApiError(error, "/api/personas", session.user.id);
   }
 }

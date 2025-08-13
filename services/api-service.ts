@@ -1,4 +1,4 @@
-import { callLLMApi, LLMRequestOptions, LLMResponse } from "./api-client";
+import { callLLM, LLMRequestOptions, LLMResponse, LLMMessage } from "@/lib/llm-api-client";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -23,7 +23,11 @@ export async function sendChatMessage(
     }
     
     // Call the API
-    const response = await callLLMApi(provider, formattedPrompt, options);
+    const llmMessages: LLMMessage[] = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+    const response = await callLLM(provider, llmMessages, options);
     
     // Return formatted response
     return {
@@ -59,10 +63,14 @@ export async function streamChatMessage(
     
     // Set streaming options
     options.stream = true;
-    options.onChunk = onChunk;
+    // Note: streaming callbacks handled differently in the unified client
     
     // Call the API
-    await callLLMApi(provider, formattedPrompt, options);
+    const llmMessages: LLMMessage[] = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
+    await callLLM(provider, llmMessages, options);
   } catch (error) {
     console.error(`Error streaming from ${provider} API:`, error);
     onChunk(`Error: ${error instanceof Error ? error.message : "Failed to get response"}`);

@@ -6,16 +6,11 @@ import GitHubProvider from "next-auth/providers/github";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { validateNextAuthSecret } from "@/lib/env-validation";
 
-// Demo user credentials for testing (keep for development)
-const DEMO_USERS = [
-  {
-    id: "demo-1",
-    name: "Demo User",
-    email: "demo@example.com",
-    password: "password123"
-  }
-];
+// Validate environment variables at startup
+validateNextAuthSecret();
+
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -37,19 +32,6 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           return null;
-        }
-        
-        // Check demo users first (for development)
-        const demoUser = DEMO_USERS.find(
-          (user) => user.email === credentials.email && user.password === credentials.password
-        );
-        
-        if (demoUser) {
-          return {
-            id: demoUser.id,
-            name: demoUser.name,
-            email: demoUser.email
-          };
         }
         
         // Check database users
@@ -100,5 +82,5 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET || "your-secret-key",
+  secret: process.env.NEXTAUTH_SECRET,
 };

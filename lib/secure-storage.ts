@@ -67,7 +67,12 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 // Encrypt a string
-export async function encryptString(text: string, password: string = 'default-app-key'): Promise<string> {
+export async function encryptString(text: string, password?: string): Promise<string> {
+  // Use environment-based key if no password provided
+  if (!password) {
+    const { getEncryptionKey } = await import('@/lib/env-validation');
+    password = getEncryptionKey();
+  }
   try {
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
@@ -98,7 +103,12 @@ export async function encryptString(text: string, password: string = 'default-ap
 }
 
 // Decrypt a string
-export async function decryptString(encryptedText: string, password: string = 'default-app-key'): Promise<string> {
+export async function decryptString(encryptedText: string, password?: string): Promise<string> {
+  // Use environment-based key if no password provided
+  if (!password) {
+    const { getEncryptionKey } = await import('@/lib/env-validation');
+    password = getEncryptionKey();
+  }
   try {
     // Convert Base64 to ArrayBuffer
     const combinedData = base64ToArrayBuffer(encryptedText);
@@ -132,11 +142,8 @@ export async function storeApiKey(provider: string, apiKey: string): Promise<voi
   if (typeof window === 'undefined') return; // Skip during SSR
   
   try {
-    console.log(`Storing API key for provider: ${provider}`);
     const encryptedKey = await encryptString(apiKey);
-    console.log(`Encrypted key for ${provider}:`, encryptedKey);
     localStorage.setItem(`${API_KEY_PREFIX}${provider}`, encryptedKey);
-    console.log(`Successfully stored API key for ${provider}`);
   } catch (error) {
     console.error(`Error storing API key for ${provider}:`, error);
     throw new Error(`Failed to store API key for ${provider}`);
@@ -148,16 +155,12 @@ export async function getStoredApiKey(provider: string): Promise<string | null> 
   if (typeof window === 'undefined') return null; // Skip during SSR
   
   try {
-    console.log(`Retrieving API key for provider: ${provider}`);
     const encryptedKey = localStorage.getItem(`${API_KEY_PREFIX}${provider}`);
-    console.log(`Encrypted key for ${provider}:`, encryptedKey);
     if (!encryptedKey) {
-      console.log(`No API key found for ${provider}`);
       return null;
     }
     
     const decryptedKey = await decryptString(encryptedKey);
-    console.log(`Decrypted key for ${provider}:`, decryptedKey);
     return decryptedKey;
   } catch (error) {
     console.error(`Error retrieving API key for ${provider}:`, error);

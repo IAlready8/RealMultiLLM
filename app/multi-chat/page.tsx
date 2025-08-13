@@ -14,6 +14,7 @@ import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
+import { logger } from "@/lib/logger";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Settings } from "lucide-react";
@@ -74,7 +75,7 @@ export default function MultiChat() {
       try {
         setModelSettings(JSON.parse(savedSettings));
       } catch (e) {
-        console.error("Failed to load model settings:", e);
+        logger.error("Failed to load model settings", e);
       }
     } else {
       // Initialize with default settings if none exist

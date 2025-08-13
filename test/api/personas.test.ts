@@ -24,11 +24,48 @@ vi.mock('@/lib/auth', () => ({
   authOptions: {}
 }));
 
+// Mock validation and sanitization
+vi.mock('@/lib/validation-schemas', () => ({
+  validatePersona: vi.fn().mockReturnValue({
+    name: 'Test Persona',
+    description: 'A test persona',
+    systemPrompt: 'You are a helpful assistant'
+  })
+}));
+
+vi.mock('@/lib/sanitize', () => ({
+  sanitizePersonaData: vi.fn().mockReturnValue({
+    name: 'Test Persona',
+    description: 'A test persona'
+  })
+}));
+
+// Mock error handler and rate limiting
+vi.mock('@/lib/error-handler', () => ({
+  safeHandleApiError: vi.fn(),
+  ErrorCodes: { AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR' },
+  createApiError: vi.fn().mockReturnValue({ error: 'Authentication required' })
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({ success: true })
+}));
+
 // Mock Next.js
 vi.mock('next/server', () => ({
   NextRequest: class {
     json = vi.fn();
+    url: string;
+    headers: Map<string, string>;
+    method: string;
+    
     constructor(url: string) {
+      this.url = url;
+      this.method = 'GET';
+      this.headers = new Map([
+        ['content-type', 'application/json'],
+        ['user-agent', 'vitest']
+      ]);
       this.json = vi.fn().mockResolvedValue({
         title: 'Test Persona',
         description: 'A test persona',

@@ -1,23 +1,16 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Slider } from "@/components/ui/slider";
-import { AlertTriangle, Check, Clock, FileDown, FileUp, Terminal, Trash2, RefreshCw, Play } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { UsageChart } from "@/components/analytics/usage-chart";
-import { ModelComparisonChart } from "@/components/analytics/model-comparison-chart";
-import { ExportImportDialog } from "@/components/export-import-dialog";
+import { ApiKeySection } from "@/components/settings/ApiKeySection";
+import { ModelSettingsSection } from "@/components/settings/ModelSettingsSection";
+import { AnalyticsSection } from "@/components/settings/AnalyticsSection";
+import { ExportImportSection } from "@/components/settings/ExportImportSection";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { storeApiKey, getStoredApiKey, removeApiKey } from "@/lib/secure-storage";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
+import { logger } from "@/lib/logger";
 
 // Helper function to get default model for each provider
 function getDefaultModelForProvider(providerId: string): string {
@@ -89,18 +82,18 @@ export default function Settings() {
   // Load API keys and settings from localStorage
   useEffect(() => {
     const loadData = async () => {
-      console.log("Loading data...");
+      logger.debug("Loading settings data...");
       // Load API keys
       const savedKeys: Record<string, string> = {};
       for (const provider of providers) {
-        console.log(`Loading API key for provider: ${provider.id}`);
+        logger.debug(`Loading API key for provider: ${provider.id}`);
         const key = await getStoredApiKey(provider.id);
-        console.log(`Loaded API key for ${provider.id}:`, key);
+        logger.debug(`Loaded API key for ${provider.id}`, { hasKey: !!key });
         if (key) {
           savedKeys[provider.id] = key;
         }
       }
-      console.log("Loaded API keys:", savedKeys);
+      logger.debug("Loaded API keys", { keyCount: Object.keys(savedKeys).length });
       setApiKeys(savedKeys);
       
       // Load model settings
@@ -110,7 +103,7 @@ export default function Settings() {
           const parsed = JSON.parse(savedSettings);
           setModelSettings(parsed);
         } catch (e) {
-          console.error("Failed to load model settings:", e);
+          logger.error("Failed to load model settings", e);
         }
       } else {
         // Default settings
@@ -125,7 +118,7 @@ export default function Settings() {
         setModelSettings(defaults);
         localStorage.setItem("modelSettings", JSON.stringify(defaults));
       }
-      console.log("Finished loading data");
+      logger.debug("Finished loading settings data");
     };
     
     loadData();
@@ -188,7 +181,7 @@ export default function Settings() {
         variant: "destructive",
       });
       
-      console.error(`Error saving API key for ${providerId}:`, error);
+      logger.error(`Error saving API key for ${providerId}`, error);
     }
   };
   
@@ -282,7 +275,7 @@ export default function Settings() {
         variant: "destructive",
       });
       
-      console.error(`Error testing API key for ${providerId}:`, error);
+      logger.error(`Error testing API key for ${providerId}`, error);
     }
   };
   
@@ -312,6 +305,52 @@ export default function Settings() {
   // Add a log entry
   const addLogEntry = (entry: LogEntry) => {
     setLogs(prev => [entry, ...prev].slice(0, 100)); // Keep only the latest 100 logs
+  };
+
+  // Remove API key handler
+  const removeApiKeyHandler = async (providerId: string) => {
+    try {
+      await removeApiKey(providerId);
+      setApiKeys(prev => {
+        const updated = { ...prev };
+        delete updated[providerId];
+        return updated;
+      });
+      setTestingStatus(prev => ({ ...prev, [providerId]: 'idle' }));
+      toast({
+        title: "API Key Removed",
+        description: `Successfully removed API key for ${providers.find(p => p.id === providerId)?.name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Remove Failed",
+        description: error.message || "Failed to remove API key",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Update model setting helper
+  const updateModelSetting = (providerId: string, setting: string, value: any) => {
+    saveModelSettings(providerId, { [setting]: value });
+  };
+
+  // Reset model defaults helper
+  const resetModelDefaults = () => {
+    const defaults: Record<string, any> = {};
+    providers.forEach(provider => {
+      defaults[provider.id] = {
+        temperature: 0.7,
+        maxTokens: 2048,
+        defaultModel: getDefaultModelForProvider(provider.id)
+      };
+    });
+    setModelSettings(defaults);
+    localStorage.setItem("modelSettings", JSON.stringify(defaults));
+    toast({
+      title: "Settings Reset",
+      description: "All model settings have been reset to defaults",
+    });
   };
   
   // Clear all data
@@ -409,375 +448,35 @@ export default function Settings() {
         </TabsList>
         
         <TabsContent value="api-keys">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {providers.map(provider => (
-              <Card key={provider.id} className="bg-gray-900 border-gray-800">
-                <CardHeader>
-                  <CardTitle>{provider.name} API Key</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`apiKey-${provider.id}`}>
-                        API Key
-                        {testingStatus[provider.id] === 'success' && (
-                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                            ✓ Verified
-                          </span>
-                        )}
-                        {testingStatus[provider.id] === 'error' && (
-                          <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
-                            ✗ Invalid
-                          </span>
-                        )}
-                      </Label>
-                      <div className="flex space-x-2">
-                        <Input
-                          id={`apiKey-${provider.id}`}
-                          type="password"
-                          placeholder={`sk-... (${provider.name} API key)`}
-                          value={apiKeys[provider.id] || ""}
-                          onChange={(e) => setApiKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
-                          className={`bg-gray-800 border-gray-700 ${
-                            testingStatus[provider.id] === 'success' ? 'border-green-500' :
-                            testingStatus[provider.id] === 'error' ? 'border-red-500' : ''
-                          }`}
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              saveApiKey(provider.id, apiKeys[provider.id] || "");
-                            }
-                          }}
-                        />
-                        <Button 
-                          onClick={() => saveApiKey(provider.id, apiKeys[provider.id] || "")}
-                          disabled={!apiKeys[provider.id]?.trim() || testingStatus[provider.id] === 'testing'}
-                          className="min-w-[80px]"
-                        >
-                          {testingStatus[provider.id] === 'testing' ? (
-                            <>
-                              <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            'Save & Test'
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="flex space-x-2">
-                      <Button
-                        onClick={() => testApiKey(provider.id)}
-                        disabled={!apiKeys[provider.id] || testingStatus[provider.id] === 'testing'}
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                      >
-                        {testingStatus[provider.id] === 'testing' ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Testing...
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-2" />
-                            Test Key
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-2 p-3 bg-gray-800 rounded-lg">
-                      <div className="text-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            {apiKeys[provider.id] ? (
-                              <>
-                                <Check className="h-4 w-4 text-green-500" />
-                                <span className="text-green-500">API key configured</span>
-                              </>
-                            ) : (
-                              <>
-                                <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                                <span className="text-yellow-500">No API key</span>
-                              </>
-                            )}
-                          </div>
-                          {apiKeys[provider.id] && (
-                            <span className="text-xs text-gray-400">
-                              {apiKeys[provider.id].substring(0, 8)}...
-                            </span>
-                          )}
-                        </div>
-                        
-                        {testingStatus[provider.id] === 'success' && (
-                          <div className="flex items-center space-x-2 mt-2 p-2 bg-green-50 text-green-800 rounded">
-                            <Check className="h-4 w-4" />
-                            <span className="text-sm font-medium">✅ API key is valid and working</span>
-                          </div>
-                        )}
-                        {testingStatus[provider.id] === 'error' && (
-                          <div className="flex items-center space-x-2 mt-2 p-2 bg-red-50 text-red-800 rounded">
-                            <AlertTriangle className="h-4 w-4" />
-                            <span className="text-sm font-medium">❌ API key test failed</span>
-                          </div>
-                        )}
-                        {testingStatus[provider.id] === 'testing' && (
-                          <div className="flex items-center space-x-2 mt-2 p-2 bg-blue-50 text-blue-800 rounded">
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                            <span className="text-sm font-medium">🔄 Testing API key...</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <ApiKeySection 
+            providers={providers}
+            apiKeys={apiKeys}
+            testingStatus={testingStatus}
+            onSaveApiKey={saveApiKey}
+            onTestApiKey={testApiKey}
+            onRemoveApiKey={removeApiKeyHandler}
+          />
         </TabsContent>
         
         <TabsContent value="model-settings">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {providers.map(provider => {
-              const settings = modelSettings[provider.id] || {};
-              
-              return (
-                <Card key={provider.id} className="bg-gray-900 border-gray-800">
-                  <CardHeader>
-                    <CardTitle>{provider.name} Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div className="space-y-2">
-                        <Label htmlFor={`model-${provider.id}`}>Default Model</Label>
-                        <Select
-                          defaultValue={settings.defaultModel || getDefaultModelForProvider(provider.id)}
-                          onValueChange={(value) => 
-                            saveModelSettings(provider.id, { defaultModel: value })
-                          }
-                        >
-                          <SelectTrigger className="bg-gray-800 border-gray-700">
-                            <SelectValue placeholder="Select a model" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-gray-900 border-gray-800">
-                            {provider.id === "openai" && (
-                              <>
-                                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "claude" && (
-                              <>
-                                <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
-                                <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
-                                <SelectItem value="claude-3-haiku">Claude 3 Haiku</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "google" && (
-                              <>
-                                <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                                <SelectItem value="gemini-ultra">Gemini Ultra</SelectItem>
-                              </>
-                            )}
-                            <SelectItem value="default">Default</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Default Temperature: {settings.temperature || 0.7}</Label>
-                        </div>
-                        <Slider
-                          value={[settings.temperature || 0.7]}
-                          min={0}
-                          max={1}
-                          step={0.1}
-                          onValueChange={(values) => 
-                            saveModelSettings(provider.id, { temperature: values[0] })
-                          }
-                        />
-                        <p className="text-xs text-gray-500">
-                          Lower values produce more predictable outputs, higher values more creative ones
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label>Default Max Tokens: {settings.maxTokens || 2048}</Label>
-                        </div>
-                        <Slider
-                          value={[settings.maxTokens || 2048]}
-                          min={256}
-                          max={4096}
-                          step={256}
-                          onValueChange={(values) => 
-                            saveModelSettings(provider.id, { maxTokens: values[0] })
-                          }
-                        />
-                        <p className="text-xs text-gray-500">
-                          Maximum number of tokens to generate in responses
-                        </p>
-                      </div>
-                      
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => saveModelSettings(provider.id, {
-                          temperature: 0.7,
-                          maxTokens: 2048,
-                          defaultModel: getDefaultModelForProvider(provider.id)
-                        })}
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Reset to Defaults
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <ModelSettingsSection 
+            providers={providers}
+            modelSettings={modelSettings}
+            onUpdateModelSetting={updateModelSetting}
+            onResetToDefaults={resetModelDefaults}
+          />
         </TabsContent>
         
         <TabsContent value="analytics">
-          <div className="space-y-6">
-            <UsageChart data={usageData} title="Usage Statistics" />
-            
-            <ModelComparisonChart data={modelComparisonData} title="Model Performance Comparison" />
-            
-            <Card className="bg-gray-900 border-gray-800">
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>Last {logs.length} log entries</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {logs.map(log => {
-                    const provider = providers.find(p => p.id === log.provider);
-                    return (
-                      <div 
-                        key={log.id} 
-                        className={`p-3 rounded-md border ${
-                          log.type === "success" 
-                            ? "border-green-800 bg-green-900/20" 
-                            : "border-red-800 bg-red-900/20"
-                        }`}
-                      >
-                        <div className="flex justify-between">
-                          <div className="flex items-center">
-                            <span className={`h-2 w-2 rounded-full mr-2 ${
-                              log.type === "success" ? "bg-green-500" : "bg-red-500"
-                            }`}></span>
-                            <span className="font-medium">{provider?.name || log.provider}</span>
-                          </div>
-                          <div className="text-xs text-gray-400 flex items-center">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {new Date(log.timestamp).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="mt-1">{log.message}</div>
-                        {log.details && (
-                          <div className="mt-1 text-sm text-gray-400">{log.details}</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  
-                  {logs.length === 0 && (
-                    <div className="text-center text-gray-500 py-6">
-                      <p>No activity logs yet</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <AnalyticsSection logs={logs} providers={providers} />
         </TabsContent>
         
         <TabsContent value="export-import">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="bg-gray-900 border-gray-800">
-              <CardHeader>
-                <CardTitle>Export/Import Data</CardTitle>
-                <CardDescription>
-                  Export your data to use on another device or import previously exported data
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-400">
-                    Export all your conversations, API keys, and settings to a file that you can import later.
-                  </p>
-                  
-                  <ExportImportDialog
-                    onExport={exportAllData}
-                    onImport={importAllData}
-                    buttonVariant="default"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-gray-900 border-gray-800">
-              <CardHeader>
-                <CardTitle>Danger Zone</CardTitle>
-                <CardDescription>
-                  Operations that will permanently remove data
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <Alert className="border-red-800 bg-red-900/20">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    <AlertDescription>
-                      The following actions are irreversible and will permanently delete your configuration data.
-                    </AlertDescription>
-                  </Alert>
-                  
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="destructive" className="w-full">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Clear All Data
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="bg-gray-900 border-gray-800">
-                        <DialogHeader>
-                          <DialogTitle>Clear All Data</DialogTitle>
-                        </DialogHeader>
-                        <div className="py-4">
-                          <p>This will delete all your API keys and model settings. This action cannot be undone.</p>
-                        </div>
-                        <DialogFooter>
-                          <Button 
-                            variant="outline" 
-                            onClick={() => {}}
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            variant="destructive"
-                            onClick={clearAllData}
-                          >
-                            Delete Everything
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    
-                    <Button variant="outline" className="w-full">
-                      <Terminal className="h-4 w-4 mr-2" />
-                      Export Activity Logs
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <ExportImportSection 
+            onExportData={exportAllData}
+            onImportData={importAllData}
+            onClearAllData={clearAllData}
+          />
         </TabsContent>
       </Tabs>
     </div>

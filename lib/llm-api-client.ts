@@ -15,6 +15,9 @@ import {
   decryptString, 
   getStoredApiKey 
 } from './secure-storage';
+import llmCache from './llm-cache';
+import { fetchWithTimeout, llmCircuitBreaker } from './api-timeout';
+import { logger } from './logger';
 
 // Define common types for all providers
 export interface LLMMessage {
@@ -66,20 +69,24 @@ async function callOpenAI(
     });
   }
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: options.model || 'gpt-4o',
-      messages: openaiMessages,
-      temperature: options.temperature ?? 0.7,
-      max_tokens: options.maxTokens ?? 2048,
-      stream: false,
-    }),
-  });
+  const response = await llmCircuitBreaker.execute(() => 
+    fetchWithTimeout('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: options.model || 'gpt-4o',
+        messages: openaiMessages,
+        temperature: options.temperature ?? 0.7,
+        max_tokens: options.maxTokens ?? 2048,
+        stream: false,
+      }),
+      timeout: 30000,
+      retries: 2
+    })
+  );
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
@@ -448,11 +455,6 @@ async function streamClaude(
   }
 }
 
-// Simple in-memory response cache with TTL
-// optimization: Reduce redundant API calls
-const responseCache = new Map<string, { response: LLMResponse, timestamp: number }>();
-const CACHE_TTL = 1000 * 60 * 10; // 10 minutes
-
 export async function callLLMWithCache(
   provider: string,
   messages: LLMMessage[],
@@ -462,32 +464,16 @@ export async function callLLMWithCache(
   const cacheKey = JSON.stringify({ provider, messages, options });
   
   // Check if we have a cached response
-  const cached = responseCache.get(cacheKey);
-  const now = Date.now();
-  
-  if (cached && (now - cached.timestamp) < CACHE_TTL) {
-    console.log('Using cached LLM response');
-    return cached.response;
+  const cached = llmCache.get(cacheKey);
+  if (cached) {
+    return cached;
   }
   
   // Otherwise, make a new request
   const response = await callLLM(provider, messages, options);
   
   // Cache the response
-  responseCache.set(cacheKey, { response, timestamp: now });
-  
-  // Prune old cache entries (optimization)
-  if (responseCache.size > 100) {
-    const entriesToDelete = [];
-    for (const [key, value] of responseCache.entries()) {
-      if (now - value.timestamp > CACHE_TTL) {
-        entriesToDelete.push(key);
-      }
-    }
-    for (const key of entriesToDelete) {
-      responseCache.delete(key);
-    }
-  }
+  llmCache.set(cacheKey, response);
   
   return response;
 }

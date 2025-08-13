@@ -19,6 +19,11 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: ['node_modules', 'test', '**/*.d.ts']
     },
+    env: {
+      DATABASE_URL: 'file:./test.db',
+      NEXTAUTH_SECRET: 'test-secret',
+      NEXTAUTH_URL: 'http://localhost:3000'
+    },
   },
   resolve: {
     alias: {

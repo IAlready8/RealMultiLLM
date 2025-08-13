@@ -100,46 +100,21 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
   }
 }
 
-// Simplified API for components
-const DEFAULT_KEY = 'default-encryption-key-12345678901234567890123456789012';
+// For secure API key encryption, use the secure-storage module instead
+// These legacy functions are kept for backward compatibility but deprecated
 
+/**
+ * @deprecated Use secure-storage module functions instead
+ */
 export function encryptApiKey(apiKey: string): string {
-  if (!apiKey) return '';
-  
-  try {
-    // Simple XOR encryption for demo purposes
-    const encrypted = Array.from(apiKey)
-      .map((char, i) => 
-        String.fromCharCode(char.charCodeAt(0) ^ DEFAULT_KEY.charCodeAt(i % DEFAULT_KEY.length))
-      )
-      .join('');
-    
-    return btoa(encrypted);
-  } catch (error) {
-    console.error('Encryption error:', error);
-    return apiKey;
-  }
+  console.warn('encryptApiKey is deprecated. Use secure-storage module instead.');
+  return apiKey; // Return plain text as fallback
 }
 
+/**
+ * @deprecated Use secure-storage module functions instead  
+ */
 export function decryptApiKey(encryptedApiKey: string): string {
-  if (!encryptedApiKey) return '';
-  
-  try {
-    // Check if it's already decrypted (plain text)
-    if (!isValidBase64(encryptedApiKey)) {
-      return encryptedApiKey;
-    }
-    
-    const encrypted = atob(encryptedApiKey);
-    const decrypted = Array.from(encrypted)
-      .map((char, i) => 
-        String.fromCharCode(char.charCodeAt(0) ^ DEFAULT_KEY.charCodeAt(i % DEFAULT_KEY.length))
-      )
-      .join('');
-    
-    return decrypted;
-  } catch (error) {
-    console.error('Decryption error:', error);
-    return encryptedApiKey;
-  }
+  console.warn('decryptApiKey is deprecated. Use secure-storage module instead.');
+  return encryptedApiKey; // Return as-is as fallback
 }
