@@ -113,6 +113,12 @@ const sentryWebpackPluginOptions = {
   widenClientFileUpload: true,
   hideSourceMaps: true,
   disableLogger: process.env.NODE_ENV === "production",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+  },
+  telemetry: false,
 };
 
 export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);

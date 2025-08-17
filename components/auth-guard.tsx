@@ -2,7 +2,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from 'lucide-react';
 
@@ -13,13 +13,16 @@ interface AuthGuardProps {
 export function AuthGuard({ children }: AuthGuardProps) {
   const { status } = useSession();
   const router = useRouter();
-  const pathname = usePathname();
   
   useEffect(() => {
-    if (status === "unauthenticated" && !pathname.startsWith("/auth")) {
-      router.push(`/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`);
+    if (status === "unauthenticated") {
+      // Check if we're on an auth page by looking at window.location
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      if (!currentPath.startsWith("/auth")) {
+        router.push(`/auth/signin?callbackUrl=${encodeURIComponent(currentPath)}`);
+      }
     }
-  }, [status, router, pathname]);
+  }, [status, router]);
   
   if (status === "loading") {
     return (
@@ -32,7 +35,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
   
-  if (status === "authenticated" || pathname.startsWith("/auth")) {
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  if (status === "authenticated" || currentPath.startsWith("/auth")) {
     return <>{children}</>;
   }
   

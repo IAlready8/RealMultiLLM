@@ -42,22 +42,25 @@ export async function GET() {
     enabled: !!process.env.GOOGLE_AI_API_KEY,
   });
 
+  // Groq
+  providers.push({
+    id: "groq",
+    name: "Groq",
+    models: ["llama3-8b-8192", "llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"],
+    enabled: true, // Always show Groq
+  });
+
   // Ollama (Local Llama and others)
   const ollamaModels = await getOllamaModels();
   providers.push({
-    id: "llama",
-    name: "Llama (Ollama)",
-    models: ollamaModels.length ? ollamaModels : ["llama3"],
-    enabled: ollamaModels.length > 0,
+    id: "ollama",
+    name: "Ollama",
+    models: ollamaModels.length ? ollamaModels : ["llama3", "llama2", "mistral"],
+    enabled: true, // Always show Ollama
   });
 
-  // Hide unimplemented providers (GitHub Copilot, Grok) by marking disabled
-  providers.push({ id: "github", name: "GitHub", models: ["github-copilot"], enabled: false });
-  providers.push({ id: "grok", name: "Grok", models: ["grok-1"], enabled: false });
-
-  // Only return enabled providers to the client
-  const enabled = providers.filter((p) => p.enabled);
-  return NextResponse.json(enabled);
+  // Return all providers (they'll handle missing API keys at runtime)
+  return NextResponse.json(providers);
 }
 
 

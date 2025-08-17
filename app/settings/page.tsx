@@ -21,16 +21,22 @@ function getDefaultModelForProvider(providerId: string): string {
       return "claude-3-opus-20240229";
     case "google":
       return "gemini-pro";
+    case "groq":
+      return "llama3-8b-8192";
+    case "ollama":
+      return "llama3";
     default:
       return "default";
   }
 }
 
-// LLM providers we'll support (only those implemented)
+// LLM providers we'll support (all implemented)
 const providers = [
   { id: "openai", name: "OpenAI" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
+  { id: "groq", name: "Groq" },
+  { id: "ollama", name: "Ollama" },
 ];
 
 interface LogEntry {

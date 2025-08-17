@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { callLLM } from "@/lib/llm-api-client";
+import { callLLMServer } from "@/lib/llm-api-client-server";
 import { recordAnalyticsEvent } from "@/services/analytics-service";
 import { createRequestLogger } from "@/lib/logger";
 import { validateChatRequest } from "@/lib/validation-schemas";
@@ -66,26 +66,26 @@ export async function POST(request: Request) {
       const systemPrompt = systemMessage?.content;
       
       // Call the LLM with the properly formatted messages
-      const response = await callLLM(provider, formattedMessages, {
+      const response = await callLLMServer(provider, formattedMessages, {
         ...options,
         systemPrompt
       });
 
-    const ms = Date.now() - start;
-    await recordAnalyticsEvent({
-      event: "llm_request",
-      payload: {
-        provider,
-        model: options?.model || "default",
-        promptTokens: response.usage?.promptTokens || 0,
-        completionTokens: response.usage?.completionTokens || 0,
-        totalTokens: response.usage?.totalTokens || 0,
-        responseTime: ms,
-        success: true,
-      },
-      userId: session.user.id!,
-    });
-    log.info({ ms }, "llm.chat.success");
+      const ms = Date.now() - start;
+      await recordAnalyticsEvent({
+        event: "llm_request",
+        payload: {
+          provider,
+          model: options?.model || "default",
+          promptTokens: response.usage?.promptTokens || 0,
+          completionTokens: response.usage?.completionTokens || 0,
+          totalTokens: response.usage?.totalTokens || 0,
+          responseTime: ms,
+          success: true,
+        },
+        userId: session.user.id!,
+      });
+      log.info({ ms }, "llm.chat.success");
 
       return NextResponse.json({
         role: "assistant",

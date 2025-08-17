@@ -7,9 +7,8 @@ generator client {
 
 // Use environment variable to switch between SQLite (development) and PostgreSQL (production)
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // For migrations with connection pooling
 }
 
 // User model (extended from NextAuth)

@@ -1,8 +1,7 @@
 export function validateRequiredEnvVars() {
   const required = [
     'NEXTAUTH_SECRET',
-    'DATABASE_URL',
-    'ENCRYPTION_KEY'
+    'DATABASE_URL'
   ];
   
   const missing = required.filter(env => !process.env[env]);
@@ -51,6 +50,10 @@ export function validateEncryptionKey() {
 }
 
 export function getEncryptionKey(): string {
+  // In development, create a default key if none provided
+  if (process.env.NODE_ENV === 'development' && !process.env.ENCRYPTION_KEY) {
+    return 'dev-encryption-key-1234567890123456'; // 32 chars
+  }
   validateEncryptionKey();
   return process.env.ENCRYPTION_KEY!;
 }

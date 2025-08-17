@@ -8,7 +8,7 @@ export const MessageSchema = z.object({
 
 // Chat request validation
 export const ChatRequestSchema = z.object({
-  provider: z.enum(['openai', 'claude', 'google', 'llama', 'github', 'grok']),
+  provider: z.enum(['openai', 'claude', 'google', 'groq', 'ollama']),
   messages: z.array(MessageSchema).min(1).max(100),
   options: z.object({
     temperature: z.number().min(0).max(2).optional(),
@@ -35,13 +35,13 @@ export const PersonaSchema = z.object({
 
 // API key validation
 export const ApiKeySchema = z.object({
-  provider: z.enum(['openai', 'claude', 'google', 'llama', 'github', 'grok']),
+  provider: z.enum(['openai', 'claude', 'google', 'groq', 'ollama']),
   apiKey: z.string().min(8).max(200)
 });
 
 // Settings validation
 export const SettingsSchema = z.object({
-  defaultProvider: z.enum(['openai', 'claude', 'google', 'llama', 'github', 'grok']).optional(),
+  defaultProvider: z.enum(['openai', 'claude', 'google', 'groq', 'ollama']).optional(),
   defaultModel: z.string().max(100).optional(),
   theme: z.enum(['light', 'dark', 'system']).optional(),
   temperature: z.number().min(0).max(2).optional(),
@@ -55,7 +55,7 @@ export const ConversationSchema = z.object({
   id: z.string().uuid().optional(),
   title: z.string().min(1).max(200),
   messages: z.array(MessageSchema).max(1000),
-  provider: z.enum(['openai', 'claude', 'google', 'llama', 'github', 'grok']),
+  provider: z.enum(['openai', 'claude', 'google', 'groq', 'ollama']),
   model: z.string().max(100).optional(),
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),

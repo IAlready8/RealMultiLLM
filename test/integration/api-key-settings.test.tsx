@@ -61,7 +61,7 @@ describe('API Key Settings Integration', () => {
       })
     } as Response);
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     // Find OpenAI API key input
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
@@ -117,7 +117,7 @@ describe('API Key Settings Integration', () => {
       })
     } as Response);
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     // Find OpenAI API key input
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
@@ -151,7 +151,7 @@ describe('API Key Settings Integration', () => {
     // Mock network error
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     // Find OpenAI API key input
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
@@ -188,7 +188,7 @@ describe('API Key Settings Integration', () => {
       })
     } as Response);
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     // Find Claude API key input
     const claudeInput = screen.getByPlaceholderText(/sk-.*Claude/);
@@ -227,7 +227,7 @@ describe('API Key Settings Integration', () => {
   it('should prevent saving empty API keys', async () => {
     const user = userEvent.setup();
     
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     // Find OpenAI save button - should be disabled initially
     const saveButton = screen.getByText('Save & Test');
@@ -256,7 +256,7 @@ describe('API Key Settings Integration', () => {
       return Promise.resolve(null);
     });
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     // Wait for the component to load saved keys
     await waitFor(() => {
@@ -283,7 +283,7 @@ describe('API Key Settings Integration', () => {
       })
     );
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
     const saveButton = screen.getByText('Save & Test');
@@ -312,7 +312,7 @@ describe('API Key Settings Integration', () => {
       json: () => Promise.resolve({ valid: true, message: 'API key is valid' })
     } as Response);
 
-    render(SettingsPage());
+    render(<SettingsPage />);
 
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
     

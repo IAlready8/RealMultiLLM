@@ -17,7 +17,7 @@ import { useToast } from "@/components/ui/use-toast"; // Import useToast
 import { logger } from "@/lib/logger";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Settings } from "lucide-react";
+import { Settings, Plus, X } from "lucide-react";
 
 // Helper function to get default model for each provider
 function getDefaultModelForProvider(providerId: string): string {
@@ -28,46 +28,82 @@ function getDefaultModelForProvider(providerId: string): string {
       return "claude-3-opus-20240229";
     case "google":
       return "gemini-pro";
+    case "groq":
+      return "llama3-8b-8192";
+    case "ollama":
+      return "llama3";
     default:
       return "default";
   }
 }
 
-// LLM providers we'll support (only those implemented in llm-api-client)
-const providers = [
-  { id: "openai", name: "OpenAI" },
-  { id: "claude", name: "Claude" },
-  { id: "google", name: "Google AI" },
-];
+interface Provider {
+  id: string;
+  name: string;
+  models: string[];
+  enabled: boolean;
+}
+
+interface ChatBox {
+  id: string;
+  providerId: string;
+  provider: Provider;
+}
 
 export default function MultiChat() {
   const { data: session } = useSession();
   const [prompt, setPrompt] = useState("");
+  const [availableProviders, setAvailableProviders] = useState<Provider[]>([]);
+  const [chatBoxes, setChatBoxes] = useState<ChatBox[]>([]);
   const [messages, setMessages] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
-  const [selectedProviders, setSelectedProviders] = useState<Record<string, boolean>>({});
   const [modelSettings, setModelSettings] = useState<Record<string, any>>({});
   const [showSettings, setShowSettings] = useState<Record<string, boolean>>({});
   const { toast } = useToast(); // Initialize toast
 
-  // Initialize messages and loading state for each provider
+  // Fetch available providers and initialize chat boxes
   useEffect(() => {
-    const initialMessages: Record<string, any[]> = {};
-    const initialLoading: Record<string, boolean> = {};
-    const initialSelected: Record<string, boolean> = {};
-    const initialShowSettings: Record<string, boolean> = {};
+    async function loadProviders() {
+      try {
+        const response = await fetch('/api/llm/models');
+        if (response.ok) {
+          const providers = await response.json();
+          setAvailableProviders(providers);
+          
+          // Initialize with first two providers by default
+          const initialBoxes: ChatBox[] = providers.slice(0, 2).map((provider: Provider, index: number) => ({
+            id: `box-${Date.now()}-${index}`,
+            providerId: provider.id,
+            provider
+          }));
+          setChatBoxes(initialBoxes);
+          
+          // Initialize states for all available providers
+          const initialMessages: Record<string, any[]> = {};
+          const initialLoading: Record<string, boolean> = {};
+          const initialShowSettings: Record<string, boolean> = {};
+          
+          providers.forEach((provider: Provider) => {
+            initialMessages[provider.id] = [];
+            initialLoading[provider.id] = false;
+            initialShowSettings[provider.id] = false;
+          });
+          
+          setMessages(initialMessages);
+          setLoading(initialLoading);
+          setShowSettings(initialShowSettings);
+        }
+      } catch (error) {
+        logger.error("Failed to load providers", error);
+        toast({
+          title: "Error loading providers",
+          description: "Could not load available LLM providers",
+          variant: "destructive",
+        });
+      }
+    }
     
-    providers.forEach(provider => {
-      initialMessages[provider.id] = [];
-      initialLoading[provider.id] = false;
-      initialSelected[provider.id] = true; // Select all by default
-      initialShowSettings[provider.id] = false;
-    });
-    
-    setMessages(initialMessages);
-    setLoading(initialLoading);
-    setSelectedProviders(initialSelected);
-    setShowSettings(initialShowSettings);
+    loadProviders();
     
     // Load model settings from localStorage
     const savedSettings = localStorage.getItem("modelSettings");
@@ -77,52 +113,67 @@ export default function MultiChat() {
       } catch (e) {
         logger.error("Failed to load model settings", e);
       }
-    } else {
-      // Initialize with default settings if none exist
-      const defaultSettings: Record<string, any> = {};
-      providers.forEach(provider => {
-        defaultSettings[provider.id] = {
+    }
+  }, [toast]);
+
+  // Add a new chat box
+  const addChatBox = (providerId: string) => {
+    const provider = availableProviders.find(p => p.id === providerId);
+    if (!provider) return;
+    
+    const newBox: ChatBox = {
+      id: `box-${Date.now()}`,
+      providerId,
+      provider
+    };
+    
+    setChatBoxes(prev => [...prev, newBox]);
+    
+    // Initialize settings for this provider if not exists
+    if (!modelSettings[providerId]) {
+      const updatedSettings = {
+        ...modelSettings,
+        [providerId]: {
           temperature: 0.7,
           maxTokens: 2048,
-          defaultModel: getDefaultModelForProvider(provider.id)
-        };
-      });
-      setModelSettings(defaultSettings);
-      localStorage.setItem("modelSettings", JSON.stringify(defaultSettings));
+          defaultModel: getDefaultModelForProvider(providerId)
+        }
+      };
+      setModelSettings(updatedSettings);
+      localStorage.setItem("modelSettings", JSON.stringify(updatedSettings));
     }
-  }, []);
+  };
 
-  const handleSendToSelected = async () => {
+  // Remove a chat box
+  const removeChatBox = (boxId: string) => {
+    setChatBoxes(prev => prev.filter(box => box.id !== boxId));
+  };
+
+  const handleSendToAll = async () => {
     if (!prompt.trim()) return;
     
-    // Add user message to selected chats
+    // Add user message to all chat boxes
     const updatedMessages = { ...messages };
-    Object.entries(selectedProviders).forEach(([providerId, isSelected]) => {
-      if (isSelected) {
-        updatedMessages[providerId] = [
-          ...updatedMessages[providerId],
-          { role: "user", content: prompt, timestamp: Date.now() }
-        ];
-      }
+    chatBoxes.forEach(box => {
+      updatedMessages[box.providerId] = [
+        ...updatedMessages[box.providerId],
+        { role: "user", content: prompt, timestamp: Date.now() }
+      ];
     });
     setMessages(updatedMessages);
     
-    // Set loading state for selected providers
+    // Set loading state for all providers
     const updatedLoading = { ...loading };
-    Object.entries(selectedProviders).forEach(([providerId, isSelected]) => {
-      if (isSelected) {
-        updatedLoading[providerId] = true;
-      }
+    chatBoxes.forEach(box => {
+      updatedLoading[box.providerId] = true;
     });
     setLoading(updatedLoading);
 
-    // Send prompt to each selected provider
-    for (const [providerId, isSelected] of Object.entries(selectedProviders)) {
-      if (!isSelected) continue;
-      
+    // Send prompt to each provider
+    for (const box of chatBoxes) {
       try {
         // Get model settings for this provider
-        const providerSettings = modelSettings[providerId] || {};
+        const providerSettings = modelSettings[box.providerId] || {};
         
         // Call the API route
         const response = await fetch("/api/llm/chat", {
@@ -131,12 +182,12 @@ export default function MultiChat() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            provider: providerId,
-            messages: messages[providerId],
+            provider: box.providerId,
+            messages: messages[box.providerId],
             options: {
               temperature: providerSettings.temperature || 0.7,
               maxTokens: providerSettings.maxTokens || 2048,
-              model: providerSettings.defaultModel || getDefaultModelForProvider(providerId)
+              model: providerSettings.defaultModel || getDefaultModelForProvider(box.providerId)
             }
           }),
         });
@@ -163,11 +214,11 @@ export default function MultiChat() {
         // Update with response
         setMessages(prev => ({
           ...prev,
-          [providerId]: [
-            ...prev[providerId],
+          [box.providerId]: [
+            ...prev[box.providerId],
             {
               ...chatResponse,
-              provider: providerId // Add provider info to the response
+              provider: box.providerId // Add provider info to the response
             }
           ],
         }));
@@ -176,8 +227,8 @@ export default function MultiChat() {
         const errorMessage = error.message || "Could not get response";
         setMessages(prev => ({
           ...prev,
-          [providerId]: [
-            ...prev[providerId],
+          [box.providerId]: [
+            ...prev[box.providerId],
             {
               role: "assistant",
               content: `Error: ${errorMessage}`,
@@ -187,7 +238,7 @@ export default function MultiChat() {
           ],
         }));
         toast({
-          title: `Error from ${providers.find(p => p.id === providerId)?.name}`,
+          title: `Error from ${box.provider.name}`,
           description: errorMessage,
           variant: "destructive",
         });
@@ -195,20 +246,13 @@ export default function MultiChat() {
         // Set loading to false
         setLoading(prev => ({
           ...prev,
-          [providerId]: false,
+          [box.providerId]: false,
         }));
       }
     }
     
     // Clear the prompt input
     setPrompt("");
-  };
-
-  const toggleProvider = (providerId: string) => {
-    setSelectedProviders(prev => ({
-      ...prev,
-      [providerId]: !prev[providerId]
-    }));
   };
 
   const toggleSettings = (providerId: string) => {
@@ -232,29 +276,36 @@ export default function MultiChat() {
   };
 
   const getProviderModels = (providerId: string) => {
-    switch (providerId) {
-      case "openai":
-        return [
-          { value: "gpt-4o", label: "GPT-4o" },
-          { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-          { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" }
-        ];
-      case "claude":
-        return [
-          { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-          { value: "claude-3-sonnet-20240229", label: "Claude 3 Sonnet" },
-          { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" }
-        ];
-      case "google":
-        return [
-          { value: "gemini-pro", label: "Gemini Pro" },
-          { value: "gemini-ultra", label: "Gemini Ultra" }
-        ];
-      default:
-        return [
-          { value: "default", label: "Default" }
-        ];
-    }
+    const provider = availableProviders.find(p => p.id === providerId);
+    if (!provider) return [{ value: "default", label: "Default" }];
+    
+    return provider.models.map(model => ({
+      value: model,
+      label: formatModelName(model)
+    }));
+  };
+
+  const formatModelName = (model: string) => {
+    // Convert model IDs to readable names
+    const nameMap: Record<string, string> = {
+      "gpt-4o": "GPT-4o",
+      "gpt-4-turbo": "GPT-4 Turbo", 
+      "gpt-3.5-turbo": "GPT-3.5 Turbo",
+      "claude-3-opus-20240229": "Claude 3 Opus",
+      "claude-3-sonnet-20240229": "Claude 3 Sonnet", 
+      "claude-3-haiku-20240307": "Claude 3 Haiku",
+      "gemini-pro": "Gemini Pro",
+      "gemini-ultra": "Gemini Ultra",
+      "llama3-8b-8192": "Llama 3 8B",
+      "llama3-70b-8192": "Llama 3 70B",
+      "mixtral-8x7b-32768": "Mixtral 8x7B",
+      "gemma-7b-it": "Gemma 7B",
+      "llama3": "Llama 3",
+      "llama2": "Llama 2",
+      "mistral": "Mistral"
+    };
+    
+    return nameMap[model] || model.charAt(0).toUpperCase() + model.slice(1);
   };
 
   return (
@@ -289,19 +340,37 @@ export default function MultiChat() {
 
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row gap-2 mb-4">
-          <div className="flex flex-wrap gap-2">
-            {providers.map((provider) => (
-              <Button
-                key={provider.id}
-                variant={selectedProviders[provider.id] ? "default" : "outline"}
-                size="sm"
-                onClick={() => toggleProvider(provider.id)}
-                className="flex items-center"
-              >
-                <span className="mr-2">{provider.name}</span>
-                <span className={`w-2 h-2 rounded-full ${selectedProviders[provider.id] ? 'bg-green-500' : 'bg-gray-500'}`}></span>
-              </Button>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-gray-400 mr-2">Active Providers:</span>
+            {chatBoxes.map((box) => (
+              <div key={box.id} className="flex items-center bg-gray-800 rounded-md px-2 py-1">
+                <span className="text-sm mr-2">{box.provider.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-4 w-4 p-0 text-red-400 hover:text-red-300"
+                  onClick={() => removeChatBox(box.id)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
             ))}
+            
+            <Select value="" onValueChange={addChatBox}>
+              <SelectTrigger className="w-32 h-8">
+                <div className="flex items-center">
+                  <Plus className="h-3 w-3 mr-1" />
+                  <span className="text-xs">Add</span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {availableProviders.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         
@@ -314,15 +383,15 @@ export default function MultiChat() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSendToSelected();
+                handleSendToAll();
               }
             }}
           />
           <Button 
-            onClick={handleSendToSelected}
-            disabled={!Object.values(selectedProviders).some(selected => selected)}
+            onClick={handleSendToAll}
+            disabled={chatBoxes.length === 0}
           >
-            Send to Selected
+            Send to All ({chatBoxes.length})
           </Button>
         </div>
       </div>
@@ -335,53 +404,51 @@ export default function MultiChat() {
         
         <TabsContent value="grid">
           <ResponsiveGrid cols={{ default: 1, md: 2 }}>
-            {providers
-              .filter(provider => selectedProviders[provider.id])
-              .map((provider) => (
-                <ChatBox
-                  key={provider.id}
-                  provider={provider}
-                  messages={messages[provider.id] || []}
-                  loading={loading[provider.id] || false}
-                  modelSettings={modelSettings[provider.id] || {}}
-                  showSettings={showSettings[provider.id] || false}
-                  onToggleSettings={() => toggleSettings(provider.id)}
-                  onUpdateModelSetting={(setting, value) => updateModelSetting(provider.id, setting, value)}
-                  getProviderModels={() => getProviderModels(provider.id)}
-                />
-              ))}
+            {chatBoxes.map((box) => (
+              <ChatBox
+                key={box.id}
+                boxId={box.id}
+                provider={box.provider}
+                messages={messages[box.providerId] || []}
+                loading={loading[box.providerId] || false}
+                modelSettings={modelSettings[box.providerId] || {}}
+                showSettings={showSettings[box.providerId] || false}
+                onToggleSettings={() => toggleSettings(box.providerId)}
+                onUpdateModelSetting={(setting, value) => updateModelSetting(box.providerId, setting, value)}
+                onRemoveBox={() => removeChatBox(box.id)}
+                getProviderModels={() => getProviderModels(box.providerId)}
+              />
+            ))}
           </ResponsiveGrid>
         </TabsContent>
         
         <TabsContent value="tabs">
-          <Tabs defaultValue={providers.find(p => selectedProviders[p.id])?.id || providers[0].id} className="w-full">
+          <Tabs defaultValue={chatBoxes[0]?.id} className="w-full">
             <TabsList className="mb-4 flex overflow-x-auto">
-              {providers
-                .filter(provider => selectedProviders[provider.id])
-                .map((provider) => (
-                  <TabsTrigger key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </TabsTrigger>
-                ))}
+              {chatBoxes.map((box) => (
+                <TabsTrigger key={box.id} value={box.id}>
+                  {box.provider.name}
+                </TabsTrigger>
+              ))}
             </TabsList>
             
-            {providers
-              .filter(provider => selectedProviders[provider.id])
-              .map((provider) => (
-                <TabsContent key={provider.id} value={provider.id}>
-                  <ChatBox
-                    provider={provider}
-                    messages={messages[provider.id] || []}
-                    loading={loading[provider.id] || false}
-                    fullHeight
-                    modelSettings={modelSettings[provider.id] || {}}
-                    showSettings={showSettings[provider.id] || false}
-                    onToggleSettings={() => toggleSettings(provider.id)}
-                    onUpdateModelSetting={(setting, value) => updateModelSetting(provider.id, setting, value)}
-                    getProviderModels={() => getProviderModels(provider.id)}
-                  />
-                </TabsContent>
-              ))}
+            {chatBoxes.map((box) => (
+              <TabsContent key={box.id} value={box.id}>
+                <ChatBox
+                  boxId={box.id}
+                  provider={box.provider}
+                  messages={messages[box.providerId] || []}
+                  loading={loading[box.providerId] || false}
+                  fullHeight
+                  modelSettings={modelSettings[box.providerId] || {}}
+                  showSettings={showSettings[box.providerId] || false}
+                  onToggleSettings={() => toggleSettings(box.providerId)}
+                  onUpdateModelSetting={(setting, value) => updateModelSetting(box.providerId, setting, value)}
+                  onRemoveBox={() => removeChatBox(box.id)}
+                  getProviderModels={() => getProviderModels(box.providerId)}
+                />
+              </TabsContent>
+            ))}
           </Tabs>
         </TabsContent>
       </Tabs>
@@ -390,6 +457,7 @@ export default function MultiChat() {
 }
 
 function ChatBox({ 
+  boxId,
   provider, 
   messages, 
   loading,
@@ -398,9 +466,11 @@ function ChatBox({
   showSettings = false,
   onToggleSettings,
   onUpdateModelSetting,
+  onRemoveBox,
   getProviderModels
 }: { 
-  provider: { id: string; name: string }; 
+  boxId?: string;
+  provider: Provider; 
   messages: any[];
   loading: boolean;
   fullHeight?: boolean;
@@ -408,6 +478,7 @@ function ChatBox({
   showSettings?: boolean;
   onToggleSettings?: () => void;
   onUpdateModelSetting?: (setting: string, value: any) => void;
+  onRemoveBox?: () => void;
   getProviderModels?: () => { value: string; label: string }[];
 }) {
   return (
@@ -427,6 +498,16 @@ function ChatBox({
               </Button>
             )}
           </CardTitle>
+          {onRemoveBox && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
+              onClick={onRemoveBox}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         
         {showSettings && onToggleSettings && onUpdateModelSetting && getProviderModels && (
@@ -502,7 +583,7 @@ function ChatBox({
                 {message.content}
                 {message.role === "assistant" && message.provider && (
                   <div className="mt-1 text-xs text-gray-500">
-                    Response from: {providers.find(p => p.id === message.provider)?.name || message.provider}
+                    Response from: {provider.name}
                   </div>
                 )}
                 {message.metadata && !message.metadata.error && (
