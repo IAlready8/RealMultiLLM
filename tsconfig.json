@@ -1,4 +1,4 @@
-echo '{
+{
   "compilerOptions": {
     "target": "es2015",
     "lib": [
@@ -43,4 +43,4 @@ echo '{
   "exclude": [
     "node_modules"
   ]
-}' > tsconfig.json
+}
