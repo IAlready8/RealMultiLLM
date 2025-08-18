@@ -11,11 +11,13 @@ import { ResponsiveGrid } from "@/components/responsive-grid";
 import { PlusCircle, XCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
 
-// LLM providers (only supported ones)
+// LLM providers (all supported ones)
 const providers = [
   { id: "openai", name: "OpenAI" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
+  { id: "groq", name: "Groq" },
+  { id: "ollama", name: "Ollama" },
 ];
 
 interface LLMResponse {

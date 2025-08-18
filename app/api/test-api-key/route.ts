@@ -26,14 +26,11 @@ export async function POST(request: Request) {
         case "google":
           isValid = await testGoogleAI(apiKey);
           break;
-        case "llama":
-          isValid = await testLlama(apiKey);
+        case "groq":
+          isValid = await testGroq(apiKey);
           break;
-        case "github":
-          isValid = await testGitHub(apiKey);
-          break;
-        case "grok":
-          isValid = await testGrok(apiKey);
+        case "ollama":
+          isValid = await testOllama(apiKey);
           break;
         default:
           return NextResponse.json(
@@ -174,47 +171,76 @@ async function testGoogleAI(apiKey: string): Promise<boolean> {
   return true;
 }
 
-async function testLlama(apiKey: string): Promise<boolean> {
-  // For Llama, we'll just check if it's a reasonable format since it's often local
-  if (apiKey.length < 5) {
-    throw new Error("Llama API key appears too short");
+
+async function testGroq(apiKey: string): Promise<boolean> {
+  if (!apiKey.startsWith('gsk_')) {
+    throw new Error("Groq API key must start with 'gsk_'");
   }
   
-  // You could add actual Ollama endpoint testing here if needed
+  const response = await fetch("https://api.groq.com/openai/v1/models", {
+    method: "GET",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      throw new Error("Invalid Groq API key - authentication failed");
+    } else if (response.status === 429) {
+      throw new Error("Groq API rate limit exceeded - key is valid but temporarily blocked");
+    } else if (response.status === 403) {
+      throw new Error("Groq API key lacks necessary permissions");
+    }
+    
+    try {
+      const error = await response.json();
+      throw new Error(error.error?.message || `Groq API error (${response.status})`);
+    } catch {
+      throw new Error(`Groq API request failed with status ${response.status}`);
+    }
+  }
+
+  const data = await response.json();
+  if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+    throw new Error("Groq API returned unexpected response format");
+  }
+
   return true;
 }
 
-async function testGitHub(apiKey: string): Promise<boolean> {
-  // GitHub Copilot uses different endpoints, for now just validate format
-  if (!apiKey.startsWith("gho_") && !apiKey.startsWith("github_")) {
-    throw new Error("GitHub API key should start with 'gho_' or 'github_'");
-  }
+async function testOllama(apiKey: string): Promise<boolean> {
+  // Ollama is typically local and doesn't require API keys
+  // Test connection to local Ollama instance
+  const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
   
-  return true;
-}
-
-async function testGrok(apiKey: string): Promise<boolean> {
-  // Grok/X.AI endpoint testing
   try {
-    const response = await fetch("https://api.x.ai/v1/models", {
+    const response = await fetch(`${baseUrl}/api/tags`, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "Invalid Grok API key");
+      throw new Error(`Ollama server not accessible at ${baseUrl}. Make sure Ollama is running.`);
+    }
+
+    const data = await response.json();
+    if (!data.models || !Array.isArray(data.models)) {
+      throw new Error("Ollama returned unexpected response format");
+    }
+
+    if (data.models.length === 0) {
+      throw new Error("No models found in Ollama. Please install at least one model (e.g., 'ollama pull llama3')");
     }
 
     return true;
-  } catch (error) {
-    // If the endpoint is not available, just validate format
-    if (!apiKey.startsWith("xai-")) {
-      throw new Error("Grok API key should start with 'xai-'");
+  } catch (error: any) {
+    if (error.message.includes('fetch failed') || error.message.includes('ECONNREFUSED')) {
+      throw new Error(`Cannot connect to Ollama at ${baseUrl}. Make sure Ollama is installed and running.`);
     }
-    return true;
+    throw error;
   }
 }
