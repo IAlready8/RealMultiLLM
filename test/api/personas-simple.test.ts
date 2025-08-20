@@ -48,7 +48,7 @@ describe('Personas API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock authenticated session by default
-    (getServerSession as vi.Mock).mockResolvedValue({
+    (getServerSession as any).mockResolvedValue({
       user: { id: 'user1', email: 'test@example.com' }
     });
   });
@@ -72,11 +72,12 @@ describe('Personas API', () => {
       const { GET } = await import('@/app/api/personas/route');
       
       // Create a mock request
-      const mockRequest = {
-        url: 'http://localhost/api/personas',
+      const mockRequest = new Request('http://localhost/api/personas', {
         method: 'GET',
-        headers: new Map([['content-type', 'application/json']])
-      } as Request;
+        headers: {
+          'content-type': 'application/json'
+        }
+      });
       
       const response = await GET(mockRequest);
       const responseData = await response.json();
@@ -123,16 +124,17 @@ describe('Personas API', () => {
       const { POST } = await import('@/app/api/personas/route');
 
       // Create a mock request with JSON body
-      const mockRequest = {
-        url: 'http://localhost/api/personas',
+      const mockRequest = new Request('http://localhost/api/personas', {
         method: 'POST',
-        headers: new Map([['content-type', 'application/json']]),
-        json: () => Promise.resolve({
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
           title: 'Test Persona',
           description: 'A test persona',
           prompt: 'You are a helpful assistant'
         })
-      } as Request;
+      });
       
       const response = await POST(mockRequest);
       const responseData = await response.json();
@@ -182,17 +184,18 @@ describe('Personas API', () => {
       const { PUT } = await import('@/app/api/personas/route');
 
       // Create a mock request with JSON body
-      const mockRequest = {
-        url: 'http://localhost/api/personas',
+      const mockRequest = new Request('http://localhost/api/personas', {
         method: 'PUT',
-        headers: new Map([['content-type', 'application/json']]),
-        json: () => Promise.resolve({
+        headers: {
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
           id: 'persona1',
           title: 'Updated Persona',
           description: 'Updated description',
           prompt: 'You are an updated assistant'
         })
-      } as Request;
+      });
       
       const response = await PUT(mockRequest);
       const responseData = await response.json();
@@ -221,11 +224,12 @@ describe('Personas API', () => {
       const { DELETE } = await import('@/app/api/personas/route');
 
       // Create a mock request with query parameters
-      const mockRequest = {
-        url: 'http://localhost/api/personas?id=persona1',
+      const mockRequest = new Request('http://localhost/api/personas?id=persona1', {
         method: 'DELETE',
-        headers: new Map([['content-type', 'application/json']])
-      } as Request;
+        headers: {
+          'content-type': 'application/json'
+        }
+      });
       
       const response = await DELETE(mockRequest);
 

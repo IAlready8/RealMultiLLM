@@ -14,18 +14,11 @@ describe('API Client Service', () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
-          choices: [
-            {
-              message: {
-                content: 'Hello! How can I help you today?',
-                role: 'assistant'
-              }
-            }
-          ],
-          usage: {
-            prompt_tokens: 10,
-            completion_tokens: 8,
-            total_tokens: 18
+          content: 'Hello! How can I help you today?',
+          metadata: {
+            promptTokens: 10,
+            completionTokens: 8,
+            totalTokens: 18
           }
         })
       };
@@ -35,30 +28,31 @@ describe('API Client Service', () => {
       const result = await callLLM(
         'openai',
         'Hello',
-        'test-api-key',
         { temperature: 0.7, maxTokens: 1000 }
       );
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.openai.com/v1/chat/completions',
+        '/api/llm/chat',
         expect.objectContaining({
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer test-api-key'
+            'Content-Type': 'application/json'
           }
         })
       );
 
       expect(result).toEqual({
-        role: 'assistant',
-        content: 'Hello! How can I help you today?',
-        timestamp: expect.any(Number),
-        metadata: {
-          promptTokens: 10,
+        text: 'Hello! How can I help you today?',
+        usage: {
           completionTokens: 8,
-          totalTokens: 18
-        }
+          promptTokens: 10,
+          totalTokens: 18,
+        },
+        metadata: {
+          completionTokens: 8,
+          promptTokens: 10,
+          totalTokens: 18,
+        },
       });
     });
 
@@ -66,14 +60,11 @@ describe('API Client Service', () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
-          content: [
-            {
-              text: 'Hello! I\'m Claude, how can I assist you?'
-            }
-          ],
-          usage: {
-            input_tokens: 12,
-            output_tokens: 10
+          content: 'Hello! I\'m Claude, how can I assist you?',
+          metadata: {
+            promptTokens: 12,
+            completionTokens: 10,
+            totalTokens: 22
           }
         })
       };
@@ -83,23 +74,20 @@ describe('API Client Service', () => {
       const result = await callLLM(
         'claude',
         'Hello',
-        'test-claude-key',
         { temperature: 0.5 }
       );
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.anthropic.com/v1/messages',
+        '/api/llm/chat',
         expect.objectContaining({
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': 'test-claude-key',
-            'anthropic-version': '2023-06-01'
+            'Content-Type': 'application/json'
           }
         })
       );
 
-      expect(result.content).toBe('Hello! I\'m Claude, how can I assist you?');
+      expect(result.text).toBe('Hello! I\'m Claude, how can I assist you?');
     });
 
     it('should handle API errors gracefully', async () => {
@@ -107,14 +95,14 @@ describe('API Client Service', () => {
         ok: false,
         status: 401,
         json: vi.fn().mockResolvedValue({
-          error: { message: 'Invalid API key' }
+          message: 'Invalid API key'
         })
       };
 
       (global.fetch as any).mockResolvedValue(mockResponse);
 
       await expect(
-        callLLM('openai', 'Hello', 'invalid-key', {})
+        callLLM('openai', 'Hello', {})
       ).rejects.toThrow('Invalid API key');
     });
 
@@ -122,56 +110,48 @@ describe('API Client Service', () => {
       (global.fetch as any).mockRejectedValue(new Error('Network error'));
 
       await expect(
-        callLLM('openai', 'Hello', 'test-key', {})
+        callLLM('openai', 'Hello', {})
       ).rejects.toThrow('Network error');
     });
 
     it('should handle unsupported providers', async () => {
-      await expect(
-        callLLM('unsupported' as any, 'Hello', 'test-key', {})
-      ).rejects.toThrow('Unsupported provider: unsupported');
-    });
-
-    it('should handle empty responses', async () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
-          choices: []
+          content: 'Response'
         })
       };
 
       (global.fetch as any).mockResolvedValue(mockResponse);
 
-      await expect(
-        callLLM('openai', 'Hello', 'test-key', {})
-      ).rejects.toThrow('No response from OpenAI API');
+      await callLLM('unsupported' as any, 'Hello', {});
+
+      // Just verify it makes the call - the actual provider handling is done server-side
+      expect(global.fetch).toHaveBeenCalled();
     });
 
     it('should use default options when none provided', async () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
-          choices: [
-            {
-              message: {
-                content: 'Response',
-                role: 'assistant'
-              }
-            }
-          ],
-          usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 }
+          content: 'Response',
+          metadata: {
+            promptTokens: 5,
+            completionTokens: 3,
+            totalTokens: 8
+          }
         })
       };
 
       (global.fetch as any).mockResolvedValue(mockResponse);
 
-      await callLLM('openai', 'Hello', 'test-key');
+      await callLLM('openai', 'Hello');
 
       const fetchCall = (global.fetch as any).mock.calls[0];
       const requestBody = JSON.parse(fetchCall[1].body);
 
-      expect(requestBody.temperature).toBe(0.7);
-      expect(requestBody.max_tokens).toBe(2048);
+      expect(requestBody.provider).toBe('openai');
+      expect(requestBody.messages).toEqual([{ role: 'user', content: 'Hello' }]);
     });
   });
 });

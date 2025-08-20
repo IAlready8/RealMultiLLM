@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiKeySection } from "@/components/settings/ApiKeySection";
 import { ModelSettingsSection } from "@/components/settings/ModelSettingsSection";
-import { AnalyticsSection } from "@/components/settings/AnalyticsSection";
+import { AnalyticsSection } from '@/components/settings/AnalyticsSection';
 import { ExportImportSection } from "@/components/settings/ExportImportSection";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { storeApiKey, getStoredApiKey, removeApiKey } from "@/lib/secure-storage";

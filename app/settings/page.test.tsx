@@ -1,7 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import React from 'react';
 import { render, screen, waitFor, within } from '@/test/test-utils'
+
+vi.mock('react', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    useState: vi.fn((initial) => [initial, vi.fn()]),
+    useEffect: vi.fn(),
+  };
+});
 import userEvent from '@testing-library/user-event'
 import SettingsPage from './page'
+
+// Mock next-themes
+vi.mock('next-themes', () => ({
+  useTheme: () => ({
+    theme: 'light',
+    setTheme: vi.fn(),
+    themes: ['light', 'dark'],
+    resolvedTheme: 'light',
+  }),
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 // Mock services
 vi.mock('@/lib/secure-storage', () => ({

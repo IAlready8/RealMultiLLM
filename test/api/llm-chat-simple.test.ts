@@ -29,6 +29,7 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 vi.mock('@/lib/validation-schemas', () => ({
+  ChatRequestSchema: {},
   validateChatRequest: vi.fn()
 }));
 
@@ -37,7 +38,7 @@ vi.mock('@/lib/sanitize', () => ({
 }));
 
 vi.mock('@/lib/error-handler', () => ({
-  safeHandleApiError: vi.fn(),
+  safeHandleApiError: vi.fn(() => new Response(JSON.stringify({ error: 'mocked error' }), { status: 500 })),
   ErrorCodes: { AUTHENTICATION_ERROR: 'AUTHENTICATION_ERROR' },
   createApiError: vi.fn()
 }));

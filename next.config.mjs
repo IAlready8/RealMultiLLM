@@ -8,7 +8,6 @@ const nextConfig = {
   // 3. Configure for both development and production
   
   reactStrictMode: true,
-  swcMinify: true,
   images: {
     domains: ['avatars.githubusercontent.com', 'lh3.googleusercontent.com'],
   },
@@ -119,6 +118,12 @@ const sentryWebpackPluginOptions = {
     deleteSourcemapsAfterUpload: true,
   },
   telemetry: false,
+  release: {
+    name: process.env.NEXT_PUBLIC_APP_VERSION || "unknown",
+    setCommits: {
+      auto: true,
+    },
+  },
 };
 
 export default withSentryConfig(nextConfig, sentryWebpackPluginOptions);

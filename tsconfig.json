@@ -41,6 +41,11 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "command-palette-context-final.ts",
+    "command-palette-context-new-fixed.ts",
+    "hooks/command-palette-context-final.ts",
+    "hooks/command-palette-context-new.ts",
+    "hooks/command-palette-context-fixed.ts"
   ]
 }

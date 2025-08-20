@@ -2,6 +2,19 @@ import React, { ReactElement } from 'react'
 import { render, RenderOptions } from '@testing-library/react'
 import { SessionProvider } from 'next-auth/react'
 import { ThemeProvider } from '@/components/theme-provider'
+import { vi } from 'vitest'
+
+// Mock next-auth/react
+vi.mock('next-auth/react', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    SessionProvider: ({ children }) => children,
+    useSession: vi.fn(() => ({ data: mockSession, status: 'authenticated' })),
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+  };
+});
 
 // Mock session data
 const mockSession = {

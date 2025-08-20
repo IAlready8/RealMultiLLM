@@ -1,84 +1,92 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@/test/test-utils'
-import userEvent from '@testing-library/user-event'
-import { signOut } from 'next-auth/react'
-import SignOutPage from './page'
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@/test/test-utils';
+import userEvent from '@testing-library/user-event';
+import { signOut } from 'next-auth/react';
+import SignOutPage from './page';
 
 // Mock next/navigation
-const mockPush = vi.fn()
-const mockBack = vi.fn()
+const mockPush = vi.fn();
+const mockBack = vi.fn();
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ 
     push: mockPush,
     back: mockBack,
   }),
-}))
+}));
+
+// Mock next-auth/react
+vi.mock('next-auth/react', () => ({
+  signOut: vi.fn(),
+  useSession: vi.fn(() => ({ data: { user: { name: 'Test User' } }, status: 'authenticated' })),
+  SessionProvider: ({ children }) => children,
+}));
 
 describe('SignOut Page', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-  })
+    vi.clearAllMocks();
+  });
 
   it('renders signout confirmation correctly', () => {
-    render(<SignOutPage />)
+    render(<SignOutPage />);
     
-    expect(screen.getByRole('heading', { name: /sign out/i })).toBeInTheDocument()
-    expect(screen.getByText(/are you sure you want to sign out?/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^sign out$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
-  })
+    expect(screen.getByRole('heading', { name: /sign out/i })).toBeInTheDocument();
+    expect(screen.getByText(/are you sure you want to sign out?/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^sign out$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+  });
 
   it('calls signOut and redirects when sign out button is clicked', async () => {
-    const user = userEvent.setup()
-    const mockSignOut = vi.mocked(signOut)
-    mockSignOut.mockResolvedValue(undefined)
+    const user = userEvent.setup();
+    const mockSignOut = vi.mocked(signOut);
+    mockSignOut.mockResolvedValue(undefined);
     
-    render(<SignOutPage />)
+    render(<SignOutPage />);
     
-    const signOutButton = screen.getByRole('button', { name: /^sign out$/i })
-    await user.click(signOutButton)
+    const signOutButton = screen.getByRole('button', { name: /^sign out$/i });
+    await user.click(signOutButton);
     
     await waitFor(() => {
-      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false })
-      expect(mockPush).toHaveBeenCalledWith('/')
-    })
-  })
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+  });
 
   it('shows loading state during signout', async () => {
-    const user = userEvent.setup()
-    const mockSignOut = vi.mocked(signOut)
-    mockSignOut.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(undefined), 1000)))
+    const user = userEvent.setup();
+    const mockSignOut = vi.mocked(signOut);
+    mockSignOut.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(undefined), 1000)));
     
-    render(<SignOutPage />)
+    render(<SignOutPage />);
     
-    const signOutButton = screen.getByRole('button', { name: /^sign out$/i })
-    await user.click(signOutButton)
+    const signOutButton = screen.getByRole('button', { name: /^sign out$/i });
+    await user.click(signOutButton);
     
-    expect(screen.getByText(/signing out.../i)).toBeInTheDocument()
-    expect(signOutButton).toBeDisabled()
-  })
+    expect(screen.getByText(/signing out.../i)).toBeInTheDocument();
+    expect(signOutButton).toBeDisabled();
+  });
 
   it('navigates back when cancel button is clicked', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup();
     
-    render(<SignOutPage />)
+    render(<SignOutPage />);
     
-    const cancelButton = screen.getByRole('button', { name: /cancel/i })
-    await user.click(cancelButton)
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    await user.click(cancelButton);
     
-    expect(mockBack).toHaveBeenCalled()
-  })
+    expect(mockBack).toHaveBeenCalled();
+  });
 
   it('disables buttons during loading', async () => {
-    const user = userEvent.setup()
-    const mockSignOut = vi.mocked(signOut)
-    mockSignOut.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(undefined), 1000)))
+    const user = userEvent.setup();
+    const mockSignOut = vi.mocked(signOut);
+    mockSignOut.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(undefined), 1000)));
     
-    render(<SignOutPage />)
+    render(<SignOutPage />);
     
-    const signOutButton = screen.getByRole('button', { name: /^sign out$/i })
-    await user.click(signOutButton)
+    const signOutButton = screen.getByRole('button', { name: /^sign out$/i });
+    await user.click(signOutButton);
     
-    expect(signOutButton).toBeDisabled()
-  })
-})
+    expect(signOutButton).toBeDisabled();
+  });
+});

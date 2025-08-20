@@ -24,8 +24,9 @@ describe('Persona Service', () => {
           title: 'Assistant',
           description: 'Helpful assistant',
           prompt: 'You are a helpful assistant',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          userId: 'user1',
+          createdAt: new Date(),
+          updatedAt: new Date()
         }
       ];
 
@@ -60,9 +61,10 @@ describe('Persona Service', () => {
 
       const createdPersona = {
         id: '2',
+        userId: 'user1',
         ...newPersona,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       (global.fetch as any).mockResolvedValue({
@@ -90,10 +92,11 @@ describe('Persona Service', () => {
 
       const updatedPersona = {
         id: '1',
+        userId: 'user1',
         ...updateData,
         prompt: 'Original prompt',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       (global.fetch as any).mockResolvedValue({
@@ -134,8 +137,9 @@ describe('Persona Service', () => {
         title: 'Assistant',
         description: 'Helpful',
         prompt: 'You are a helpful assistant',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        userId: 'user1',
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       const messages = [
@@ -156,8 +160,9 @@ describe('Persona Service', () => {
         title: 'Assistant',
         description: 'Helpful',
         prompt: 'You are a helpful assistant',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        userId: 'user1',
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       const messages = [

@@ -5,6 +5,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+generator db {
+  provider = "prisma-client-js"
+  previewFeatures = ["referentialIntegrity"]
+}
+
 // Use environment variable to switch between SQLite (development) and PostgreSQL (production)
 datasource db {
   provider = "sqlite"
@@ -28,6 +33,9 @@ model User {
   personas      Persona[]
   analytics     Analytics[]
   settings      UserSettings?
+  subscriptions Subscription[]
+  apiKeys       ApiKey[]
+  analyticsEvents AnalyticsEvent[]
 }
 
 // NextAuth models
@@ -77,6 +85,8 @@ model Goal {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([title, userId])
 }
 
 model Persona {
@@ -89,6 +99,8 @@ model Persona {
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([title, userId])
 }
 
 model Analytics {
@@ -107,4 +119,66 @@ model UserSettings {
   modelSettings String // Changed from Json to String to support SQLite
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Enhanced analytics event tracking
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  event     String
+  payload   String   // JSON string for SQLite compatibility
+  userId    String?
+  timestamp DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([event])
+  @@index([timestamp])
+  @@index([userId])
+}
+
+// Subscription management
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  tier      String   // 'free', 'pro', 'enterprise'
+  status    String   // 'active', 'cancelled', 'expired', 'pending'
+  startDate DateTime
+  endDate   DateTime?
+  metadata  String?  // JSON string for features and limits
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// API key management
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  hashedKey String   @unique
+  name      String?
+  isActive  Boolean  @default(true)
+  lastUsed  DateTime?
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([hashedKey])
+  @@index([userId])
+}
+
+// Security management
+model BlockedIP {
+  id        String   @id @default(cuid())
+  ip        String   @unique
+  reason    String?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([ip])
+  @@index([expiresAt])
 }

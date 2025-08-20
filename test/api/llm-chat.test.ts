@@ -33,6 +33,9 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 vi.mock('@/lib/validation-schemas', () => ({
+  ChatRequestSchema: {
+    parse: vi.fn().mockImplementation((data) => data),
+  },
   validateChatRequest: vi.fn().mockImplementation((body) => ({
     provider: body.provider,
     messages: body.messages,

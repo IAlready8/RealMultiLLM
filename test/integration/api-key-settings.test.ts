@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '../test-utils';
 import userEvent from '@testing-library/user-event';
 import SettingsPage from '@/app/settings/page';
 import { storeApiKey, getStoredApiKey } from '@/lib/secure-storage';
@@ -61,7 +61,9 @@ describe('API Key Settings Integration', () => {
       })
     } as Response);
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     // Find OpenAI API key input
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
@@ -72,7 +74,9 @@ describe('API Key Settings Integration', () => {
     await user.type(openaiInput, testApiKey);
 
     // Click save button
-    await user.click(saveButton);
+    await act(async () => {
+      await user.click(saveButton);
+    });
 
     // Wait for the save and test process
     await waitFor(() => {
@@ -117,7 +121,9 @@ describe('API Key Settings Integration', () => {
       })
     } as Response);
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     // Find OpenAI API key input
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
@@ -128,7 +134,9 @@ describe('API Key Settings Integration', () => {
     await user.type(openaiInput, invalidApiKey);
 
     // Click save button
-    await user.click(saveButton);
+    await act(async () => {
+      await user.click(saveButton);
+    });
 
     // Wait for the error
     await waitFor(() => {
@@ -151,7 +159,9 @@ describe('API Key Settings Integration', () => {
     // Mock network error
     vi.mocked(fetch).mockRejectedValueOnce(new Error('Network error'));
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     // Find OpenAI API key input
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
@@ -162,7 +172,9 @@ describe('API Key Settings Integration', () => {
     await user.type(openaiInput, testApiKey);
 
     // Click save button
-    await user.click(saveButton);
+    await act(async () => {
+      await user.click(saveButton);
+    });
 
     // Wait for the network error handling
     await waitFor(() => {
@@ -188,7 +200,9 @@ describe('API Key Settings Integration', () => {
       })
     } as Response);
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     // Find Claude API key input
     const claudeInput = screen.getByPlaceholderText(/sk-.*Claude/);
@@ -200,7 +214,9 @@ describe('API Key Settings Integration', () => {
     // Find and click the save button for Claude
     const saveButtons = screen.getAllByText('Save & Test');
     const claudeSaveButton = saveButtons[1]; // Assuming Claude is second
-    await user.click(claudeSaveButton);
+    await act(async () => {
+      await user.click(claudeSaveButton);
+    });
 
     // Wait for the API test
     await waitFor(() => {
@@ -227,7 +243,9 @@ describe('API Key Settings Integration', () => {
   it('should prevent saving empty API keys', async () => {
     const user = userEvent.setup();
     
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     // Find OpenAI save button - should be disabled initially
     const saveButton = screen.getByText('Save & Test');
@@ -256,7 +274,9 @@ describe('API Key Settings Integration', () => {
       return Promise.resolve(null);
     });
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     // Wait for the component to load saved keys
     await waitFor(() => {
@@ -283,7 +303,9 @@ describe('API Key Settings Integration', () => {
       })
     );
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
     const saveButton = screen.getByText('Save & Test');
@@ -292,7 +314,9 @@ describe('API Key Settings Integration', () => {
     await user.type(openaiInput, 'sk-1234567890abcdef1234567890abcdef1234567890abcdef');
 
     // Click save
-    await user.click(saveButton);
+    await act(async () => {
+      await user.click(saveButton);
+    });
 
     // Should show testing status
     expect(screen.getByText('🔄 Testing API key...')).toBeInTheDocument();
@@ -312,7 +336,9 @@ describe('API Key Settings Integration', () => {
       json: () => Promise.resolve({ valid: true, message: 'API key is valid' })
     } as Response);
 
-    render(SettingsPage());
+    await act(async () => {
+      render(SettingsPage());
+    });
 
     const openaiInput = screen.getByPlaceholderText(/sk-.*OpenAI/);
     
@@ -320,7 +346,9 @@ describe('API Key Settings Integration', () => {
     await user.type(openaiInput, 'sk-1234567890abcdef1234567890abcdef1234567890abcdef');
     
     // Press Enter
-    await user.keyboard('{Enter}');
+    await act(async () => {
+      await user.keyboard('{Enter}');
+    });
 
     // Should trigger save and test
     await waitFor(() => {

@@ -80,3 +80,10 @@ coverage/
 test-api-key.js
 tsconfig.tsbuildinfo
 EOF < /dev/nullprisma/dev.db
+
+# Temporary/duplicate command palette files
+command-palette-context-final.ts
+command-palette-context-new-fixed.ts
+hooks/command-palette-context-final.ts
+hooks/command-palette-context-new.ts
+hooks/command-palette-context-fixed.ts

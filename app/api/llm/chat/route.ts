@@ -4,12 +4,16 @@ import { authOptions } from "@/lib/auth";
 import { callLLMServer } from "@/lib/llm-api-client-server";
 import { recordAnalyticsEvent } from "@/services/analytics-service";
 import { createRequestLogger } from "@/lib/logger";
-import { validateChatRequest } from "@/lib/validation-schemas";
+import { ChatRequestSchema } from "@/lib/validation-schemas";
 import { sanitizeChatMessage } from "@/lib/sanitize";
 import { safeHandleApiError, ErrorCodes, createApiError } from "@/lib/error-handler";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { withValidation } from "@/lib/validation-middleware";
+
+// Create a middleware for chat request validation
+const validateChat = withValidation(ChatRequestSchema);
 
 // OVERWRITTEN FILE: app/api/llm/chat/route.ts (complete rewrite)
 // Adds centralized logging and supports new Ollama provider via callLLMApi.
@@ -39,11 +43,17 @@ export async function POST(request: Request) {
   let provider = "unknown";
 
   try {
+    // Apply validation middleware
+    const validationResponse = await validateChat(request as any);
+    if (validationResponse) {
+      return validationResponse;
+    }
+
     const body = await request.json();
     
     // Validate request structure
     try {
-      const validatedRequest = validateChatRequest(body);
+      const validatedRequest = ChatRequestSchema.parse(body);
       provider = validatedRequest.provider;
       const { messages, options } = validatedRequest;
 

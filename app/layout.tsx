@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import { Inter } from 'next/font/google';
 import "./globals.css";
@@ -6,6 +5,8 @@ import Navbar from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { AuthGuard } from "@/components/auth-guard";
+import { CommandPaletteProvider } from "@/hooks/command-palette-context";
+import { CommandPalette } from "@/components/command-palette";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -29,14 +30,17 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <AuthGuard>
-              <div className="min-h-screen flex flex-col">
-                <Navbar />
-                <main className="flex-1">
-                  {children}
-                </main>
-              </div>
-            </AuthGuard>
+            <CommandPaletteProvider>
+              <CommandPalette />
+              <AuthGuard>
+                <div className="min-h-screen flex flex-col">
+                  <Navbar />
+                  <main className="flex-1">
+                    {children}
+                  </main>
+                </div>
+              </AuthGuard>
+            </CommandPaletteProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

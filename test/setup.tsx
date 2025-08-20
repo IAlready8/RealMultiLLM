@@ -1,3 +1,4 @@
+
 // Import test setup utilities
 import '@testing-library/jest-dom';
 import { expect, afterEach, vi } from 'vitest';
@@ -9,6 +10,22 @@ expect.extend(matchers);
 
 // Mock browser APIs not available in test environment
 if (typeof window !== 'undefined') {
+  console.log("Running test/setup.tsx in browser environment.");
+  // Mock window.matchMedia
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn().mockImplementation(() => this), // Deprecated
+      removeListener: vi.fn().mockImplementation(() => this), // Deprecated
+      addEventListener: vi.fn().mockImplementation(() => this),
+      removeEventListener: vi.fn().mockImplementation(() => this),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+
   // Mock the Web Crypto API
   if (!window.crypto) {
     Object.defineProperty(window, 'crypto', {
@@ -55,6 +72,50 @@ if (typeof window !== 'undefined') {
         }
       }
     });
+  }
+
+  // Mock indexedDB
+  if (!window.indexedDB) {
+    Object.defineProperty(window, 'indexedDB', {
+      writable: true,
+      value: {
+        open: vi.fn(() => ({
+          // Mock a simple IDBDatabase object
+          createObjectStore: vi.fn(),
+          transaction: vi.fn(() => ({
+            objectStore: vi.fn(() => ({
+              get: vi.fn(() => Promise.resolve(undefined)),
+              put: vi.fn(() => Promise.resolve(undefined)),
+              delete: vi.fn(() => Promise.resolve(undefined)),
+              getAll: vi.fn(() => ({
+                onsuccess: null,
+                onerror: null,
+                result: [],
+              })),
+              getAllKeys: vi.fn(() => Promise.resolve([])),
+              count: vi.fn(() => Promise.resolve(0)),
+            })),
+            commit: vi.fn(),
+            abort: vi.fn(),
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          })),
+          close: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        })),
+        deleteDatabase: vi.fn(() => Promise.resolve(undefined)),
+      },
+    });
+  }
+
+  // Mock ResizeObserver
+  if (typeof window !== 'undefined' && !window.ResizeObserver) {
+    window.ResizeObserver = vi.fn().mockImplementation(() => ({
+      observe: vi.fn(),
+      unobserve: vi.fn(),
+      disconnect: vi.fn(),
+    }));
   }
 }
 
