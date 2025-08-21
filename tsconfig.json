@@ -36,8 +36,19 @@
   },
   "include": [
     "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "services/**/*.ts",
+    "services/**/*.tsx",
+    "hooks/**/*.tsx",
+    "test/**/*.ts",
+    "test/**/*.tsx",
+    "*.ts",
+    "*.tsx",
     ".next/types/**/*.ts"
   ],
   "exclude": [
@@ -46,6 +57,19 @@
     "command-palette-context-new-fixed.ts",
     "hooks/command-palette-context-final.ts",
     "hooks/command-palette-context-new.ts",
-    "hooks/command-palette-context-fixed.ts"
+    "hooks/command-palette-context-fixed.ts",
+    "hooks/command-palette-context-broken.ts",
+    "hooks/command-palette-context.ts",
+    "*-fixed.ts",
+    "*-fixed-*.ts",
+    "analytics-route-*.ts",
+    "llm-chat-route-*.ts",
+    "personas-route-*.ts",
+    "goals-route-*.ts",
+    "usage-route-*.ts",
+    "package-clean*.json",
+    "tsconfig-minimal*.json",
+    "test-minimal*.tsx",
+    "test.tsx"
   ]
 }

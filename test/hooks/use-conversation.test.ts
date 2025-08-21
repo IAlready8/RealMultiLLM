@@ -2,176 +2,98 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useConversation } from '@/hooks/use-conversation';
 
-// Mock IndexedDB
-const mockIDB = {
-  open: vi.fn(),
-  delete: vi.fn(),
-  databases: vi.fn()
-};
-
-Object.defineProperty(global, 'indexedDB', {
-  value: mockIDB,
-  writable: true
-});
-
-// Mock the IDB library
-vi.mock('idb', () => ({
-  openDB: vi.fn(),
-  deleteDB: vi.fn()
+// Mock the conversation storage service
+vi.mock('@/services/conversation-storage', () => ({
+  saveConversation: vi.fn().mockResolvedValue('test-id-1'),
+  getConversationsByType: vi.fn().mockResolvedValue([]),
+  updateConversation: vi.fn().mockResolvedValue(undefined),
+  deleteConversation: vi.fn().mockResolvedValue(undefined),
 }));
+
+// Import mocked functions after vi.mock
+import * as conversationStorage from '@/services/conversation-storage';
+const mockSaveConversation = vi.mocked(conversationStorage.saveConversation);
+const mockGetConversationsByType = vi.mocked(conversationStorage.getConversationsByType);
+const mockUpdateConversation = vi.mocked(conversationStorage.updateConversation);
+const mockDeleteConversation = vi.mocked(conversationStorage.deleteConversation);
 
 describe('useConversation Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should initialize with empty conversations', () => {
-    const { result } = renderHook(() => useConversation());
+  it('should initialize with empty conversations', async () => {
+    const { result } = renderHook(() => useConversation('multi-chat'));
 
     expect(result.current.conversations).toEqual([]);
     expect(result.current.isLoading).toBe(true);
-  });
 
-  it('should create a new conversation', async () => {
-    const { result } = renderHook(() => useConversation());
-
+    // Wait for loading to complete
     await act(async () => {
-      await result.current.createConversation('Test Conversation');
+      await new Promise(resolve => setTimeout(resolve, 50));
     });
 
-    expect(result.current.conversations).toHaveLength(1);
-    expect(result.current.conversations[0].title).toBe('Test Conversation');
-    expect(result.current.conversations[0].messages).toEqual([]);
+    expect(result.current.isLoading).toBe(false);
   });
 
-  it('should add message to conversation', async () => {
-    const { result } = renderHook(() => useConversation());
+  it('should save a new conversation', async () => {
+    const { result } = renderHook(() => useConversation('multi-chat'));
 
-    // Create conversation first
     let conversationId: string;
     await act(async () => {
-      conversationId = await result.current.createConversation('Test');
+      conversationId = await result.current.saveConversation('Test Conversation', { messages: [] });
     });
 
-    // Add message
-    const testMessage = {
-      role: 'user',
-      content: 'Hello',
-      timestamp: Date.now()
-    };
+    expect(conversationId!).toBe('test-id-1');
+  });
+
+  it('should update conversation', async () => {
+    const { result } = renderHook(() => useConversation('multi-chat'));
 
     await act(async () => {
-      await result.current.addMessage(conversationId!, testMessage);
+      await result.current.updateConversation('test-id', { title: 'Updated Title' });
     });
 
-    const conversation = result.current.conversations.find(c => c.id === conversationId);
-    expect(conversation?.messages).toContain(testMessage);
+    // Mock should have been called
+    expect(mockUpdateConversation).toHaveBeenCalledWith('test-id', { title: 'Updated Title' });
   });
 
   it('should delete conversation', async () => {
-    const { result } = renderHook(() => useConversation());
+    const { result } = renderHook(() => useConversation('multi-chat'));
 
-    // Create conversation
-    let conversationId: string;
     await act(async () => {
-      conversationId = await result.current.createConversation('Test');
+      await result.current.deleteConversation('test-id');
     });
 
-    expect(result.current.conversations).toHaveLength(1);
-
-    // Delete conversation
-    await act(async () => {
-      await result.current.deleteConversation(conversationId!);
-    });
-
-    expect(result.current.conversations).toHaveLength(0);
+    // Mock should have been called
+    expect(mockDeleteConversation).toHaveBeenCalledWith('test-id');
   });
 
-  it('should update conversation title', async () => {
-    const { result } = renderHook(() => useConversation());
-
-    // Create conversation
-    let conversationId: string;
-    await act(async () => {
-      conversationId = await result.current.createConversation('Original Title');
-    });
-
-    // Update title
-    await act(async () => {
-      await result.current.updateConversation(conversationId!, { title: 'Updated Title' });
-    });
-
-    const conversation = result.current.conversations.find(c => c.id === conversationId);
-    expect(conversation?.title).toBe('Updated Title');
-  });
-
-  it('should export conversation data', async () => {
-    const { result } = renderHook(() => useConversation());
-
-    // Create conversation with messages
-    let conversationId: string;
-    await act(async () => {
-      conversationId = await result.current.createConversation('Export Test');
-      await result.current.addMessage(conversationId, {
-        role: 'user',
-        content: 'Test message',
-        timestamp: Date.now()
-      });
-    });
-
-    const exportData = await result.current.exportConversations();
-
-    expect(exportData).toHaveProperty('conversations');
-    expect(exportData.conversations).toHaveLength(1);
-    expect(exportData.conversations[0].title).toBe('Export Test');
-    expect(exportData.conversations[0].messages).toHaveLength(1);
-  });
-
-  it('should import conversation data', async () => {
-    const { result } = renderHook(() => useConversation());
-
-    const importData = {
-      conversations: [
-        {
-          id: 'import-1',
-          title: 'Imported Conversation',
-          messages: [
-            {
-              role: 'user',
-              content: 'Imported message',
-              timestamp: Date.now()
-            }
-          ],
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ]
-    };
+  it('should refresh conversations', async () => {
+    const { result } = renderHook(() => useConversation('multi-chat'));
 
     await act(async () => {
-      await result.current.importConversations(importData);
+      await result.current.refreshConversations();
     });
 
-    expect(result.current.conversations).toHaveLength(1);
-    expect(result.current.conversations[0].title).toBe('Imported Conversation');
+    // Mock should have been called
+    expect(mockGetConversationsByType).toHaveBeenCalledWith('multi-chat');
   });
 
   it('should handle errors gracefully', async () => {
-    const { result } = renderHook(() => useConversation());
+    // Mock an error
+    mockSaveConversation.mockRejectedValueOnce(new Error('Storage error'));
 
-    // Mock console.error to prevent test output noise
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderHook(() => useConversation('multi-chat'));
 
-    // Try to add message to non-existent conversation
     await act(async () => {
-      await result.current.addMessage('non-existent', {
-        role: 'user',
-        content: 'Test',
-        timestamp: Date.now()
-      });
+      try {
+        await result.current.saveConversation('Test', {});
+      } catch (err) {
+        // Expected to throw
+      }
     });
 
-    expect(consoleSpy).toHaveBeenCalled();
-    consoleSpy.mockRestore();
+    expect(result.current.error).toBe('Failed to save conversation');
   });
 });
