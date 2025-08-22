@@ -1,6 +1,6 @@
 {
   "name": "realmultillm",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "prisma": {
@@ -35,6 +35,9 @@
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio",
     "auth:rotate-secret": "node scripts/rotate-nextauth-secret.js"
+    ,
+    "hooks:install": "git config core.hooksPath .githooks",
+    "hooks:uninstall": "git config --unset core.hooksPath || true"
   },
   "dependencies": {
     "@next-auth/prisma-adapter": "^1.0.7",
