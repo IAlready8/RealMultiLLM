@@ -1,126 +1,123 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ApiKeyForm from '@/components/api-key-form';
+import * as crypto from '@/lib/crypto';
+import { useToast } from '@/components/ui/use-toast';
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-};
-Object.defineProperty(window, 'localStorage', {
-  value: localStorageMock
-});
-
-// Mock crypto utilities
+// Mock the crypto library
 vi.mock('@/lib/crypto', () => ({
-  encryptApiKey: vi.fn().mockReturnValue('encrypted-key'),
-  decryptApiKey: vi.fn().mockReturnValue('decrypted-key'),
+  encryptApiKey: vi.fn(key => `encrypted_${key}`),
+  decryptApiKey: vi.fn(key => key.replace('encrypted_', '')),
 }));
 
-// Mock toast
+// Mock the useToast hook
 const mockToast = vi.fn();
 vi.mock('@/components/ui/use-toast', () => ({
-  useToast: () => ({ toast: mockToast })
+  useToast: () => ({ toast: mockToast }),
 }));
+
+// Mock fetch
+global.fetch = vi.fn();
+
+// Mock localStorage with spies
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => {
+      store[key] = value.toString();
+    }),
+    removeItem: vi.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: () => {
+      store = {};
+      // Also clear the spies
+      localStorageMock.getItem.mockClear();
+      localStorageMock.setItem.mockClear();
+      localStorageMock.removeItem.mockClear();
+    },
+  };
+})();
+Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
 describe('ApiKeyForm Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorageMock.getItem.mockReturnValue(null);
+    localStorageMock.clear();
+    (global.fetch as vi.Mock).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ valid: true }),
+    });
   });
 
-  it('should render all provider inputs', () => {
+  it('should render input fields for all providers', () => {
     render(<ApiKeyForm />);
-    
     expect(screen.getByLabelText(/OpenAI API Key/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Claude API Key/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Google AI API Key/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Llama API Key/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/GitHub API Key/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Grok API Key/i)).toBeInTheDocument();
   });
 
-  it('should load existing API keys from localStorage', () => {
-    localStorageMock.getItem.mockReturnValue(JSON.stringify({
-      openai: 'encrypted-openai-key',
-      claude: 'encrypted-claude-key'
-    }));
-
+  it('should load and decrypt an existing API key from localStorage on mount', async () => {
+    localStorageMock.setItem('apiKey_openai', 'encrypted_test_key');
     render(<ApiKeyForm />);
-    
-    expect(localStorageMock.getItem).toHaveBeenCalledWith('apiKeys');
+    await waitFor(() => {
+      expect(crypto.decryptApiKey).toHaveBeenCalledWith('encrypted_test_key');
+      const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
+      expect((openaiInput as HTMLInputElement).value).toBe('test_key');
+    });
   });
 
-  it('should save API keys when form is submitted', async () => {
+  it('should save a single API key when its Save button is clicked', async () => {
+    render(<ApiKeyForm />);
+    const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
+    const saveButtons = screen.getAllByRole('button', { name: 'Save' });
+
+    fireEvent.change(openaiInput, { target: { value: 'new_openai_key' } });
+    fireEvent.click(saveButtons[0]); // Click the first Save button for OpenAI
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith('/api/test-api-key', expect.any(Object));
+      expect(crypto.encryptApiKey).toHaveBeenCalledWith('new_openai_key');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('apiKey_openai', 'encrypted_new_openai_key');
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Success' }));
+    });
+  });
+
+  it('should clear a single API key when its Clear button is clicked', async () => {
+    localStorageMock.setItem('apiKey_openai', 'encrypted_test_key');
     render(<ApiKeyForm />);
     
+    await waitFor(() => {
+        const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
+        expect((openaiInput as HTMLInputElement).value).toBe('test_key');
+    });
+
+    const clearButtons = screen.getAllByRole('button', { name: 'Clear' });
+    fireEvent.click(clearButtons[0]);
+
+    await waitFor(() => {
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('apiKey_openai');
+      const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
+      expect((openaiInput as HTMLInputElement).value).toBe('');
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'API Key Cleared' }));
+    });
+  });
+
+  it('should save all entered API keys when "Save All API Keys" is clicked', async () => {
+    render(<ApiKeyForm />);
     const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
     const claudeInput = screen.getByLabelText(/Claude API Key/i);
-    const saveButton = screen.getByRole('button', { name: /save api keys/i });
+    const saveAllButton = screen.getByRole('button', { name: /Save All API Keys/i });
 
-    fireEvent.change(openaiInput, { target: { value: 'sk-test-openai-key' } });
-    fireEvent.change(claudeInput, { target: { value: 'claude-test-key' } });
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(localStorageMock.setItem).toHaveBeenCalledWith(
-        'apiKeys',
-        expect.stringContaining('encrypted-key')
-      );
-      expect(mockToast).toHaveBeenCalledWith({
-        title: 'Success',
-        description: 'API keys saved successfully'
-      });
-    });
-  });
-
-  it('should clear all API keys when clear button is clicked', async () => {
-    render(<ApiKeyForm />);
-    
-    const clearButton = screen.getByRole('button', { name: /clear all/i });
-    fireEvent.click(clearButton);
+    fireEvent.change(openaiInput, { target: { value: 'all_openai_key' } });
+    fireEvent.change(claudeInput, { target: { value: 'all_claude_key' } });
+    fireEvent.click(saveAllButton);
 
     await waitFor(() => {
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith('apiKeys');
-      expect(mockToast).toHaveBeenCalledWith({
-        title: 'Success',
-        description: 'All API keys cleared'
-      });
-    });
-  });
-
-  it('should toggle password visibility', () => {
-    render(<ApiKeyForm />);
-    
-    const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
-    const toggleButtons = screen.getAllByRole('button', { name: /toggle visibility/i });
-    
-    expect(openaiInput).toHaveAttribute('type', 'password');
-    
-    fireEvent.click(toggleButtons[0]); // Click first toggle button
-    expect(openaiInput).toHaveAttribute('type', 'text');
-    
-    fireEvent.click(toggleButtons[0]); // Click again to hide
-    expect(openaiInput).toHaveAttribute('type', 'password');
-  });
-
-  it('should validate API key format', async () => {
-    render(<ApiKeyForm />);
-    
-    const openaiInput = screen.getByLabelText(/OpenAI API Key/i);
-    const saveButton = screen.getByRole('button', { name: /save api keys/i });
-
-    fireEvent.change(openaiInput, { target: { value: 'invalid-key' } });
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(mockToast).toHaveBeenCalledWith({
-        title: 'Error',
-        description: expect.stringContaining('Invalid OpenAI API key format'),
-        variant: 'destructive'
-      });
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('apiKey_openai', 'encrypted_all_openai_key');
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('apiKey_claude', 'encrypted_all_claude_key');
+      expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('2 API keys saved') }));
     });
   });
 });
