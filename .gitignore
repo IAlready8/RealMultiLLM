@@ -42,3 +42,10 @@ tsconfig.tsbuildinfo
 prisma/dev.db
 # env
 .env
+
+# build
+tsconfig.tsbuildinfo
+# local db
+prisma/dev.db
+# env
+.env
