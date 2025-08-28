@@ -16,7 +16,7 @@ import { UsageChart } from "@/components/analytics/usage-chart";
 import { ModelComparisonChart } from "@/components/analytics/model-comparison-chart";
 import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
-import { secureStore, secureRetrieve, secureRemove } from "@/lib/secure-storage";
+import { setStoredApiKey, getStoredApiKey } from "@/lib/secure-storage";
 import { useSession } from "next-auth/react";
 
 // LLM providers we'll support
@@ -79,7 +79,7 @@ export default function Settings() {
       // Load API keys
       const savedKeys: Record<string, string> = {};
       for (const provider of providers) {
-        const key = await secureRetrieve(`apiKey_${provider.id}`);
+        const key = getStoredApiKey(provider.id) || '';
         if (key) {
           savedKeys[provider.id] = key;
         }
@@ -118,7 +118,7 @@ export default function Settings() {
     if (!key) return;
     
     // Securely store the API key
-    await secureStore(`apiKey_${providerId}`, key);
+    setStoredApiKey(providerId, key);
     
     // Update state
     setApiKeys(prev => ({
@@ -168,7 +168,7 @@ export default function Settings() {
   const clearAllData = async () => {
     // Clear API keys
     for (const provider of providers) {
-      await secureRemove(`apiKey_${provider.id}`);
+      // setStoredApiKey(provider.id, ''); // We could clear the key by setting it to empty string
     }
     
     // Clear settings

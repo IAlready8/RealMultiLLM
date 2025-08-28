@@ -1,6 +1,6 @@
 "use server";
 
-import { secureRetrieve, secureStore } from "@/lib/secure-storage";
+import { getStoredApiKey, setStoredApiKey } from "@/lib/secure-storage";
 
 // LLM providers (should ideally come from a centralized config or API)
 const providers = [
@@ -15,7 +15,7 @@ const providers = [
 export async function getProviders() {
   const apiKeys: Record<string, string> = {};
   for (const provider of providers) {
-    const key = await secureRetrieve(`apiKey_${provider.id}`);
+    const key = getStoredApiKey(provider.id);
     if (key) {
       apiKeys[provider.id] = key;
     }
@@ -34,7 +34,7 @@ export async function getProviders() {
 export async function updateProvider(providerId: string, data: { apiKey?: string; settings?: any }) {
   if (data.apiKey !== undefined) {
     if (data.apiKey) {
-      await secureStore(`apiKey_${providerId}`, data.apiKey);
+      setStoredApiKey(providerId, data.apiKey);
     } else {
       // Optionally remove if key is empty
       // await secureRemove(`apiKey_${providerId}`);

@@ -3,12 +3,7 @@ import { render, screen, waitFor, within } from '@/test/test-utils'
 import userEvent from '@testing-library/user-event'
 import SettingsPage from './page'
 
-// Mock services
-vi.mock('@/lib/secure-storage', () => ({
-  secureStore: vi.fn(),
-  secureRetrieve: vi.fn(),
-  secureRemove: vi.fn(),
-}))
+// Mock services\nvi.mock('@/lib/secure-storage', () => ({\n  setStoredApiKey: vi.fn(),\n  getStoredApiKey: vi.fn(),\n}))
 
 vi.mock('@/services/export-import-service', () => ({
   exportAllData: vi.fn(),
@@ -79,7 +74,7 @@ describe('Settings Page', () => {
 
   it('allows saving API keys', async () => {
     const user = userEvent.setup()
-    const { secureStore } = await import('@/lib/secure-storage')
+    const { setStoredApiKey } = await import('@/lib/secure-storage')
     
     render(<SettingsPage />)
     
@@ -91,7 +86,7 @@ describe('Settings Page', () => {
     await user.click(saveButton)
     
     await waitFor(() => {
-      expect(secureStore).toHaveBeenCalledWith('apiKey_openai', 'sk-test123')
+      expect(setStoredApiKey).toHaveBeenCalledWith('openai', 'sk-test123')
     })
   })
 
@@ -217,8 +212,8 @@ describe('Settings Page', () => {
   })
 
   it('displays success indicators when API keys are configured', async () => {
-    const { secureRetrieve } = await import('@/lib/secure-storage')
-    vi.mocked(secureRetrieve).mockResolvedValue('sk-test123')
+    const { getStoredApiKey } = await import('@/lib/secure-storage')
+    vi.mocked(getStoredApiKey).mockReturnValue('sk-test123')
     
     render(<SettingsPage />)
     
