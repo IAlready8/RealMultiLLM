@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "realmultillm"
+version = "0.1.0"
+description = "Premium Multi-LLM Orchestration Platform"
+authors = ["IAlready8"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+# Core Libraries
+typer = {extras = ["all"], version = "^0.9.0"}
+httpx = {extras = ["http2"], version = "^0.25.0"}
+pydantic = "^2.4.2"
+# Add other core dependencies here
+
+[tool.poetry.group.dev.dependencies]
+# Development & Testing
+pytest = "^7.4.2"
+pytest-cov = "^4.1.0"
+black = "^23.9.1"
+flake8 = "^6.1.0"
+mypy = "^1.5.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+# Linter & Formatter Config
+[tool.black]
+line-length = 88
+target-version = ['py311']
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
