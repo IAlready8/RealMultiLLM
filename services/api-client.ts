@@ -1,5 +1,5 @@
 
-import { decryptApiKey } from "@/lib/crypto";
+import { getStoredApiKey } from "@/lib/secure-storage";
 
 export interface LLMResponse {
   text: string;
@@ -26,38 +26,8 @@ export async function callLLMApi(
   options: LLMRequestOptions = {}
 ): Promise<LLMResponse> {
   try {
-    let apiKey: string | null = null;
-    
-    // Check if we're running on the server (Node.js environment)
-    if (typeof window === 'undefined') {
-      // Server-side: use environment variables
-      switch (provider) {
-        case 'openai':
-          apiKey = process.env.OPENAI_API_KEY || null;
-          break;
-        case 'claude':
-          apiKey = process.env.ANTHROPIC_API_KEY || null;
-          break;
-        case 'google':
-          apiKey = process.env.GOOGLE_AI_API_KEY || null;
-          break;
-        case 'llama':
-          apiKey = process.env.LLAMA_API_KEY || 'llama_local';
-          break;
-        case 'github':
-          apiKey = process.env.GITHUB_API_KEY || null;
-          break;
-        case 'grok':
-          apiKey = process.env.GROK_API_KEY || null;
-          break;
-      }
-    } else {
-      // Client-side: use localStorage
-      const encryptedKey = localStorage.getItem(`apiKey_${provider}`);
-      if (encryptedKey) {
-        apiKey = decryptApiKey(encryptedKey);
-      }
-    }
+    // Use the new secure storage system for both client and server
+    const apiKey = await getStoredApiKey(provider);
     
     if (!apiKey) {
       throw new Error(`No API key found for ${provider}. Please set up your API key in the settings.`);

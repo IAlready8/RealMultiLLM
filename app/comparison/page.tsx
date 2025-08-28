@@ -119,7 +119,7 @@ export default function Comparison() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || `API request failed with status ${response.status}`);
+          throw new Error(errorData.error || `API request failed with status ${response.status}`);
         }
 
         const chatResponse = await response.json();

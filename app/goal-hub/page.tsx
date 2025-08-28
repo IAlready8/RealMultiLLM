@@ -39,7 +39,7 @@ export default function GoalHub() {
       const response = await fetch("/api/goals");
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to fetch goals: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to fetch goals: ${response.statusText}`);
       }
       const data: Goal[] = await response.json();
       setGoals(data);
@@ -88,7 +88,7 @@ export default function GoalHub() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to add goal: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to add goal: ${response.statusText}`);
       }
 
       setNewGoalTitle("");
@@ -145,7 +145,7 @@ export default function GoalHub() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to mark goal complete: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to mark goal complete: ${response.statusText}`);
       }
 
       fetchGoals(); // Re-fetch all goals after updating
@@ -187,7 +187,7 @@ export default function GoalHub() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to delete goal: ${response.statusText}`);
+        throw new Error(errorData.error || `Failed to delete goal: ${response.statusText}`);
       }
 
       fetchGoals(); // Re-fetch all goals after deleting

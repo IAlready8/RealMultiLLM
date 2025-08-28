@@ -7,7 +7,7 @@ import { recordAnalyticsEvent } from '@/services/analytics-service';
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.id) {
-    return new NextResponse('Unauthorized', { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const startTime = Date.now();
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const { messages, options } = requestBody;
 
     if (!provider || !messages || messages.length === 0) {
-      return new NextResponse('Provider and messages are required', { status: 400 });
+      return NextResponse.json({ error: 'Provider and messages are required' }, { status: 400 });
     }
 
     // The callLLMApi service now handles API key logic internally for client-side calls.
@@ -63,6 +63,6 @@ export async function POST(request: Request) {
       userId: session.user.id,
     });
 
-    return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
   }
 }
