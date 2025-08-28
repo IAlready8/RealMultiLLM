@@ -1,14 +1,4 @@
 {
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
   "/page": "app/page.js",
-  "/multi-chat/page": "app/multi-chat/page.js",
-  "/analytics/page": "app/analytics/page.js",
-  "/settings/page": "app/settings/page.js",
-  "/personas/page": "app/personas/page.js",
-  "/api/goals/route": "app/api/goals/route.js",
-  "/goal-hub/page": "app/goal-hub/page.js",
-  "/api/llm/chat/route": "app/api/llm/chat/route.js",
-  "/comparison/page": "app/comparison/page.js",
-  "/api/analytics/route": "app/api/analytics/route.js",
-  "/pipeline/page": "app/pipeline/page.js"
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
 }
