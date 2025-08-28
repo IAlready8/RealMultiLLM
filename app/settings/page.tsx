@@ -79,7 +79,7 @@ export default function Settings() {
       // Load API keys
       const savedKeys: Record<string, string> = {};
       for (const provider of providers) {
-        const key = getStoredApiKey(provider.id) || '';
+        const key = await getStoredApiKey(provider.id);
         if (key) {
           savedKeys[provider.id] = key;
         }
@@ -118,7 +118,7 @@ export default function Settings() {
     if (!key) return;
     
     // Securely store the API key
-    setStoredApiKey(providerId, key);
+    await setStoredApiKey(providerId, key);
     
     // Update state
     setApiKeys(prev => ({

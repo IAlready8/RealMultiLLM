@@ -15,14 +15,15 @@ const providers = [
 export async function getProviders() {
   const apiKeys: Record<string, string> = {};
   for (const provider of providers) {
-    const key = getStoredApiKey(provider.id);
+    const key = await getStoredApiKey(provider.id);
     if (key) {
       apiKeys[provider.id] = key;
     }
   }
 
-  const modelSettingsStr = localStorage.getItem("modelSettings");
-  const modelSettings = modelSettingsStr ? JSON.parse(modelSettingsStr) : {};
+  // Note: localStorage is not available on server side
+  // This would need to be refactored to work with actual server-side storage
+  const modelSettings = {};
 
   return {
     apiKeys,
@@ -34,7 +35,7 @@ export async function getProviders() {
 export async function updateProvider(providerId: string, data: { apiKey?: string; settings?: any }) {
   if (data.apiKey !== undefined) {
     if (data.apiKey) {
-      setStoredApiKey(providerId, data.apiKey);
+      await setStoredApiKey(providerId, data.apiKey);
     } else {
       // Optionally remove if key is empty
       // await secureRemove(`apiKey_${providerId}`);
@@ -42,16 +43,9 @@ export async function updateProvider(providerId: string, data: { apiKey?: string
   }
 
   if (data.settings !== undefined) {
-    const savedSettings = localStorage.getItem("modelSettings");
-    const currentSettings = savedSettings ? JSON.parse(savedSettings) : {};
-    const updatedSettings = {
-      ...currentSettings,
-      [providerId]: {
-        ...currentSettings[providerId],
-        ...data.settings
-      }
-    };
-    localStorage.setItem("modelSettings", JSON.stringify(updatedSettings));
+    // Note: localStorage is not available on server side
+    // This would need to be refactored to work with actual server-side storage
+    // For now, this functionality is disabled on server actions
   }
 
   return { success: true };
