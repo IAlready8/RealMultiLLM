@@ -1,122 +1,48 @@
-"use client";
-
-import { useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, BarChart3, Users, Settings, Target, GitBranch } from "lucide-react";
-import Link from "next/link";
 
-export default function HomePage() {
+export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-            Personal LLM Tool
-          </h1>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            A comprehensive multi-LLM chat assistant with advanced features for conversations, comparisons, personas, and analytics.
-          </p>
-        </div>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-64px)] py-2">
+      <h1 className="text-4xl font-bold text-white mb-4">Welcome to MultiLLM Chat Assistant</h1>
+      <p className="text-lg text-gray-400 mb-8">Your personal tool for interacting with multiple LLM APIs.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-4xl">
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Start New Chat</CardTitle>
+            <CardDescription>Begin a new conversation with your chosen LLM.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link href="/multi-chat" passHref>
+              <Button className="w-full">Go to Multi-Chat</Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          <Link href="/multi-chat">
-            <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <MessageSquare className="h-5 w-5 text-blue-400" />
-                  Multi-Chat
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Chat with multiple LLMs simultaneously and compare responses in real-time
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>View Analytics</CardTitle>
+            <CardDescription>See your usage statistics and model comparisons.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link href="/analytics" passHref>
+              <Button className="w-full">View Analytics</Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-          <Link href="/comparison">
-            <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <BarChart3 className="h-5 w-5 text-green-400" />
-                  Comparison
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Side-by-side model comparison with detailed analysis and metrics
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/personas">
-            <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <Users className="h-5 w-5 text-purple-400" />
-                  Personas
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Create and manage AI personas with custom prompts and behaviors
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/goal-hub">
-            <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <Target className="h-5 w-5 text-red-400" />
-                  Goal Hub
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Track and manage your goals with AI-powered assistance
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/pipeline">
-            <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <GitBranch className="h-5 w-5 text-yellow-400" />
-                  Pipeline
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Create complex AI workflows with multi-step processing pipelines
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-
-          <Link href="/analytics">
-            <Card className="bg-gray-800 border-gray-700 hover:bg-gray-750 transition-colors cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <BarChart3 className="h-5 w-5 text-cyan-400" />
-                  Analytics
-                </CardTitle>
-                <CardDescription className="text-gray-400">
-                  Comprehensive usage analytics and performance insights
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </Link>
-        </div>
-
-        <div className="text-center">
-          <Link href="/settings">
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-              <Settings className="mr-2 h-4 w-4" />
-              Configure Settings
-            </Button>
-          </Link>
-        </div>
-
-        <div className="mt-12 text-center text-gray-400">
-          <p>Powered by OpenAI, Claude, Google AI, Llama, GitHub Copilot, and Grok</p>
-        </div>
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Configure Settings</CardTitle>
+            <CardDescription>Manage your API keys and application preferences.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link href="/settings" passHref>
+              <Button className="w-full">Go to Settings</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -1,19 +1,14 @@
+
 import { decryptApiKey } from "@/lib/crypto";
 
 export interface LLMResponse {
   text: string;
   usage?: {
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
   };
-  metadata?: {
-    model?: string;
-    promptTokens?: number;
-    completionTokens?: number;
-    totalTokens?: number;
-    done?: boolean;
-  };
+  metadata?: Record<string, any>;
 }
 
 export interface LLMRequestOptions {
@@ -22,9 +17,10 @@ export interface LLMRequestOptions {
   maxTokens?: number;
   systemPrompt?: string;
   stream?: boolean;
+  onChunk?: (chunk: string) => void;
 }
 
-export async function callLLM(
+export async function callLLMApi(
   provider: string,
   prompt: string | string[],
   options: LLMRequestOptions = {}
@@ -116,7 +112,7 @@ async function callOpenAI(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: options.model || "gpt-4o",
@@ -124,21 +120,50 @@ async function callOpenAI(
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
-    }),
+    })
   });
-
-  if (!response.ok) {
-    throw new Error(`OpenAI API error: ${response.statusText}`);
+  
+  if (options.stream && options.onChunk && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const content = data.choices[0]?.delta?.content;
+            if (content) options.onChunk(content);
+          } catch (e) {
+            console.error('Error parsing streaming response:', e);
+          }
+        }
+      }
+    }
+    
+    return { text: "Streaming response complete" };
   }
-
+  
   const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Error calling OpenAI API");
+  }
   
   return {
     text: data.choices[0].message.content,
     usage: {
-      promptTokens: data.usage?.prompt_tokens,
-      completionTokens: data.usage?.completion_tokens,
-      totalTokens: data.usage?.total_tokens
+      promptTokens: data.usage.prompt_tokens,
+      completionTokens: data.usage.completion_tokens,
+      totalTokens: data.usage.total_tokens
     }
   };
 }
@@ -160,28 +185,56 @@ async function callClaude(
     headers: {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: options.model || "claude-3-sonnet-20240229",
-      max_tokens: options.maxTokens || 2048,
-      system: options.systemPrompt || "You are a helpful assistant.",
+      model: options.model || "claude-3-opus-20240229",
       messages,
+      system: options.systemPrompt,
       temperature: options.temperature ?? 0.7,
-    }),
+      max_tokens: options.maxTokens ?? 2048,
+      stream: options.stream ?? false
+    })
   });
-
-  if (!response.ok) {
-    throw new Error(`Claude API error: ${response.statusText}`);
+  
+  if (options.stream && options.onChunk && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+      
+      for (const line of lines) {
+        if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const content = data.delta?.text;
+            if (content) options.onChunk(content);
+          } catch (e) {
+            console.error('Error parsing streaming response:', e);
+          }
+        }
+      }
+    }
+    
+    return { text: "Streaming response complete" };
   }
-
+  
   const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Error calling Claude API");
+  }
   
   return {
     text: data.content[0].text,
     usage: {
-      promptTokens: data.usage?.input_tokens,
-      completionTokens: data.usage?.output_tokens,
+      promptTokens: data.usage?.input_tokens || 0,
+      completionTokens: data.usage?.output_tokens || 0,
       totalTokens: (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
     }
   };
@@ -192,38 +245,44 @@ async function callGoogleAI(
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const content = Array.isArray(prompt) ? prompt.join("\n") : prompt;
-  
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [{ text: content }]
-        }
-      ],
-      generationConfig: {
-        temperature: options.temperature ?? 0.7,
-        maxOutputTokens: options.maxTokens ?? 2048,
-      }
-    }),
-  });
+  const messages = Array.isArray(prompt)
+    ? prompt.map((content, i) => ({
+        role: i % 2 === 0 ? "user" : "model",
+        parts: [{ text: content }]
+      }))
+    : [{ role: "user", parts: [{ text: prompt }] }];
 
-  if (!response.ok) {
-    throw new Error(`Google AI API error: ${response.statusText}`);
+  if (options.systemPrompt) {
+    messages.unshift({ 
+      role: "system", 
+      parts: [{ text: options.systemPrompt }] 
+    });
   }
 
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${options.model || "gemini-pro"}:generateContent?key=${apiKey}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contents: messages,
+      generationConfig: {
+        temperature: options.temperature ?? 0.7,
+        maxOutputTokens: options.maxTokens ?? 2048
+      }
+    })
+  });
+  
   const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Error calling Google AI API");
+  }
   
   return {
     text: data.candidates[0].content.parts[0].text,
-    usage: {
-      promptTokens: data.usageMetadata?.promptTokenCount,
-      completionTokens: data.usageMetadata?.candidatesTokenCount,
-      totalTokens: data.usageMetadata?.totalTokenCount
+    metadata: {
+      safetyRatings: data.candidates[0].safetyRatings
     }
   };
 }

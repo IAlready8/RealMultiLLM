@@ -1,7 +1,8 @@
+
 "use client"
 
 import {
-  Toast,
+  ToastComponent as Toast,
   ToastClose,
   ToastDescription,
   ToastProvider,

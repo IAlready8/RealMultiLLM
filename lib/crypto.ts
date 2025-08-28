@@ -1,50 +1,45 @@
-// Utility functions for encryption and decryption
 
-// Generate a device-specific key based on user agent and other factors
-function getDeviceKey(): string {
-  if (typeof window !== 'undefined') {
-    const userAgent = navigator.userAgent;
-    const screen = `${window.screen.width}x${window.screen.height}`;
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return btoa(`${userAgent}-${screen}-${timezone}`).slice(0, 32);
-  }
-  return 'fallback-key-for-server-side-rendering';
+// A simple encryption/decryption utility
+// In production, use a more robust encryption library
+
+// Generate a random encryption key
+export function generateEncryptionKey(): string {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-// Simple encrypt function using TextEncoder and crypto.subtle
+// Encrypt text with a key
 export async function encrypt(text: string, key: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    
-    // Convert the key to a format usable by the Web Crypto API
-    const keyData = encoder.encode(key.padEnd(32, '0').slice(0, 32));
-    const cryptoKey = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt']
-    );
-    
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      cryptoKey,
-      data
-    );
-    
-    // Combine IV and encrypted data
-    const combined = new Uint8Array(iv.length + encrypted.byteLength);
-    combined.set(iv);
-    combined.set(new Uint8Array(encrypted), iv.length);
-    
-    return btoa(String.fromCharCode(...combined));
-  } catch (error) {
-    console.error('Encryption error:', error);
-    // Fallback to simple encoding
-    return btoa(text);
-  }
+  // Convert the key to a format usable by the Web Crypto API
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(key);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  );
+  
+  // Generate a random initialization vector
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  
+  // Encrypt the data
+  const encodedText = encoder.encode(text);
+  const encryptedData = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    cryptoKey,
+    encodedText
+  );
+  
+  // Combine the IV and encrypted data
+  const encryptedArray = new Uint8Array(iv.length + encryptedData.byteLength);
+  encryptedArray.set(iv);
+  encryptedArray.set(new Uint8Array(encryptedData), iv.length);
+  
+  // Convert to base64 for storage
+  return btoa(String.fromCharCode(...encryptedArray));
 }
 
 // Validate base64 string
@@ -74,38 +69,34 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
     // Convert the key to a format usable by the Web Crypto API
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    
-    const keyData = encoder.encode(key.padEnd(32, '0').slice(0, 32));
+    const keyData = encoder.encode(key);
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       keyData,
-      { name: 'AES-GCM' },
+      { name: 'AES-GCM', length: 256 },
       false,
       ['decrypt']
     );
     
-    // Decode the base64 data
-    const encryptedArray = Uint8Array.from(atob(encryptedText), c => c.charCodeAt(0));
-    
-    // Extract IV and encrypted data
+    // Convert from base64 and extract IV and encrypted data
+    const encryptedArray = new Uint8Array(
+      atob(encryptedText).split('').map(char => char.charCodeAt(0))
+    );
     const iv = encryptedArray.slice(0, 12);
-    const encrypted = encryptedArray.slice(12);
+    const encryptedData = encryptedArray.slice(12);
     
-    const decrypted = await crypto.subtle.decrypt(
+    // Decrypt the data
+    const decryptedData = await crypto.subtle.decrypt(
       { name: 'AES-GCM', iv },
       cryptoKey,
-      encrypted
+      encryptedData
     );
     
-    return decoder.decode(decrypted);
+    // Convert the decrypted data to text
+    return decoder.decode(decryptedData);
   } catch (error) {
     console.error('Decryption error:', error);
-    // Fallback to simple decoding
-    try {
-      return atob(encryptedText);
-    } catch (fallbackError) {
-      throw new Error('Failed to decrypt data. Invalid key or corrupted data.');
-    }
+    throw new Error('Failed to decrypt data. Invalid key or corrupted data.');
   }
 }
 
