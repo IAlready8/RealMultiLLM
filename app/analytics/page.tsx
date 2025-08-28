@@ -51,6 +51,23 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState("7d");
   const [activeTab, setActiveTab] = useState("overview");
 
+  const generateDailyStats = useCallback(() => {
+    const days = parseInt(timeRange);
+    const stats = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      stats.push({
+        date: date.toISOString().split('T')[0],
+        requests: Math.floor(Math.random() * 200) + 50,
+        tokens: Math.floor(Math.random() * 5000) + 1000,
+        errors: Math.floor(Math.random() * 5),
+        responseTime: parseFloat((Math.random() * 2 + 0.5).toFixed(1))
+      });
+    }
+    return stats;
+  }, [timeRange]);
+
   const fetchAnalytics = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -95,28 +112,12 @@ export default function AnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [timeRange, toast]);
+  }, [timeRange, toast, generateDailyStats]);
 
   useEffect(() => {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
-  const generateDailyStats = () => {
-    const days = parseInt(timeRange);
-    const stats = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      stats.push({
-        date: date.toISOString().split('T')[0],
-        requests: Math.floor(Math.random() * 200) + 50,
-        tokens: Math.floor(Math.random() * 5000) + 1000,
-        errors: Math.floor(Math.random() * 5),
-        responseTime: parseFloat((Math.random() * 2 + 0.5).toFixed(1))
-      });
-    }
-    return stats;
-  };
 
   const exportData = () => {
     if (!analyticsData) return;

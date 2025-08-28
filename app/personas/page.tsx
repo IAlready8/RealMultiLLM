@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,11 +29,7 @@ export default function PersonasPage() {
   });
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchPersonas();
-  }, []);
-
-  const fetchPersonas = async () => {
+  const fetchPersonas = useCallback(async () => {
     try {
       setIsLoading(true);
       // For now, we'll just use the default personas
@@ -49,7 +45,11 @@ export default function PersonasPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchPersonas();
+  }, [fetchPersonas]);
 
   const handleCreatePersona = async () => {
     try {

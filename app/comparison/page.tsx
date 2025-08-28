@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -37,15 +37,7 @@ export default function Comparison() {
   const [nextPanelId, setNextPanelId] = useState(0);
   const { toast } = useToast(); // Initialize toast
 
-  useEffect(() => {
-    // Initialize with two comparison panels by default
-    if (comparisonPanels.length === 0) {
-      addComparisonPanel();
-      addComparisonPanel();
-    }
-  }, []);
-
-  const addComparisonPanel = () => {
+  const addComparisonPanel = useCallback(() => {
     setComparisonPanels((prev) => [
       ...prev,
       {
@@ -57,7 +49,15 @@ export default function Comparison() {
       },
     ]);
     setNextPanelId((prev) => prev + 1);
-  };
+  }, [nextPanelId]);
+
+  useEffect(() => {
+    // Initialize with two comparison panels by default
+    if (comparisonPanels.length === 0) {
+      addComparisonPanel();
+      addComparisonPanel();
+    }
+  }, [addComparisonPanel, comparisonPanels.length]);
 
   const removeComparisonPanel = (id: string) => {
     setComparisonPanels((prev) => prev.filter((panel) => panel.id !== id));

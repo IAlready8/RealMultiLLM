@@ -334,7 +334,7 @@ export default function Pipeline() {
                 <div className="mx-auto max-w-lg flex flex-col items-center gap-2">
                   <PlusCircle className="h-5 w-5 text-gray-500" />
                   <div className="text-sm">No steps added yet</div>
-                  <div className="text-xs text-gray-500">Add steps to chain models together. Use {{previous_output}} to pass data.</div>
+                  <div className="text-xs text-gray-500">Add steps to chain models together. Use {'{previous_output}'} to pass data.</div>
                   <Button variant="outline" size="sm" className="mt-1" onClick={handleAddStep}>
                     <PlusCircle className="h-4 w-4 mr-2" /> Add Step
                   </Button>

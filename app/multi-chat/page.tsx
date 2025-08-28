@@ -261,7 +261,7 @@ function ChatBox({
               <div className="flex flex-col items-center gap-2">
                 <MessageSquare className="h-6 w-6 text-gray-500" />
                 <p className="text-sm">No messages yet</p>
-                <p className="text-xs text-gray-500">Type a prompt above and click "Send to All"</p>
+                <p className="text-xs text-gray-500">Type a prompt above and click &quot;Send to All&quot;</p>
               </div>
             </div>
           </div>

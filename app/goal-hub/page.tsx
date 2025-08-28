@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export default function GoalHub() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast(); // Initialize toast
 
-  const fetchGoals = async () => {
+  const fetchGoals = useCallback(async () => {
     if (status !== "authenticated") return;
     setIsLoading(true);
     setError(null);
@@ -54,11 +54,11 @@ export default function GoalHub() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [status, toast]);
 
   useEffect(() => {
     fetchGoals();
-  }, [session, status]); // Re-fetch when session changes
+  }, [fetchGoals, session, status]); // Re-fetch when session changes
 
   const handleAddGoal = async () => {
     if (!newGoalTitle.trim()) return;
