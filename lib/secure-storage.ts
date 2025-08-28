@@ -35,6 +35,11 @@ function looksBase64(s: string) {
   return /^[A-Za-z0-9+/=]+$/.test(s) && s.length % 4 === 0;
 }
 
+// Cache for decrypted values to avoid repeated crypto operations
+const decryptionCache = new Map<string, string>();
+const cacheTimeout = 5 * 60 * 1000; // 5 minutes
+let lastCacheClean = Date.now();
+
 // PUBLIC: decrypt / encrypt helpers (kept for imports in lib/llm-api-client.ts)
 export async function decryptString(value: string): Promise<string> {
   try {
@@ -66,9 +71,28 @@ export async function encryptString(value: string): Promise<string> {
 /** SERVER: prefer env over persisted secret */
 export async function getStoredApiKey(provider: string, userId?: string): Promise<string | null> {
   if (isServer) return ENV_MAP[provider] ?? null;
-  const raw = window.localStorage.getItem(keyName(provider, userId));
+  
+  const key = keyName(provider, userId);
+  const raw = window.localStorage.getItem(key);
   if (!raw) return null;
-  return await decryptString(raw);
+  
+  // Check cache first to avoid repeated crypto operations
+  const cacheKey = `${key}:${raw}`;
+  const now = Date.now();
+  
+  // Clean cache periodically
+  if (now - lastCacheClean > cacheTimeout) {
+    decryptionCache.clear();
+    lastCacheClean = now;
+  }
+  
+  if (decryptionCache.has(cacheKey)) {
+    return decryptionCache.get(cacheKey)!;
+  }
+  
+  const decrypted = await decryptString(raw);
+  decryptionCache.set(cacheKey, decrypted);
+  return decrypted;
 }
 
 export async function setStoredApiKey(provider: string, key: string, userId?: string): Promise<void> {
