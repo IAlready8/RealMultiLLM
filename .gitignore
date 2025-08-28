@@ -35,3 +35,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 tsconfig.tsbuildinfo
+
+# build
+tsconfig.tsbuildinfo
+# local db
+prisma/dev.db
+# env
+.env
