@@ -1,97 +1,47 @@
+// lib/secure-storage.ts
+const isServer = typeof window === 'undefined';
 
-import { encrypt, decrypt, generateEncryptionKey } from './crypto';
-
-// Get or create a device-specific encryption key
-function getDeviceKey(): string {
-  let deviceKey = localStorage.getItem('device_encryption_key');
-  if (!deviceKey) {
-    deviceKey = generateEncryptionKey();
-    localStorage.setItem('device_encryption_key', deviceKey);
-  }
-  return deviceKey;
-}
-
-// Securely store a value
-export async function secureStore(key: string, value: string): Promise<void> {
+export function decryptString(value: string): string {
   try {
-    const deviceKey = getDeviceKey();
-    const encrypted = await encrypt(value, deviceKey);
-    localStorage.setItem(key, encrypted);
-  } catch (error) {
-    console.error('Error storing data securely:', error);
-    throw new Error('Failed to securely store data');
+    const b64 = /^[A-Za-z0-9+/=]+$/;
+    if (b64.test(value)) {
+      return isServer ? Buffer.from(value, 'base64').toString('utf8') : atob(value);
+    }
+    return value;
+  } catch {
+    return value;
   }
 }
 
-// Securely retrieve a value
-export async function secureRetrieve(key: string): Promise<string | null> {
+export function encryptString(value: string): string {
   try {
-    const encrypted = localStorage.getItem(key);
-    if (!encrypted) return null;
-    
-    // If the data doesn't look encrypted (no proper base64 format), 
-    // it might be stored as plain text - return it directly and re-encrypt it
-    if (!encrypted.match(/^[A-Za-z0-9+/]+={0,2}$/)) {
-      // Re-encrypt the plain text data for security
-      const deviceKey = getDeviceKey();
-      const encryptedValue = await encrypt(encrypted, deviceKey);
-      localStorage.setItem(key, encryptedValue);
-      return encrypted;
-    }
-    
-    const deviceKey = getDeviceKey();
-    return await decrypt(encrypted, deviceKey);
-  } catch (error) {
-    console.error('Error retrieving secure data:', error);
-    // If decryption fails, try to return the raw value as fallback
-    // This handles cases where data was stored before encryption was implemented
-    const rawValue = localStorage.getItem(key);
-    if (rawValue && !rawValue.match(/^[A-Za-z0-9+/]+={0,2}$/)) {
-      return rawValue;
-    }
-    return null;
+    return isServer ? Buffer.from(value, 'utf8').toString('base64') : btoa(value);
+  } catch {
+    return value;
   }
 }
 
-// Securely remove a value
-export function secureRemove(key: string): void {
-  localStorage.removeItem(key);
+function localKey(provider: string, userId?: string) {
+  return `llm:key:${userId ?? 'anon'}:${provider}`;
 }
 
-// Export data with a password
-export async function exportSecureData(password: string): Promise<string> {
-  try {
-    const keys = Object.keys(localStorage).filter(key => 
-      key.startsWith('apiKey_') || 
-      key === 'modelSettings'
-    );
-    
-    const data: Record<string, string> = {};
-    for (const key of keys) {
-      data[key] = localStorage.getItem(key) || '';
-    }
-    
-    const jsonData = JSON.stringify(data);
-    const encrypted = await encrypt(jsonData, password);
-    
-    return encrypted;
-  } catch (error) {
-    console.error('Error exporting secure data:', error);
-    throw new Error('Failed to export data');
+export function getStoredApiKey(provider: string, userId?: string): string | null {
+  if (isServer) {
+    const env: Record<string, string | undefined> = {
+      openai: process.env.OPENAI_API_KEY,
+      anthropic: process.env.ANTHROPIC_API_KEY,
+      'google-ai': process.env.Google_AI_API_KEY ?? process.env.GOOGLE_AI_API_KEY,
+      grok: process.env.GROK_API_KEY,
+      llama: process.env.LLAMA_API_KEY,
+      github: process.env.GITHUB_COPILOT_API_KEY,
+    };
+    return env[provider] ?? null;
   }
+  const raw = window.localStorage.getItem(localKey(provider, userId));
+  return raw ? decryptString(raw) : null;
 }
 
-// Import data with a password
-export async function importSecureData(encryptedData: string, password: string): Promise<void> {
-  try {
-    const jsonData = await decrypt(encryptedData, password);
-    const data = JSON.parse(jsonData);
-    
-    for (const [key, value] of Object.entries(data)) {
-      localStorage.setItem(key, value as string);
-    }
-  } catch (error) {
-    console.error('Error importing secure data:', error);
-    throw new Error('Failed to import data. Invalid password or corrupted data.');
-  }
+export function setStoredApiKey(provider: string, key: string, userId?: string): void {
+  if (isServer) return;
+  window.localStorage.setItem(localKey(provider, userId), encryptString(key));
 }
