@@ -3,20 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { callLLMApi } from '@/services/api-client';
 import { recordAnalyticsEvent } from '@/services/analytics-service';
-import prisma from '@/lib/prisma';
-
-// Helper function to get API key for a user from the database
-async function getApiKeyForUser(userId: string, provider: string): Promise<string | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { apiKeys: true },
-  });
-
-  const apiKeyRecord = user?.apiKeys.find(key => key.provider === provider);
-  // Note: This assumes the API key is stored decrypted in the DB for the API route.
-  // In a real production scenario, you might have a separate, more secure way to handle this.
-  return apiKeyRecord ? apiKeyRecord.key : null;
-}
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
