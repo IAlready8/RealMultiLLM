@@ -22,6 +22,7 @@ import { useSession } from "next-auth/react";
 // LLM providers we'll support
 const providers = [
   { id: "openai", name: "OpenAI" },
+  { id: "openrouter", name: "OpenRouter" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
   { id: "llama", name: "Llama" },
@@ -47,6 +48,7 @@ export default function Settings() {
   const [exportPassword, setExportPassword] = useState("");
   const [importData, setImportData] = useState("");
   const [importError, setImportError] = useState("");
+  const [openRouterModels, setOpenRouterModels] = useState<any[]>([]);
   
   // Generate some sample logs for demo purposes
   useEffect(() => {
@@ -111,6 +113,22 @@ export default function Settings() {
     };
     
     loadData();
+  }, []);
+
+  // Load OpenRouter models for model picker (free vs paid)
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const res = await fetch("/api/openrouter/models");
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data?.data) ? data.data : [];
+        setOpenRouterModels(list);
+      } catch {
+        // ignore
+      }
+    };
+    fetchModels();
   }, []);
   
   // Save API key to localStorage
@@ -246,7 +264,7 @@ export default function Settings() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Configuration & Analytics</h1>
+        <h1 className="heading-underline text-2xl font-bold">Configuration & Analytics</h1>
         <p className="text-gray-400">Manage your API keys, model settings, and view usage statistics</p>
       </div>
 
@@ -333,6 +351,31 @@ export default function Settings() {
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
                           <SelectContent className="bg-gray-900 border-gray-800">
+                            {provider.id === "openrouter" && (
+                              <>
+                                {/* Dynamic list from OpenRouter; enable free only, show pricing on paid */}
+                                {openRouterModels.length === 0 && (
+                                  <div className="px-3 py-2 text-sm text-gray-400">Loading models...</div>
+                                )}
+                                {openRouterModels.map((m) => {
+                                  const id = m.id as string;
+                                  const name = m.name || id;
+                                  const p = m.pricing || {};
+                                  const prompt = p.prompt ?? 0;
+                                  const completion = p.completion ?? 0;
+                                  const isFree = (!prompt && !completion) || (prompt === 0 && completion === 0);
+                                  const label = isFree
+                                    ? `${name} (Free)`
+                                    : `${name} ($${prompt ?? 0} / $${completion ?? 0})`;
+                                  return (
+                                    <SelectItem key={id} value={id} disabled={!isFree}>
+                                      {label}
+                                    </SelectItem>
+                                  );
+                                })}
+                                <SelectItem value="openrouter/auto">OpenRouter Auto (routing)</SelectItem>
+                              </>
+                            )}
                             {provider.id === "openai" && (
                               <>
                                 <SelectItem value="gpt-4o">GPT-4o</SelectItem>
@@ -475,8 +518,11 @@ export default function Settings() {
                   })}
                   
                   {logs.length === 0 && (
-                    <div className="text-center text-gray-500 py-6">
-                      <p>No activity logs yet</p>
+                    <div className="text-gray-400 text-center mt-2">
+                      <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                        <p className="text-sm">No activity logs yet</p>
+                        <p className="text-xs text-gray-500">Activity appears here as you use the app.</p>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -14,10 +14,12 @@ import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
+import { MessageSquare } from 'lucide-react';
 
 // LLM providers we'll support
 const providers = [
   { id: "openai", name: "OpenAI" },
+  { id: "openrouter", name: "OpenRouter" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
   { id: "llama", name: "Llama" },
@@ -145,7 +147,7 @@ export default function MultiChat() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold">Multi-Chat Panel</h1>
+        <h1 className="heading-underline text-2xl font-bold">Multi-Chat Panel</h1>
         <div className="flex flex-wrap gap-2">
           <ConversationManager 
             type="multi-chat"
@@ -254,8 +256,14 @@ function ChatBox({
       </CardHeader>
       <CardContent className="p-4 overflow-y-auto h-full">
         {messages.length === 0 ? (
-          <div className="text-gray-500 text-center mt-10">
-            <p>No messages yet</p>
+          <div className="text-gray-400 text-center mt-6">
+            <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+              <div className="flex flex-col items-center gap-2">
+                <MessageSquare className="h-6 w-6 text-gray-500" />
+                <p className="text-sm">No messages yet</p>
+                <p className="text-xs text-gray-500">Type a prompt above and click "Send to All"</p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

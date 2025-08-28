@@ -20,6 +20,9 @@ export async function POST(request: Request) {
         case "openai":
           isValid = await testOpenAI(apiKey);
           break;
+        case "openrouter":
+          isValid = await testOpenRouter(apiKey);
+          break;
         case "claude":
           isValid = await testClaude(apiKey);
           break;
@@ -58,6 +61,21 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+}
+
+async function testOpenRouter(apiKey: string): Promise<boolean> {
+  const res = await fetch("https://openrouter.ai/api/v1/models", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || "Invalid OpenRouter API key");
+  }
+  return true;
 }
 
 async function testOpenAI(apiKey: string): Promise<boolean> {

@@ -76,6 +76,7 @@ export default function AnalyticsPage() {
         providerStats: [],
         modelComparison: [
           { provider: "OpenAI", factualAccuracy: 4.5, creativity: 4.2, helpfulness: 4.7, coherence: 4.6, conciseness: 4.3 },
+          { provider: "OpenRouter", factualAccuracy: 4.3, creativity: 4.1, helpfulness: 4.5, coherence: 4.4, conciseness: 4.2 },
           { provider: "Claude", factualAccuracy: 4.6, creativity: 4.5, helpfulness: 4.8, coherence: 4.7, conciseness: 4.4 },
           { provider: "Google", factualAccuracy: 4.3, creativity: 4.0, helpfulness: 4.5, coherence: 4.4, conciseness: 4.2 },
           { provider: "Llama", factualAccuracy: 4.0, creativity: 3.8, helpfulness: 4.2, coherence: 4.1, conciseness: 4.0 },
@@ -177,7 +178,7 @@ export default function AnalyticsPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="heading-underline text-2xl font-bold flex items-center gap-2">
             <BarChart3 className="h-6 w-6" />
             Analytics Dashboard
           </h1>
@@ -280,16 +281,25 @@ export default function AnalyticsPage() {
                 <CardDescription>Daily request and token usage</CardDescription>
               </CardHeader>
               <CardContent>
-                <UsageChart 
-                  data={analyticsData.dailyStats.map(stat => ({
-                    provider: stat.date,
-                    requests: stat.requests,
-                    tokens: stat.tokens,
-                    errors: stat.errors,
-                    avgResponseTime: stat.responseTime
-                  }))}
-                  title=""
-                />
+                {analyticsData.dailyStats && analyticsData.dailyStats.length > 0 ? (
+                  <UsageChart 
+                    data={analyticsData.dailyStats.map(stat => ({
+                      provider: stat.date,
+                      requests: stat.requests,
+                      tokens: stat.tokens,
+                      errors: stat.errors,
+                      avgResponseTime: stat.responseTime
+                    }))}
+                    title=""
+                  />
+                ) : (
+                  <div className="text-gray-400 text-center mt-2">
+                    <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                      <p className="text-sm">No usage data yet</p>
+                      <p className="text-xs text-gray-500">Make some requests to see usage trends.</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -299,21 +309,30 @@ export default function AnalyticsPage() {
                 <CardDescription>Usage by LLM provider</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {analyticsData.providerStats.map((provider) => (
-                    <div key={provider.provider} className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="font-medium">{provider.provider}</div>
-                        <Badge variant="secondary">
-                          {provider.successRate.toFixed(1)}% success
-                        </Badge>
+                {analyticsData.providerStats && analyticsData.providerStats.length > 0 ? (
+                  <div className="space-y-4">
+                    {analyticsData.providerStats.map((provider) => (
+                      <div key={provider.provider} className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="font-medium">{provider.provider}</div>
+                          <Badge variant="secondary">
+                            {provider.successRate.toFixed(1)}% success
+                          </Badge>
+                        </div>
+                        <div className="text-sm text-gray-400">
+                          {provider.requests} requests
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-400">
-                        {provider.requests} requests
-                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-400 text-center mt-2">
+                    <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                      <p className="text-sm">No provider usage yet</p>
+                      <p className="text-xs text-gray-500">Use different providers to populate this section.</p>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -327,6 +346,7 @@ export default function AnalyticsPage() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
+                {analyticsData.providerStats && analyticsData.providerStats.length > 0 ? (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-800">
@@ -355,6 +375,14 @@ export default function AnalyticsPage() {
                     ))}
                   </tbody>
                 </table>
+                ) : (
+                  <div className="text-gray-400 text-center mt-2">
+                    <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                      <p className="text-sm">No provider data</p>
+                      <p className="text-xs text-gray-500">Run some requests to see provider metrics.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -367,7 +395,16 @@ export default function AnalyticsPage() {
               <CardDescription>Performance comparison across different models</CardDescription>
             </CardHeader>
             <CardContent>
-              <ModelComparisonChart data={analyticsData.modelComparison} />
+              {analyticsData.modelComparison && analyticsData.modelComparison.length > 0 ? (
+                <ModelComparisonChart data={analyticsData.modelComparison} />
+              ) : (
+                <div className="text-gray-400 text-center mt-2">
+                  <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                    <p className="text-sm">No model comparison data</p>
+                    <p className="text-xs text-gray-500">Once you’ve used multiple models, comparisons will appear here.</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -379,16 +416,25 @@ export default function AnalyticsPage() {
               <CardDescription>Historical usage patterns and trends</CardDescription>
             </CardHeader>
             <CardContent>
-              <UsageChart 
-                data={analyticsData.dailyStats.map(stat => ({
-                  provider: stat.date,
-                  requests: stat.requests,
-                  tokens: stat.tokens,
-                  errors: stat.errors,
-                  avgResponseTime: stat.responseTime
-                }))}
-                title=""
-              />
+              {analyticsData.dailyStats && analyticsData.dailyStats.length > 0 ? (
+                <UsageChart 
+                  data={analyticsData.dailyStats.map(stat => ({
+                    provider: stat.date,
+                    requests: stat.requests,
+                    tokens: stat.tokens,
+                    errors: stat.errors,
+                    avgResponseTime: stat.responseTime
+                  }))}
+                  title=""
+                />
+              ) : (
+                <div className="text-gray-400 text-center mt-2">
+                  <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                    <p className="text-sm">No trend data</p>
+                    <p className="text-xs text-gray-500">Trends will appear as data is collected.</p>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

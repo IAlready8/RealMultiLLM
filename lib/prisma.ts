@@ -13,9 +13,11 @@ const prisma = global.prisma || new PrismaClient({
   },
 });
 
-// Connect on startup to avoid connection delays
-if (!global.prisma) {
-  prisma.$connect().catch(console.error);
+// Connect on startup to avoid connection delays (only in runtime, not build)
+if (!global.prisma && typeof window === "undefined" && process.env.NODE_ENV !== "production") {
+  prisma.$connect().catch(() => {
+    // Silently fail during build time if DB not available
+  });
 }
 
 if (process.env.NODE_ENV === "development") global.prisma = prisma;

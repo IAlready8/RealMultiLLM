@@ -8,12 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ResponsiveGrid } from "@/components/responsive-grid";
 // import { sendChatMessage } from "@/services/api-service"; // Removed direct import
-import { PlusCircle, XCircle, Loader2 } from "lucide-react";
+import { PlusCircle, XCircle, Loader2, MessageSquare } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
 
 // LLM providers (should ideally come from a centralized config or API)
 const providers = [
   { id: "openai", name: "OpenAI" },
+  { id: "openrouter", name: "OpenRouter" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
   { id: "llama", name: "Llama" },
@@ -169,7 +170,7 @@ export default function Comparison() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">LLM Comparison</h1>
+        <h1 className="heading-underline text-2xl font-bold">LLM Comparison</h1>
         <p className="text-gray-400">Compare outputs from different LLMs side-by-side.</p>
       </div>
 
@@ -238,6 +239,8 @@ export default function Comparison() {
                   
                   {/* Grok Models */}
                   <SelectItem value="grok:grok-1">Grok - Grok-1</SelectItem>
+                  {/* OpenRouter */}
+                  <SelectItem value="openrouter:openrouter/auto">OpenRouter - Auto (Free routing)</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="ghost" size="icon" onClick={() => removeComparisonPanel(panel.id)}>
@@ -252,6 +255,16 @@ export default function Comparison() {
               ) : panel.error ? (
                 <div className="text-red-500 text-center h-full flex items-center justify-center">
                   {panel.error}
+                </div>
+              ) : !panel.providerId || !panel.modelId ? (
+                <div className="text-gray-400 text-center mt-2">
+                  <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                    <div className="flex flex-col items-center gap-2">
+                      <MessageSquare className="h-6 w-6 text-gray-500" />
+                      <p className="text-sm">No model selected</p>
+                      <p className="text-xs text-gray-500">Use the dropdown above to choose a provider and model.</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <Textarea

@@ -244,7 +244,7 @@ export default function GoalHub() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">Goal Hub</h1>
+          <h1 className="heading-underline text-2xl font-bold">Goal Hub</h1>
           <p className="text-gray-400">Define, track, and manage your personal goals.</p>
         </div>
         <Dialog open={isAddGoalDialogOpen} onOpenChange={setIsAddGoalDialogOpen}>
@@ -294,7 +294,9 @@ export default function GoalHub() {
           <h2 className="text-xl font-semibold mb-4">Pending Goals ({pendingGoals.length})</h2>
           <div className="space-y-4">
             {pendingGoals.length === 0 ? (
-              <p className="text-gray-500">No pending goals. Time to set some!</p>
+              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-4 text-center text-gray-400">
+                <div className="mx-auto max-w-lg">No pending goals. Time to set some!</div>
+              </div>
             ) : (
               pendingGoals.map((goal) => (
                 <Card key={goal.id} className="bg-gray-900 border-gray-800">
@@ -323,7 +325,9 @@ export default function GoalHub() {
           <h2 className="text-xl font-semibold mb-4">Completed Goals ({completedGoals.length})</h2>
           <div className="space-y-4">
             {completedGoals.length === 0 ? (
-              <p className="text-gray-500">No completed goals yet. Keep going!</p>
+              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-4 text-center text-gray-400">
+                <div className="mx-auto max-w-lg">No completed goals yet. Keep going!</div>
+              </div>
             ) : (
               completedGoals.map((goal) => (
                 <Card key={goal.id} className="bg-gray-900 border-gray-800 opacity-70">

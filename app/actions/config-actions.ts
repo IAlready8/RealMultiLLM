@@ -5,6 +5,7 @@ import { getStoredApiKey, setStoredApiKey } from "@/lib/secure-storage";
 // LLM providers (should ideally come from a centralized config or API)
 const providers = [
   { id: "openai", name: "OpenAI" },
+  { id: "openrouter", name: "OpenRouter" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
   { id: "llama", name: "Llama" },

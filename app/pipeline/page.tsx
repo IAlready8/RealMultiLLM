@@ -37,6 +37,7 @@ interface LogEntry {
 // LLM providers (should ideally come from a centralized config or API)
 const providers = [
   { id: "openai", name: "OpenAI" },
+  { id: "openrouter", name: "OpenRouter" },
   { id: "claude", name: "Claude" },
   { id: "google", name: "Google AI" },
   { id: "llama", name: "Llama" },
@@ -250,7 +251,7 @@ export default function Pipeline() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold">LLM Pipeline Hub</h1>
+          <h1 className="heading-underline text-2xl font-bold">LLM Pipeline Hub</h1>
           <p className="text-gray-400">Create and execute multi-step LLM workflows.</p>
         </div>
         <Button onClick={handleAddPipeline}>
@@ -260,7 +261,20 @@ export default function Pipeline() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {pipelines.length === 0 ? (
-          <p className="text-gray-500 col-span-full">No pipelines created yet. Click &quot;Add New Pipeline&quot; to get started!</p>
+          <div className="col-span-full">
+            <div className="border border-dashed border-gray-700 bg-gray-900/40 rounded-md p-6 text-center text-gray-400">
+              <div className="mx-auto max-w-xl flex flex-col items-center gap-3">
+                <PlusCircle className="h-6 w-6 text-gray-500" />
+                <div className="text-sm">No pipelines created yet</div>
+                <div className="text-xs text-gray-500">Create your first pipeline to orchestrate multi-step LLM workflows.</div>
+                <div>
+                  <Button size="sm" className="mt-2" onClick={handleAddPipeline}>
+                    <PlusCircle className="h-4 w-4 mr-2" /> Add New Pipeline
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : (
           pipelines.map((pipeline) => (
             <Card key={pipeline.id} className="bg-gray-900 border-gray-800 flex flex-col">
@@ -316,7 +330,16 @@ export default function Pipeline() {
 
             <h3 className="text-lg font-semibold mt-4">Pipeline Steps</h3>
             {currentPipeline?.steps.length === 0 && (
-              <p className="text-gray-500">No steps added yet. Click &quot;Add Step&quot; to define your workflow.</p>
+              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-4 text-center text-gray-400">
+                <div className="mx-auto max-w-lg flex flex-col items-center gap-2">
+                  <PlusCircle className="h-5 w-5 text-gray-500" />
+                  <div className="text-sm">No steps added yet</div>
+                  <div className="text-xs text-gray-500">Add steps to chain models together. Use {{previous_output}} to pass data.</div>
+                  <Button variant="outline" size="sm" className="mt-1" onClick={handleAddStep}>
+                    <PlusCircle className="h-4 w-4 mr-2" /> Add Step
+                  </Button>
+                </div>
+              </div>
             )}
             <div className="space-y-4">
               {currentPipeline?.steps.map((step, index) => (
@@ -380,6 +403,11 @@ export default function Pipeline() {
                                 <SelectItem value="grok:grok-1">Grok-1</SelectItem>
                               </>
                             )}
+                            {provider.id === "openrouter" && (
+                              <>
+                                <SelectItem value="openrouter:openrouter/auto">OpenRouter Auto (Free routing)</SelectItem>
+                              </>
+                            )}
                           </optgroup>
                         ))}
                       </SelectContent>
@@ -415,7 +443,12 @@ export default function Pipeline() {
       <Card className="bg-gray-900 border-gray-800">
         <CardContent className="p-4 max-h-96 overflow-y-auto">
           {executionLogs.length === 0 ? (
-            <p className="text-gray-500">No execution logs yet. Run a pipeline to see output.</p>
+            <div className="text-gray-400 text-center mt-2">
+              <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+                <p className="text-sm">No execution logs yet</p>
+                <p className="text-xs text-gray-500">Run a pipeline to see output here.</p>
+              </div>
+            </div>
           ) : (
             <div className="space-y-2">
               {executionLogs.map((log) => (

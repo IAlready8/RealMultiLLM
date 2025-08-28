@@ -25,15 +25,15 @@ export default function Navbar() {
         <Link href="/" className="text-xl font-bold">
           MultiLLM
         </Link>
-        <div className="hidden space-x-6 md:flex">
+        <div className="hidden space-x-2 md:flex">
           {navItems.map((item) => (
             <Link
               key={item.path}
               href={item.path}
-              className={`transition-colors ${
+              className={`relative px-3 py-1 rounded-md transition-colors rainbow-outline-hover ${
                 pathname === item.path
-                  ? "text-blue-500"
-                  : "text-gray-400 hover:text-white"
+                  ? "text-white bg-gray-800/60 after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full after:bg-blue-500 after:rounded-full"
+                  : "text-gray-400 hover:text-white hover:bg-gray-800/40"
               }`}
             >
               {item.name}

@@ -165,13 +165,21 @@ export default function PersonasPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Personas</h1>
+        <h1 className="heading-underline text-2xl font-bold">Personas</h1>
         <Button onClick={() => setIsCreateDialogOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Create Persona
         </Button>
       </div>
 
+      {personas.length === 0 ? (
+        <div className="text-gray-400 text-center mt-2">
+          <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
+            <p className="text-sm">No personas yet</p>
+            <p className="text-xs text-gray-500">Create a persona to save a reusable system prompt.</p>
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {personas.map((persona) => (
           <Card key={persona.name} className="flex flex-col">
@@ -213,6 +221,7 @@ export default function PersonasPage() {
           </Card>
         ))}
       </div>
+      )}
 
       {/* Create Persona Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>

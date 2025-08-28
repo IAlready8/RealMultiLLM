@@ -1,12 +1,11 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Performance optimizations
+  // Performance optimizations (conservative)
   experimental: {
-    optimizeCss: true,
     turbo: {
-      loaders: {
-        '.svg': ['@svgr/webpack'],
+      rules: {
+        '*.svg': ['@svgr/webpack'],
       },
     },
   },
@@ -16,25 +15,26 @@ const nextConfig = {
     removeConsole: process.env.NODE_ENV === "production",
   },
   
-  // Bundle analyzer for production debugging
-  webpack: (config, { dev, isServer }) => {
-    if (!dev && !isServer) {
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'react/jsx-runtime.js': 'preact/compat/jsx-runtime',
-      };
-    }
-    
-    return config;
-  },
-  
   // Image optimization
   images: {
-    formats: ['image/webp'],
+    formats: ['image/webp', 'image/avif'],
   },
   
-  // Enable static optimization
-  output: 'standalone',
+  // Enable swcMinify for better performance
+  swcMinify: true,
+  
+  // Reduce runtime overhead
+  reactStrictMode: true,
+  
+  // Optimize bundle
+  webpack: (config, { dev }) => {
+    if (!dev) {
+      // Tree shake unused code more aggressively
+      config.optimization.usedExports = true;
+      config.optimization.sideEffects = false;
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

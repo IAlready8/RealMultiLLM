@@ -18,11 +18,13 @@ export interface LLMRequestOptions {
   systemPrompt?: string;
   stream?: boolean;
   onChunk?: (chunk: string) => void;
+  timeoutMs?: number;
+  retries?: number;
 }
 
 export async function callLLMApi(
   provider: string,
-  prompt: string | string[],
+  prompt: string | string[] | any[],
   options: LLMRequestOptions = {}
 ): Promise<LLMResponse> {
   try {
@@ -33,20 +35,26 @@ export async function callLLMApi(
       throw new Error(`No API key found for ${provider}. Please set up your API key in the settings.`);
     }
     
+    // Apply per-provider networking defaults with env overrides
+    const netDefaults = getNetworkDefaults(provider);
+    const effOptions: LLMRequestOptions = { ...netDefaults, ...options };
+    
     // Provider-specific implementations
     switch (provider) {
       case "openai":
-        return callOpenAI(prompt, apiKey, options);
+        return callOpenAI(prompt, apiKey, effOptions);
+      case "openrouter":
+        return callOpenRouter(prompt, apiKey, effOptions);
       case "claude":
-        return callClaude(prompt, apiKey, options);
+        return callClaude(prompt, apiKey, effOptions);
       case "google":
-        return callGoogleAI(prompt, apiKey, options);
+        return callGoogleAI(prompt, apiKey, effOptions);
       case "llama":
-        return callLlama(prompt, apiKey, options);
+        return callLlama(prompt, apiKey, effOptions);
       case "github":
-        return callGitHubCopilot(prompt, apiKey, options);
+        return callGitHubCopilot(prompt, apiKey, effOptions);
       case "grok":
-        return callGrok(prompt, apiKey, options);
+        return callGrok(prompt, apiKey, effOptions);
       default:
         throw new Error(`Provider ${provider} not supported`);
     }
@@ -62,23 +70,199 @@ export async function callLLMApi(
   }
 }
 
-async function callOpenAI(
-  prompt: string | string[],
+// Helper utilities for robustness and normalization
+function isChatMessageArray(arr: any[]): arr is Array<{ role: string; content: string }> {
+  return Array.isArray(arr) && arr.length > 0 && typeof arr[0] === "object" && arr[0] && "role" in arr[0] && "content" in arr[0];
+}
+
+function normalizeToOpenAIChatMessages(
+  prompt: string | string[] | any[],
+  systemPrompt?: string
+): Array<{ role: string; content: string }> {
+  let messages: Array<{ role: string; content: string }>;
+  if (Array.isArray(prompt)) {
+    if (isChatMessageArray(prompt)) {
+      messages = prompt as Array<{ role: string; content: string }>;
+    } else {
+      messages = (prompt as string[]).map((content, i) => ({ role: i % 2 === 0 ? "user" : "assistant", content }));
+    }
+  } else {
+    messages = [{ role: "user", content: prompt }];
+  }
+  if (systemPrompt) {
+    if (!(messages[0] && messages[0].role === "system")) {
+      messages.unshift({ role: "system", content: systemPrompt });
+    }
+  }
+  return messages;
+}
+
+function normalizeToGeminiMessages(
+  prompt: string | string[] | any[],
+  systemPrompt?: string
+): Array<{ role: string; parts: Array<{ text: string }> }> {
+  const base = normalizeToOpenAIChatMessages(prompt, systemPrompt);
+  return base.map(m => ({ role: m.role === "assistant" ? "model" : m.role, parts: [{ text: m.content }] }));
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, opts: { timeoutMs?: number; retries?: number } = {}): Promise<Response> {
+  const { timeoutMs = 30000, retries = 1 } = opts;
+  let attempt = 0;
+  let lastErr: any = null;
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      clearTimeout(id);
+      if (res.status >= 500 || res.status === 429) {
+        if (attempt < retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+          await new Promise(r => setTimeout(r, delay));
+          attempt++;
+          continue;
+        }
+      }
+      return res;
+    } catch (e: any) {
+      clearTimeout(id);
+      lastErr = e;
+      if (attempt < retries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+        await new Promise(r => setTimeout(r, delay));
+        attempt++;
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastErr ?? new Error("Request failed");
+}
+
+function getNetworkDefaults(provider: string): { timeoutMs?: number; retries?: number } {
+  const readInt = (v?: string) => {
+    const n = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  // Global env overrides
+  const globalTimeout = readInt(process.env.LLM_FETCH_TIMEOUT_MS);
+  const globalRetries = readInt(process.env.LLM_FETCH_RETRIES);
+
+  // Sensible per-provider defaults
+  const base: Record<string, { timeoutMs: number; retries: number }> = {
+    openai: { timeoutMs: 30000, retries: 1 },
+    claude: { timeoutMs: 45000, retries: 1 },
+    anthropic: { timeoutMs: 45000, retries: 1 },
+    google: { timeoutMs: 30000, retries: 1 },
+    "google-ai": { timeoutMs: 30000, retries: 1 },
+    openrouter: { timeoutMs: 35000, retries: 2 },
+    grok: { timeoutMs: 30000, retries: 1 },
+    github: { timeoutMs: 25000, retries: 0 },
+    llama: { timeoutMs: 15000, retries: 0 },
+  };
+
+  const d = base[provider] || { timeoutMs: 30000, retries: 1 };
+  return {
+    timeoutMs: globalTimeout ?? d.timeoutMs,
+    retries: globalRetries ?? d.retries,
+  };
+}
+
+async function callOpenRouter(
+  prompt: string | string[] | any[],
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const messages = Array.isArray(prompt)
-    ? prompt.map((content, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content,
-      }))
-    : [{ role: "user", content: prompt }];
+  const messages = normalizeToOpenAIChatMessages(prompt, options.systemPrompt);
 
-  if (options.systemPrompt) {
-    messages.unshift({ role: "system", content: options.systemPrompt });
+  // OpenRouter is OpenAI-compatible chat/completions
+  const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      // Optional but recommended headers for OpenRouter attribution
+      ...(typeof window === "undefined"
+        ? {
+            "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL || "http://localhost",
+            "X-Title": process.env.NEXT_PUBLIC_APP_NAME || "MultiLLM Chat Assistant",
+          }
+        : {
+            "HTTP-Referer": window.location.origin,
+            "X-Title": document.title || "MultiLLM Chat Assistant",
+          }),
+    },
+    body: JSON.stringify({
+      model: options.model || "openrouter/auto",
+      messages,
+      temperature: options.temperature ?? 0.7,
+      max_tokens: options.maxTokens ?? 2048,
+      stream: options.stream ?? false,
+    }),
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+
+  if (options.stream && options.onChunk && response.ok && response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ") && line !== "data: [DONE]") {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const content = data.choices?.[0]?.delta?.content;
+            if (content) options.onChunk(content);
+          } catch (e) {
+            console.error("Error parsing streaming response:", e);
+          }
+        }
+      }
+    }
+
+    return { text: "Streaming response complete" };
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Error calling OpenRouter API");
+  }
+
+  // Unify response shape with OpenAI-compatible structure
+  const content = data.choices?.[0]?.message?.content ?? data.choices?.[0]?.delta?.content ?? "";
+  const usage = data.usage || {};
+
+  return {
+    text: content,
+    usage: {
+      promptTokens: usage.prompt_tokens ?? 0,
+      completionTokens: usage.completion_tokens ?? 0,
+      totalTokens: usage.total_tokens ?? (usage.prompt_tokens || 0) + (usage.completion_tokens || 0),
+    },
+    metadata: {
+      model: data.model,
+      id: data.id,
+    },
+  };
+}
+
+async function callOpenAI(
+  prompt: string | string[] | any[],
+  apiKey: string,
+  options: LLMRequestOptions
+): Promise<LLMResponse> {
+  const messages = normalizeToOpenAIChatMessages(prompt, options.systemPrompt);
+
+  const response = await fetchWithRetry("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -91,9 +275,9 @@ async function callOpenAI(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
   
-  if (options.stream && options.onChunk && response.body) {
+  if (options.stream && options.onChunk && response.ok && response.body) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -139,18 +323,13 @@ async function callOpenAI(
 }
 
 async function callClaude(
-  prompt: string | string[],
+  prompt: string | string[] | any[],
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const messages = Array.isArray(prompt)
-    ? prompt.map((content, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content,
-      }))
-    : [{ role: "user", content: prompt }];
+  const messages = normalizeToOpenAIChatMessages(prompt, options.systemPrompt);
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -160,14 +339,13 @@ async function callClaude(
     body: JSON.stringify({
       model: options.model || "claude-3-opus-20240229",
       messages,
-      system: options.systemPrompt,
       temperature: options.temperature ?? 0.7,
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
   
-  if (options.stream && options.onChunk && response.body) {
+  if (options.stream && options.onChunk && response.ok && response.body) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     
@@ -211,25 +389,13 @@ async function callClaude(
 }
 
 async function callGoogleAI(
-  prompt: string | string[],
+  prompt: string | string[] | any[],
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const messages = Array.isArray(prompt)
-    ? prompt.map((content, i) => ({
-        role: i % 2 === 0 ? "user" : "model",
-        parts: [{ text: content }]
-      }))
-    : [{ role: "user", parts: [{ text: prompt }] }];
+  const messages = normalizeToGeminiMessages(prompt, options.systemPrompt);
 
-  if (options.systemPrompt) {
-    messages.unshift({ 
-      role: "system", 
-      parts: [{ text: options.systemPrompt }] 
-    });
-  }
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${options.model || "gemini-pro"}:generateContent?key=${apiKey}`, {
+  const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${options.model || "gemini-pro"}:generateContent?key=${apiKey}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -241,7 +407,7 @@ async function callGoogleAI(
         maxOutputTokens: options.maxTokens ?? 2048
       }
     })
-  });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
   
   const data = await response.json();
   
@@ -258,24 +424,15 @@ async function callGoogleAI(
 }
 
 async function callLlama(
-  prompt: string | string[],
+  prompt: string | string[] | any[],
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const messages = Array.isArray(prompt)
-    ? prompt.map((content, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content,
-      }))
-    : [{ role: "user", content: prompt }];
-
-  if (options.systemPrompt) {
-    messages.unshift({ role: "system", content: options.systemPrompt });
-  }
+  const messages = normalizeToOpenAIChatMessages(prompt, options.systemPrompt);
 
   // Using Ollama local API (default port 11434)
   // For production, replace with actual Llama API endpoint
-  const response = await fetch("http://localhost:11434/api/chat", {
+  const response = await fetchWithRetry("http://localhost:11434/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -290,7 +447,7 @@ async function callLlama(
         num_predict: options.maxTokens ?? 2048,
       }
     })
-  });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
 
   if (!response.ok) {
     // Fallback to simulated response if Ollama not available
@@ -324,23 +481,14 @@ async function callLlama(
 }
 
 async function callGitHubCopilot(
-  prompt: string | string[],
+  prompt: string | string[] | any[],
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const messages = Array.isArray(prompt)
-    ? prompt.map((content, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content,
-      }))
-    : [{ role: "user", content: prompt }];
-
-  if (options.systemPrompt) {
-    messages.unshift({ role: "system", content: options.systemPrompt });
-  }
+  const messages = normalizeToOpenAIChatMessages(prompt, options.systemPrompt);
 
   // GitHub Copilot Chat API
-  const response = await fetch("https://api.githubcopilot.com/chat/completions", {
+  const response = await fetchWithRetry("https://api.githubcopilot.com/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -356,7 +504,7 @@ async function callGitHubCopilot(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
 
   if (!response.ok) {
     // Fallback to simulated response if GitHub Copilot not available
@@ -386,23 +534,14 @@ async function callGitHubCopilot(
 }
 
 async function callGrok(
-  prompt: string | string[],
+  prompt: string | string[] | any[],
   apiKey: string,
   options: LLMRequestOptions
 ): Promise<LLMResponse> {
-  const messages = Array.isArray(prompt)
-    ? prompt.map((content, i) => ({
-        role: i % 2 === 0 ? "user" : "assistant",
-        content,
-      }))
-    : [{ role: "user", content: prompt }];
-
-  if (options.systemPrompt) {
-    messages.unshift({ role: "system", content: options.systemPrompt });
-  }
+  const messages = normalizeToOpenAIChatMessages(prompt, options.systemPrompt);
 
   // X.AI (Grok) API
-  const response = await fetch("https://api.x.ai/v1/chat/completions", {
+  const response = await fetchWithRetry("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -415,7 +554,7 @@ async function callGrok(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries });
 
   if (!response.ok) {
     // Fallback to simulated response if Grok not available

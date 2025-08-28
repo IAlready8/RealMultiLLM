@@ -9,13 +9,24 @@ import { deriveKey, aesGcmEncrypt, aesGcmDecrypt } from "./crypto";
  * v2:gcm:<b64(iv|cipher|tag)>
  */
 
+// Allow both canonical provider ids and common aliases used by the app.
 const ENV_MAP: Record<string, string | undefined> = {
+  // OpenAI
   openai: process.env.OPENAI_API_KEY,
+  // Anthropic/Claude
   anthropic: process.env.ANTHROPIC_API_KEY,
+  claude: process.env.ANTHROPIC_API_KEY,
+  // Google AI (Gemini)
   "google-ai": process.env.GOOGLE_AI_API_KEY ?? process.env.GOOGLEAI_API_KEY,
+  google: process.env.GOOGLE_AI_API_KEY ?? process.env.GOOGLEAI_API_KEY,
+  // XAI Grok
   grok: process.env.GROK_API_KEY,
+  // Llama (local/third-party)
   llama: process.env.LLAMA_API_KEY,
+  // GitHub Copilot
   github: process.env.GITHUB_COPILOT_API_KEY,
+  // OpenRouter
+  openrouter: process.env.OPENROUTER_API_KEY,
 };
 
 function keyName(provider: string, userId?: string) {

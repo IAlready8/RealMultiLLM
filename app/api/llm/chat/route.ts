@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     const requestBody = await request.json();
     provider = requestBody.provider;
-    const { messages, options } = requestBody;
+    const { messages, options = {} } = requestBody;
 
     if (!provider || !messages || messages.length === 0) {
       return NextResponse.json({ error: 'Provider and messages are required' }, { status: 400 });
@@ -25,7 +25,13 @@ export async function POST(request: Request) {
     // The callLLMApi service now handles API key logic internally for client-side calls.
     // For server-side calls like this API route, we would typically fetch the key securely.
     // The service is already set up to use process.env, so we rely on that here.
-    const response = await callLLMApi(provider, messages, options);
+    // Use env-based defaults; service also applies per-provider defaults
+    const envTimeout = Number(process.env.LLM_FETCH_TIMEOUT_MS || 0) || undefined;
+    const envRetries = Number(process.env.LLM_FETCH_RETRIES || 0) || undefined;
+    const safeOptions = { ...options } as any;
+    if (safeOptions.timeoutMs == null && envTimeout != null) safeOptions.timeoutMs = envTimeout;
+    if (safeOptions.retries == null && envRetries != null) safeOptions.retries = envRetries;
+    const response = await callLLMApi(provider, messages, safeOptions);
 
     const endTime = Date.now();
     const responseTime = endTime - startTime;

@@ -10,6 +10,7 @@ import { encryptApiKey, decryptApiKey } from "@/lib/crypto";
 
 const providers = [
   { id: "openai", name: "OpenAI", placeholder: "sk-..." },
+  { id: "openrouter", name: "OpenRouter", placeholder: "sk-or-v1-..." },
   { id: "claude", name: "Claude", placeholder: "sk-ant-..." },
   { id: "google", name: "Google AI", placeholder: "AIza..." },
   { id: "llama", name: "Llama", placeholder: "llama_..." },
