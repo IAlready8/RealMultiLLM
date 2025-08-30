@@ -65,7 +65,7 @@ describe('Settings Page', () => {
   it('displays all supported providers in API Keys tab', () => {
     render(<SettingsPage />)
     
-    const providers = ['OpenAI', 'Claude', 'Google AI', 'Llama', 'GitHub', 'Grok']
+    const providers = ['OpenAI', 'OpenRouter', 'Claude', 'Google AI', 'Llama', 'GitHub', 'Grok']
     
     providers.forEach(provider => {
       expect(screen.getByText(`${provider} API Key`)).toBeInTheDocument()
@@ -74,11 +74,12 @@ describe('Settings Page', () => {
 
   it('allows saving API keys', async () => {
     const user = userEvent.setup()
-    const { setStoredApiKey } = await import('@/lib/secure-storage')
+    const mod = await import('@/lib/secure-storage')
+    vi.spyOn(mod, 'setStoredApiKey')
     
     render(<SettingsPage />)
     
-    const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg')
+    const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg') as HTMLElement
     const openaiInput = within(openAICard).getByPlaceholderText('Enter your OpenAI API key')
     const saveButton = within(openAICard).getByRole('button', { name: /save/i })
     
@@ -86,7 +87,7 @@ describe('Settings Page', () => {
     await user.click(saveButton)
     
     await waitFor(() => {
-      expect(setStoredApiKey).toHaveBeenCalledWith('openai', 'sk-test123')
+      expect(mod.setStoredApiKey).toHaveBeenCalledWith('openai', 'sk-test123')
     })
   })
 
@@ -94,7 +95,7 @@ describe('Settings Page', () => {
     render(<SettingsPage />)
     
     const statusMessages = screen.getAllByText(/no api key configured/i)
-    expect(statusMessages).toHaveLength(6) // 6 providers
+    expect(statusMessages).toHaveLength(7) // 7 providers (includes OpenRouter)
   })
 
   it('switches to model settings tab and shows provider configurations', async () => {
@@ -212,13 +213,13 @@ describe('Settings Page', () => {
   })
 
   it('displays success indicators when API keys are configured', async () => {
-    const { getStoredApiKey } = await import('@/lib/secure-storage')
-    vi.mocked(getStoredApiKey).mockReturnValue('sk-test123')
+    const mod = await import('@/lib/secure-storage')
+    vi.spyOn(mod, 'getStoredApiKey').mockResolvedValue('sk-test123' as any)
     
     render(<SettingsPage />)
     
     await waitFor(() => {
-      const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg')
+      const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg') as HTMLElement
       expect(within(openAICard).getByText(/api key is configured/i)).toBeInTheDocument()
     })
   })

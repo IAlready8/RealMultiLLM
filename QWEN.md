@@ -72,3 +72,7 @@ The project structure has been successfully consolidated:
 2. Run tests with `npm run test`
 3. Start development server with `npm run dev`
 4. Test core functionality (authentication, LLM chat, analytics)
+
+## Qwen Added Memories
+- The project's design system is documented in /Users/d3/Desktop/Projects-/DESIGN_SYSTEM.md and is based on Radix UI, Tailwind CSS, Class Variance Authority (CVA), and Next Themes. Core components are located in /components/ui/ and follow consistent patterns with semantic color tokens and theme-aware variables.
+- Created project roadmap in /Users/d3/Desktop/Projects-/ROADMAP.md with 5 phases: Foundation & Stability (Complete), Core Feature Implementation (In Progress), Advanced Features & Scaling (Not Started), Enterprise & Monetization (Not Started), and Market Expansion & Growth (Not Started). The end goal is a professional-grade multi-LLM platform with premium pricing potential.

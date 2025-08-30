@@ -10,7 +10,10 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
+    "test:run:local": "vitest run --pool=threads --max-workers=1",
     "test:coverage": "vitest run --coverage",
+    "type-check": "tsc -p . --noEmit",
+    "test:ci": "vitest run --coverage",
     "prebuild": "prisma generate"
   },
   "dependencies": {

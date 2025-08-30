@@ -1,5 +1,5 @@
 
-import { getStoredApiKey } from "@/lib/secure-storage";
+import { getStoredApiKey, getLegacyApiKeyIfPresent } from "@/lib/secure-storage";
 
 export interface LLMResponse {
   text: string;
@@ -20,6 +20,7 @@ export interface LLMRequestOptions {
   onChunk?: (chunk: string) => void;
   timeoutMs?: number;
   retries?: number;
+  abortSignal?: AbortSignal;
 }
 
 export async function callLLMApi(
@@ -29,7 +30,11 @@ export async function callLLMApi(
 ): Promise<LLMResponse> {
   try {
     // Use the new secure storage system for both client and server
-    const apiKey = await getStoredApiKey(provider);
+    let apiKey = await getStoredApiKey(provider);
+    if (!apiKey) {
+      // Fallback to legacy storage for backward compatibility in tests/old UI
+      apiKey = await getLegacyApiKeyIfPresent(provider);
+    }
     
     if (!apiKey) {
       throw new Error(`No API key found for ${provider}. Please set up your API key in the settings.`);
@@ -105,25 +110,51 @@ function normalizeToGeminiMessages(
   return base.map(m => ({ role: m.role === "assistant" ? "model" : m.role, parts: [{ text: m.content }] }));
 }
 
-async function fetchWithRetry(url: string, init: RequestInit, opts: { timeoutMs?: number; retries?: number } = {}): Promise<Response> {
-  const { timeoutMs = 30000, retries = 1 } = opts;
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  opts: { timeoutMs?: number; retries?: number; abortSignal?: AbortSignal } = {}
+): Promise<Response> {
+  const { timeoutMs = 30000, retries = 1, abortSignal } = opts;
   let attempt = 0;
   let lastErr: any = null;
   while (attempt <= retries) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(url, { ...init, signal: controller.signal });
-      clearTimeout(id);
-      if (res.status >= 500 || res.status === 429) {
-        if (attempt < retries) {
-          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-          await new Promise(r => setTimeout(r, delay));
-          attempt++;
-          continue;
+      // Propagate external aborts to our controller
+      if (abortSignal) {
+        if (abortSignal.aborted) controller.abort(abortSignal.reason as any);
+        const onAbort = () => controller.abort((abortSignal as any).reason);
+        abortSignal.addEventListener('abort', onAbort, { once: true });
+        try {
+          const res = await fetch(url, { ...init, signal: controller.signal });
+          clearTimeout(id);
+          if (res.status >= 500 || res.status === 429) {
+            if (attempt < retries) {
+              const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+              await new Promise(r => setTimeout(r, delay));
+              attempt++;
+              continue;
+            }
+          }
+          return res;
+        } finally {
+          abortSignal.removeEventListener('abort', onAbort as any);
         }
+      } else {
+        const res = await fetch(url, { ...init, signal: controller.signal });
+        clearTimeout(id);
+        if (res.status >= 500 || res.status === 429) {
+          if (attempt < retries) {
+            const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+            await new Promise(r => setTimeout(r, delay));
+            attempt++;
+            continue;
+          }
+        }
+        return res;
       }
-      return res;
     } catch (e: any) {
       clearTimeout(id);
       lastErr = e;
@@ -200,7 +231,7 @@ async function callOpenRouter(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false,
     }),
-  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries, abortSignal: options.abortSignal });
 
   if (options.stream && options.onChunk && response.ok && response.body) {
     const reader = response.body.getReader();
@@ -275,7 +306,7 @@ async function callOpenAI(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries, abortSignal: options.abortSignal });
   
   if (options.stream && options.onChunk && response.ok && response.body) {
     const reader = response.body.getReader();
@@ -343,7 +374,7 @@ async function callClaude(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries, abortSignal: options.abortSignal });
   
   if (options.stream && options.onChunk && response.ok && response.body) {
     const reader = response.body.getReader();
@@ -407,7 +438,7 @@ async function callGoogleAI(
         maxOutputTokens: options.maxTokens ?? 2048
       }
     })
-  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries, abortSignal: options.abortSignal });
   
   const data = await response.json();
   
@@ -447,7 +478,7 @@ async function callLlama(
         num_predict: options.maxTokens ?? 2048,
       }
     })
-  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries, abortSignal: options.abortSignal });
 
   if (!response.ok) {
     // Fallback to simulated response if Ollama not available
@@ -504,7 +535,7 @@ async function callGitHubCopilot(
       max_tokens: options.maxTokens ?? 2048,
       stream: options.stream ?? false
     })
-  }, { timeoutMs: options.timeoutMs, retries: options.retries });
+  }, { timeoutMs: options.timeoutMs, retries: options.retries, abortSignal: options.abortSignal });
 
   if (!response.ok) {
     // Fallback to simulated response if GitHub Copilot not available

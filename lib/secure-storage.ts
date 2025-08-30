@@ -1,6 +1,6 @@
 // lib/secure-storage.ts
 import { isServer } from "./runtime";
-import { deriveKey, aesGcmEncrypt, aesGcmDecrypt } from "./crypto";
+import { deriveKey, aesGcmEncrypt, aesGcmDecrypt, decryptApiKey } from "./crypto";
 
 /**
  * VERSIONING
@@ -104,6 +104,19 @@ export async function getStoredApiKey(provider: string, userId?: string): Promis
   const decrypted = await decryptString(raw);
   decryptionCache.set(cacheKey, decrypted);
   return decrypted;
+}
+
+// LEGACY FALLBACK: support old key names used in tests and prior UI
+// If the new key is not present, check `apiKey_<provider>` and decrypt via legacy helper
+export async function getLegacyApiKeyIfPresent(provider: string): Promise<string | null> {
+  if (isServer) return null;
+  const legacy = window.localStorage.getItem(`apiKey_${provider}`);
+  if (!legacy) return null;
+  try {
+    return decryptApiKey(legacy);
+  } catch {
+    return legacy;
+  }
 }
 
 export async function setStoredApiKey(provider: string, key: string, userId?: string): Promise<void> {

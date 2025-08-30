@@ -54,7 +54,7 @@ describe('SignIn Page', () => {
   it('submits form with valid credentials', async () => {
     const user = userEvent.setup()
     const mockSignIn = vi.mocked(signIn)
-    mockSignIn.mockResolvedValue({ error: null, ok: true })
+    mockSignIn.mockResolvedValue({ error: null, ok: true, status: 200, url: '/' })
     
     render(<SignInPage />, { session: null })
     
@@ -79,7 +79,7 @@ describe('SignIn Page', () => {
   it('displays error message on failed signin', async () => {
     const user = userEvent.setup()
     const mockSignIn = vi.mocked(signIn)
-    mockSignIn.mockResolvedValue({ error: 'CredentialsSignin', ok: false })
+    mockSignIn.mockResolvedValue({ error: 'CredentialsSignin', ok: false, status: 401, url: null })
     
     render(<SignInPage />, { session: null })
     
@@ -99,7 +99,7 @@ describe('SignIn Page', () => {
   it('shows loading state during signin', async () => {
     const user = userEvent.setup()
     const mockSignIn = vi.mocked(signIn)
-    mockSignIn.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ error: null, ok: true }), 1000)))
+    mockSignIn.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ error: null, ok: true, status: 200, url: '/' }), 1000)))
     
     render(<SignInPage />, { session: null })
     
@@ -142,7 +142,7 @@ describe('SignIn Page', () => {
   it('redirects to callback URL on successful signin', async () => {
     const user = userEvent.setup()
     const mockSignIn = vi.mocked(signIn)
-    mockSignIn.mockResolvedValue({ error: null, ok: true })
+    mockSignIn.mockResolvedValue({ error: null, ok: true, status: 200, url: '/' })
     
     render(<SignInPage />, { session: null })
     

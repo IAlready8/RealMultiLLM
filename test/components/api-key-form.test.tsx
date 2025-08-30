@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ApiKeyForm from '@/components/api-key-form';
 import * as crypto from '@/lib/crypto';
@@ -45,7 +46,7 @@ describe('ApiKeyForm Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorageMock.clear();
-    (global.fetch as vi.Mock).mockResolvedValue({
+    (global.fetch as Mock).mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ valid: true }),
     });

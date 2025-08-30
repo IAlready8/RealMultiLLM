@@ -23,10 +23,10 @@ describe('useConversation Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset mocks to a default successful state before each test
-    (conversationStorage.getConversationsByType as vi.Mock).mockResolvedValue([mockConversation]);
-    (conversationStorage.saveConversation as vi.Mock).mockResolvedValue('new-id');
-    (conversationStorage.updateConversation as vi.Mock).mockResolvedValue(undefined);
-    (conversationStorage.deleteConversation as vi.Mock).mockResolvedValue(undefined);
+    vi.mocked(conversationStorage.getConversationsByType).mockResolvedValue([mockConversation] as any);
+    vi.mocked(conversationStorage.saveConversation).mockResolvedValue('new-id' as any);
+    vi.mocked(conversationStorage.updateConversation).mockResolvedValue(undefined as any);
+    vi.mocked(conversationStorage.deleteConversation).mockResolvedValue(undefined as any);
   });
 
   it('should load conversations on mount', async () => {
@@ -79,7 +79,7 @@ describe('useConversation Hook', () => {
   });
 
   it('should handle errors when loading conversations', async () => {
-    (conversationStorage.getConversationsByType as vi.Mock).mockRejectedValue(new Error('DB Error'));
+    vi.mocked(conversationStorage.getConversationsByType).mockRejectedValue(new Error('DB Error'));
     const { result } = renderHook(() => useConversation('multi-chat'));
 
     await act(async () => {

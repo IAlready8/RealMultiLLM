@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { exportAllData, importAllData } from "@/services/export-import-service";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
 import { MessageSquare } from 'lucide-react';
+import { streamChat, type StreamEvent } from '@/services/stream-client'
 
 // LLM providers we'll support
 const providers = [
@@ -33,6 +34,8 @@ export default function MultiChat() {
   const [messages, setMessages] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const { toast } = useToast(); // Initialize toast
+  const [streamingEnabled, setStreamingEnabled] = useState(true)
+  const streamHandlesRef = useRef<Map<string, { abort: (r?: any) => void }>>(new Map())
 
   // Initialize messages and loading state for each provider
   useEffect(() => {
@@ -47,6 +50,16 @@ export default function MultiChat() {
     setMessages(initialMessages);
     setLoading(initialLoading);
   }, []);
+
+  // Abort any in-flight streams on unmount
+  useEffect(() => {
+    return () => {
+      for (const handle of streamHandlesRef.current.values()) {
+        try { handle.abort('unmount') } catch {}
+      }
+      streamHandlesRef.current.clear()
+    }
+  }, [])
 
   const handleSendToAll = async () => {
     if (!prompt.trim()) return;
@@ -79,38 +92,101 @@ export default function MultiChat() {
         
         const messagesWithSystemPrompt = messages[provider.id];
 
-        // Call the API route
-        const response = await fetch("/api/llm/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            provider: provider.id,
-            messages: messagesWithSystemPrompt,
-            options: {
+        // If streaming is enabled, use the stream endpoint for incremental updates
+        if (streamingEnabled) {
+          // Abort any existing stream for this provider
+          const existing = streamHandlesRef.current.get(provider.id)
+          if (existing) {
+            try { existing.abort('restart') } catch {}
+            streamHandlesRef.current.delete(provider.id)
+          }
+
+          // Push placeholder assistant message for live chunks
+          setMessages(prev => ({
+            ...prev,
+            [provider.id]: [
+              ...prev[provider.id],
+              { role: 'assistant', content: '', timestamp: Date.now(), metadata: {} }
+            ]
+          }))
+
+          const handle = await streamChat(
+            provider.id,
+            messagesWithSystemPrompt,
+            {
               temperature: modelSettings.temperature || 0.7,
               maxTokens: modelSettings.maxTokens || 2048,
-              model: modelSettings.defaultModel
+              model: modelSettings.defaultModel,
+            },
+            (evt: StreamEvent) => {
+              if (evt.type === 'chunk') {
+                // Append chunk to the last assistant message
+                setMessages(prev => {
+                  const list = prev[provider.id] || []
+                  const updated = list.slice()
+                  const lastIdx = updated.length - 1
+                  if (lastIdx >= 0) {
+                    const last = updated[lastIdx]
+                    if (last?.role === 'assistant') {
+                      updated[lastIdx] = { ...last, content: (last.content || '') + evt.content }
+                    }
+                  }
+                  return { ...prev, [provider.id]: updated }
+                })
+              } else if (evt.type === 'done') {
+                setLoading(prev => ({ ...prev, [provider.id]: false }))
+                streamHandlesRef.current.delete(provider.id)
+              } else if (evt.type === 'error') {
+                setMessages(prev => ({
+                  ...prev,
+                  [provider.id]: [
+                    ...prev[provider.id],
+                    { role: 'assistant', content: `Error: ${evt.error}`, timestamp: Date.now(), metadata: { error: true } }
+                  ]
+                }))
+                setLoading(prev => ({ ...prev, [provider.id]: false }))
+                streamHandlesRef.current.delete(provider.id)
+              } else if (evt.type === 'aborted') {
+                setLoading(prev => ({ ...prev, [provider.id]: false }))
+                streamHandlesRef.current.delete(provider.id)
+              }
             }
-          }),
-        });
+          )
+          streamHandlesRef.current.set(provider.id, handle)
+        } else {
+          // Non-streaming: Call the chat API and append full response
+          const response = await fetch("/api/llm/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              provider: provider.id,
+              messages: messagesWithSystemPrompt,
+              options: {
+                temperature: modelSettings.temperature || 0.7,
+                maxTokens: modelSettings.maxTokens || 2048,
+                model: modelSettings.defaultModel
+              }
+            }),
+          });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `API request failed with status ${response.status}`);
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `API request failed with status ${response.status}`);
+          }
+
+          const chatResponse = await response.json();
+
+          // Update with response
+          setMessages(prev => ({
+            ...prev,
+            [provider.id]: [
+              ...prev[provider.id],
+              chatResponse
+            ],
+          }));
         }
-
-        const chatResponse = await response.json();
-
-        // Update with response
-        setMessages(prev => ({
-          ...prev,
-          [provider.id]: [
-            ...prev[provider.id],
-            chatResponse
-          ],
-        }));
       } catch (error: any) {
         // Handle error and display toast
         const errorMessage = error.message || "Could not get response";
@@ -189,6 +265,31 @@ export default function MultiChat() {
             }}
           />
           <Button onClick={handleSendToAll}>Send to All</Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              for (const [key, handle] of streamHandlesRef.current.entries()) {
+                try { handle.abort('user') } catch {}
+                streamHandlesRef.current.delete(key)
+              }
+              // flip all loadings off
+              setLoading((prev) => {
+                const copy: Record<string, boolean> = { ...prev }
+                Object.keys(copy).forEach((k) => (copy[k] = false))
+                return copy
+              })
+            }}
+          >
+            Stop
+          </Button>
+          <label className="flex items-center gap-2 text-sm text-gray-300 px-2 select-none">
+            <input
+              type="checkbox"
+              checked={streamingEnabled}
+              onChange={(e) => setStreamingEnabled(e.target.checked)}
+            />
+            Stream
+          </label>
         </div>
       </div>
 

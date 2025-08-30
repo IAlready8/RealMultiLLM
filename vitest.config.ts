@@ -8,6 +8,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./test/setup.tsx'],
     globals: true,
+    // Reduce flakiness in CI runners; can be overridden via CLI flags
+    pool: process.env.CI ? 'forks' : 'threads',
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

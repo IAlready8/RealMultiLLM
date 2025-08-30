@@ -1,25 +1,42 @@
-import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
 import { callLLMApi } from '@/services/api-client';
 import { recordAnalyticsEvent } from '@/services/analytics-service';
+import { badRequest, internalError, tooManyRequests, unauthorized } from '@/lib/http';
+import { checkAndConsume } from '@/lib/rate-limit';
+import { validateChatRequest } from '@/schemas/llm';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session || !session.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return unauthorized();
   }
 
   const startTime = Date.now();
   let provider = 'unknown';
 
   try {
-    const requestBody = await request.json();
-    provider = requestBody.provider;
-    const { messages, options = {} } = requestBody;
+    const json = await request.json();
+    const parsed = validateChatRequest(json);
+    if (!parsed.ok) {
+      return badRequest(parsed.error);
+    }
+    provider = parsed.data.provider;
+    const { messages, options = {} } = parsed.data;
 
-    if (!provider || !messages || messages.length === 0) {
-      return NextResponse.json({ error: 'Provider and messages are required' }, { status: 400 });
+    // Basic rate limiting: per-user and global (configurable via env)
+    const perUserMax = parseInt(process.env.RATE_LIMIT_LLM_PER_USER_PER_MIN || '60', 10)
+    const globalMax = parseInt(process.env.RATE_LIMIT_LLM_GLOBAL_PER_MIN || '600', 10)
+    const windowMs = parseInt(process.env.RATE_LIMIT_LLM_WINDOW_MS || '60000', 10)
+    const perUser = checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax });
+    const global = checkAndConsume(`llm:global`, { windowMs, max: globalMax });
+    if (!perUser.allowed || !global.allowed) {
+      return tooManyRequests('Rate limit exceeded', {
+        retryAfterMs: Math.max(perUser.retryAfterMs, global.retryAfterMs),
+        remaining: Math.min(perUser.remaining, global.remaining),
+      });
     }
 
     // The callLLMApi service now handles API key logic internally for client-side calls.
@@ -56,7 +73,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     const endTime = Date.now();
     const responseTime = endTime - startTime;
-    console.error(`Error in LLM chat API for provider ${provider}:`, error);
+    logger.error('llm_chat_error', { provider, message: error?.message })
 
     await recordAnalyticsEvent({
       event: 'llm_error',
@@ -69,6 +86,6 @@ export async function POST(request: Request) {
       userId: session.user.id,
     });
 
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
+    return internalError(error.message || 'Internal Server Error');
   }
 }

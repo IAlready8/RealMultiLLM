@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { GET, POST } from '@/app/api/personas/route';
 import { NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -27,7 +28,7 @@ describe('Personas API', () => {
 
   describe('GET /api/personas', () => {
     it('should return unauthorized if there is no session', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue(null);
+      (getServerSession as Mock).mockResolvedValue(null);
       const req = new NextRequest('http://localhost/api/personas');
       const response = await GET(req);
       expect(response.status).toBe(401);
@@ -35,10 +36,10 @@ describe('Personas API', () => {
 
     it('should fetch and return user personas for a valid session', async () => {
       const mockSession = { user: { id: 'user-123' } };
-      (getServerSession as vi.Mock).mockResolvedValue(mockSession);
+      (getServerSession as Mock).mockResolvedValue(mockSession);
 
       const mockPersonas = [{ id: '1', title: 'Test Persona' }];
-      (prisma.persona.findMany as vi.Mock).mockResolvedValue(mockPersonas);
+      (prisma.persona.findMany as Mock).mockResolvedValue(mockPersonas);
 
       const req = new NextRequest('http://localhost/api/personas');
       const response = await GET(req);
@@ -56,7 +57,7 @@ describe('Personas API', () => {
 
   describe('POST /api/personas', () => {
     it('should return unauthorized if there is no session', async () => {
-      (getServerSession as vi.Mock).mockResolvedValue(null);
+      (getServerSession as Mock).mockResolvedValue(null);
       const req = new NextRequest('http://localhost/api/personas', { method: 'POST' });
       const response = await POST(req);
       expect(response.status).toBe(401);
@@ -64,11 +65,11 @@ describe('Personas API', () => {
 
     it('should create a new persona for a valid session', async () => {
       const mockSession = { user: { id: 'user-123' } };
-      (getServerSession as vi.Mock).mockResolvedValue(mockSession);
+      (getServerSession as Mock).mockResolvedValue(mockSession);
 
       const personaData = { title: 'New Persona', description: 'A new description', prompt: 'Be new.' };
       const createdPersona = { id: '2', ...personaData, userId: 'user-123' };
-      (prisma.persona.create as vi.Mock).mockResolvedValue(createdPersona);
+      (prisma.persona.create as Mock).mockResolvedValue(createdPersona);
 
       // Correctly mock the request with a JSON body
       const req = new NextRequest('http://localhost/api/personas', {

@@ -35,9 +35,9 @@ jobs:
 
       - run: npm ci
       - run: npx prisma generate
-      - run: npm run type-check --if-present
+      - run: npm run type-check
       - run: npm run lint --if-present
-      - run: npm run test:ci --if-present
+      - run: npm run test:ci
 
   deploy:
     name: deploy

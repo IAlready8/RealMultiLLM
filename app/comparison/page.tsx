@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { ResponsiveGrid } from "@/components/responsive-grid";
 // import { sendChatMessage } from "@/services/api-service"; // Removed direct import
 import { PlusCircle, XCircle, Loader2, MessageSquare } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
+import { streamChat, type StreamEvent } from '@/services/stream-client'
 
 // LLM providers (should ideally come from a centralized config or API)
 const providers = [
@@ -36,6 +37,8 @@ export default function Comparison() {
   const [comparisonPanels, setComparisonPanels] = useState<LLMResponse[]>([]);
   const [nextPanelId, setNextPanelId] = useState(0);
   const { toast } = useToast(); // Initialize toast
+  const [streamingEnabled, setStreamingEnabled] = useState(true)
+  const streamHandlesRef = useRef<Map<string, { abort: (r?: any) => void }>>(new Map())
 
   const addComparisonPanel = useCallback(() => {
     setComparisonPanels((prev) => [
@@ -58,6 +61,16 @@ export default function Comparison() {
       addComparisonPanel();
     }
   }, [addComparisonPanel, comparisonPanels.length]);
+
+  // Abort in-flight streams on unmount
+  useEffect(() => {
+    return () => {
+      for (const h of streamHandlesRef.current.values()) {
+        try { h.abort('unmount') } catch {}
+      }
+      streamHandlesRef.current.clear()
+    }
+  }, [])
 
   const removeComparisonPanel = (id: string) => {
     setComparisonPanels((prev) => prev.filter((panel) => panel.id !== id));
@@ -102,41 +115,79 @@ export default function Comparison() {
       }
 
       try {
-        const response = await fetch("/api/llm/chat", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            provider: panel.providerId,
-            messages: [{ role: "user", content: prompt }],
-            options: {
-              temperature: 0.7, // Default temperature for comparison
-              maxTokens: 1024, // Default max tokens for comparison
-              model: panel.modelId,
+        if (streamingEnabled) {
+          // Abort any existing stream for this panel
+          const existing = streamHandlesRef.current.get(panel.id)
+          if (existing) {
+            try { existing.abort('restart') } catch {}
+            streamHandlesRef.current.delete(panel.id)
+          }
+
+          const handle = await streamChat(
+            panel.providerId,
+            [{ role: 'user', content: prompt }],
+            { temperature: 0.7, maxTokens: 1024, model: panel.modelId },
+            (evt: StreamEvent) => {
+              if (evt.type === 'chunk') {
+                setComparisonPanels((prev) => prev.map((p, i) =>
+                  i === index ? { ...p, content: (p.content || '') + evt.content } : p
+                ))
+              } else if (evt.type === 'done') {
+                setComparisonPanels((prev) => prev.map((p, i) =>
+                  i === index ? { ...p, loading: false } : p
+                ))
+                streamHandlesRef.current.delete(panel.id)
+              } else if (evt.type === 'error') {
+                setComparisonPanels((prev) => prev.map((p, i) =>
+                  i === index ? { ...p, content: `Error: ${evt.error}`, loading: false, error: evt.error } : p
+                ))
+                streamHandlesRef.current.delete(panel.id)
+              } else if (evt.type === 'aborted') {
+                setComparisonPanels((prev) => prev.map((p, i) =>
+                  i === index ? { ...p, loading: false } : p
+                ))
+                streamHandlesRef.current.delete(panel.id)
+              }
             }
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `API request failed with status ${response.status}`);
-        }
-
-        const chatResponse = await response.json();
-
-        setComparisonPanels((prev) =>
-          prev.map((p, i) =>
-            i === index
-              ? {
-                  ...p,
-                  content: chatResponse.content,
-                  loading: false,
-                  error: undefined,
-                }
-              : p
           )
-        );
+          streamHandlesRef.current.set(panel.id, handle)
+        } else {
+          const response = await fetch("/api/llm/chat", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              provider: panel.providerId,
+              messages: [{ role: "user", content: prompt }],
+              options: {
+                temperature: 0.7, // Default temperature for comparison
+                maxTokens: 1024, // Default max tokens for comparison
+                model: panel.modelId,
+              }
+            }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `API request failed with status ${response.status}`);
+          }
+
+          const chatResponse = await response.json();
+
+          setComparisonPanels((prev) =>
+            prev.map((p, i) =>
+              i === index
+                ? {
+                    ...p,
+                    content: chatResponse.content,
+                    loading: false,
+                    error: undefined,
+                  }
+                : p
+            )
+          );
+        }
       } catch (error: any) {
         const errorMessage = error.message || "Failed to get response.";
         setComparisonPanels((prev) =>
@@ -190,9 +241,29 @@ export default function Comparison() {
         <Button onClick={handleCompare} disabled={!prompt.trim()}>
           Compare
         </Button>
+        <Button
+          variant="outline"
+          onClick={() => {
+            for (const [key, handle] of streamHandlesRef.current.entries()) {
+              try { handle.abort('user') } catch {}
+              streamHandlesRef.current.delete(key)
+            }
+            setComparisonPanels((prev) => prev.map((p) => ({ ...p, loading: false })))
+          }}
+        >
+          Stop
+        </Button>
         <Button variant="outline" onClick={clearAll}>
           Clear All
         </Button>
+        <label className="flex items-center gap-2 text-sm text-gray-300 px-2 select-none">
+          <input
+            type="checkbox"
+            checked={streamingEnabled}
+            onChange={(e) => setStreamingEnabled(e.target.checked)}
+          />
+          Stream
+        </label>
       </div>
 
       <div className="mb-6 flex gap-2">
