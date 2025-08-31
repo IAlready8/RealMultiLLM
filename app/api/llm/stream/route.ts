@@ -26,8 +26,8 @@ export async function POST(request: Request) {
     const perUserMax = parseInt(process.env.RATE_LIMIT_LLM_PER_USER_PER_MIN || '60', 10)
     const globalMax = parseInt(process.env.RATE_LIMIT_LLM_GLOBAL_PER_MIN || '600', 10)
     const windowMs = parseInt(process.env.RATE_LIMIT_LLM_WINDOW_MS || '60000', 10)
-    const perUser = checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax })
-    const global = checkAndConsume(`llm:global`, { windowMs, max: globalMax })
+    const perUser = await checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax })
+    const global = await checkAndConsume(`llm:global`, { windowMs, max: globalMax })
     if (!perUser.allowed || !global.allowed) {
       return tooManyRequests('Rate limit exceeded', {
         retryAfterMs: Math.max(perUser.retryAfterMs, global.retryAfterMs),

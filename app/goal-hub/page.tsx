@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, PlusCircle, Trash2, Edit, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { CheckCircle, PlusCircle, Trash2, XCircle, Loader2, AlertTriangle, Target } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useToast } from "@/components/ui/use-toast"; // Import useToast
+import { useToast } from "@/components/ui/use-toast";
 
 interface Goal {
   id: string;
@@ -29,7 +29,7 @@ export default function GoalHub() {
   const [isAddGoalDialogOpen, setIsAddGoalDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast();
 
   const fetchGoals = useCallback(async () => {
     if (status !== "authenticated") return;
@@ -58,7 +58,7 @@ export default function GoalHub() {
 
   useEffect(() => {
     fetchGoals();
-  }, [fetchGoals, session, status]); // Re-fetch when session changes
+  }, [fetchGoals, session, status]);
 
   const handleAddGoal = async () => {
     if (!newGoalTitle.trim()) return;
@@ -94,7 +94,7 @@ export default function GoalHub() {
       setNewGoalTitle("");
       setNewGoalDescription("");
       setIsAddGoalDialogOpen(false);
-      fetchGoals(); // Re-fetch all goals after adding
+      fetchGoals();
       toast({
         title: "Goal Added",
         description: "Your goal has been successfully added.",
@@ -148,7 +148,7 @@ export default function GoalHub() {
         throw new Error(errorData.error || `Failed to mark goal complete: ${response.statusText}`);
       }
 
-      fetchGoals(); // Re-fetch all goals after updating
+      fetchGoals();
       toast({
         title: "Goal Completed",
         description: "Your goal has been marked as completed.",
@@ -190,7 +190,7 @@ export default function GoalHub() {
         throw new Error(errorData.error || `Failed to delete goal: ${response.statusText}`);
       }
 
-      fetchGoals(); // Re-fetch all goals after deleting
+      fetchGoals();
       toast({
         title: "Goal Deleted",
         description: "Your goal has been successfully deleted.",
@@ -242,14 +242,32 @@ export default function GoalHub() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <Target className="h-8 w-8 text-blue-500" />
+          <h1 className="heading-underline text-3xl font-bold">Goal Hub</h1>
+        </div>
+        <p className="text-gray-400 ml-11">Define, track, and manage your personal goals.</p>
+      </div>
+
       <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="heading-underline text-2xl font-bold">Goal Hub</h1>
-          <p className="text-gray-400">Define, track, and manage your personal goals.</p>
+        <div className="flex items-center gap-4">
+          <div className="bg-gray-800/50 px-4 py-2 rounded-lg">
+            <span className="text-sm text-gray-400">Total Goals</span>
+            <p className="text-xl font-bold">{goals.length}</p>
+          </div>
+          <div className="bg-gray-800/50 px-4 py-2 rounded-lg">
+            <span className="text-sm text-gray-400">Pending</span>
+            <p className="text-xl font-bold text-yellow-500">{pendingGoals.length}</p>
+          </div>
+          <div className="bg-gray-800/50 px-4 py-2 rounded-lg">
+            <span className="text-sm text-gray-400">Completed</span>
+            <p className="text-xl font-bold text-green-500">{completedGoals.length}</p>
+          </div>
         </div>
         <Dialog open={isAddGoalDialogOpen} onOpenChange={setIsAddGoalDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="rainbow-outline-hover">
               <PlusCircle className="h-4 w-4 mr-2" /> Add New Goal
             </Button>
           </DialogTrigger>
@@ -283,31 +301,39 @@ export default function GoalHub() {
               <Button variant="outline" onClick={() => setIsAddGoalDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddGoal}>Add Goal</Button>
+              <Button onClick={handleAddGoal} disabled={!newGoalTitle.trim()}>Add Goal</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
-          <h2 className="text-xl font-semibold mb-4">Pending Goals ({pendingGoals.length})</h2>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+            Pending Goals ({pendingGoals.length})
+          </h2>
           <div className="space-y-4">
             {pendingGoals.length === 0 ? (
-              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-4 text-center text-gray-400">
-                <div className="mx-auto max-w-lg">No pending goals. Time to set some!</div>
+              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6 text-center">
+                <Target className="h-12 w-12 mx-auto text-gray-500 mb-3" />
+                <p className="text-gray-400">No pending goals. Time to set some!</p>
               </div>
             ) : (
               pendingGoals.map((goal) => (
-                <Card key={goal.id} className="bg-gray-900 border-gray-800">
+                <Card key={goal.id} className="bg-gray-900 border-gray-800 hover:border-gray-700 transition-colors">
                   <CardHeader>
-                    <CardTitle>{goal.title}</CardTitle>
-                    <CardDescription className="text-gray-400">Created: {new Date(goal.createdAt).toLocaleDateString()}</CardDescription>
+                    <CardTitle className="text-lg">{goal.title}</CardTitle>
+                    <CardDescription className="text-gray-400">
+                      Created: {new Date(goal.createdAt).toLocaleDateString()}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p>{goal.description}</p>
+                    {goal.description && (
+                      <p className="text-gray-300">{goal.description}</p>
+                    )}
                     <div className="flex gap-2">
-                      <Button onClick={() => handleMarkComplete(goal.id)} size="sm">
+                      <Button onClick={() => handleMarkComplete(goal.id)} size="sm" className="bg-green-600 hover:bg-green-700">
                         <CheckCircle className="h-4 w-4 mr-2" /> Mark Complete
                       </Button>
                       <Button variant="destructive" size="sm" onClick={() => handleDeleteGoal(goal.id)}>
@@ -322,21 +348,29 @@ export default function GoalHub() {
         </div>
 
         <div>
-          <h2 className="text-xl font-semibold mb-4">Completed Goals ({completedGoals.length})</h2>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            Completed Goals ({completedGoals.length})
+          </h2>
           <div className="space-y-4">
             {completedGoals.length === 0 ? (
-              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-4 text-center text-gray-400">
-                <div className="mx-auto max-w-lg">No completed goals yet. Keep going!</div>
+              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6 text-center">
+                <CheckCircle className="h-12 w-12 mx-auto text-gray-500 mb-3" />
+                <p className="text-gray-400">No completed goals yet. Keep going!</p>
               </div>
             ) : (
               completedGoals.map((goal) => (
-                <Card key={goal.id} className="bg-gray-900 border-gray-800 opacity-70">
+                <Card key={goal.id} className="bg-gray-900 border-gray-800 opacity-80">
                   <CardHeader>
-                    <CardTitle className="line-through">{goal.title}</CardTitle>
-                    <CardDescription className="text-gray-500">Completed: {new Date(goal.createdAt).toLocaleDateString()}</CardDescription>
+                    <CardTitle className="text-lg line-through text-gray-400">{goal.title}</CardTitle>
+                    <CardDescription className="text-gray-500">
+                      Completed: {new Date(goal.updatedAt).toLocaleDateString()}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <p className="line-through">{goal.description}</p>
+                    {goal.description && (
+                      <p className="line-through text-gray-500">{goal.description}</p>
+                    )}
                     <div className="flex gap-2">
                       <Button variant="destructive" size="sm" onClick={() => handleDeleteGoal(goal.id)}>
                         <Trash2 className="h-4 w-4 mr-2" /> Delete

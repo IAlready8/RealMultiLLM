@@ -1,18 +1,53 @@
-import { describe, it, expect } from "vitest";
-import { encryptString, decryptString } from "@/lib/secure-storage";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { setStoredApiKey, getStoredApiKey, getLegacyApiKeyIfPresent } from "@/lib/secure-storage";
 
-describe("secure-storage crypto", () => {
-  it("roundtrips utf8 text", async () => {
-    const pt = "hello🔐世界";
-    const token = await encryptString(pt);
-    expect(token.startsWith("v2:gcm:")).toBe(true);
-    const back = await decryptString(token);
-    expect(back).toBe(pt);
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
+};
+
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock
+});
+
+describe("secure-storage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it("accepts legacy base64", async () => {
-    const b64 = Buffer.from("legacy").toString("base64");
-    const out = await decryptString(b64);
-    expect(out).toBe("legacy");
+  it("stores and retrieves API keys", async () => {
+    const provider = "openai";
+    const apiKey = "sk-test-key-123";
+    
+    await setStoredApiKey(provider, apiKey);
+    const retrieved = await getStoredApiKey(provider);
+    
+    expect(retrieved).toBe(apiKey);
+  });
+
+  it("handles legacy API key migration", async () => {
+    const provider = "openai";
+    const legacyKey = "legacy-key";
+    
+    localStorageMock.getItem.mockReturnValue(legacyKey);
+    
+    const result = await getLegacyApiKeyIfPresent(provider);
+    
+    expect(result).toBe(legacyKey);
+    expect(localStorageMock.removeItem).toHaveBeenCalledWith(`apiKey_${provider}`);
+  });
+
+  it("returns null for non-existent keys", async () => {
+    const result = await getStoredApiKey("nonexistent");
+    expect(result).toBeNull();
+  });
+
+  it("handles empty API keys", async () => {
+    await setStoredApiKey("test", "");
+    const result = await getStoredApiKey("test");
+    expect(result).toBeNull();
   });
 });

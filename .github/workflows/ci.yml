@@ -33,11 +33,16 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npm run type-check
-      - run: npm run lint --if-present
-      - run: npm run test:ci
+      - name: Install Dependencies
+        run: npm ci
+      - name: Generate Prisma Client
+        run: npx prisma generate
+      - name: Lint Code
+        run: npm run lint
+      - name: Run Tests
+        run: npm run test:run
+      - name: Build Project
+        run: npm run build
 
   deploy:
     name: deploy

@@ -14,7 +14,7 @@ import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, XCircle } from 'lucide-react'; // Added XCircle
 import { streamChat, type StreamEvent } from '@/services/stream-client'
 
 // LLM providers we'll support
@@ -37,6 +37,9 @@ export default function MultiChat() {
   const [streamingEnabled, setStreamingEnabled] = useState(true)
   const streamHandlesRef = useRef<Map<string, { abort: (r?: any) => void }>>(new Map())
 
+  // Derived state for overall loading status
+  const isAnyLoading = Object.values(loading).some(Boolean); // Added this line
+
   // Initialize messages and loading state for each provider
   useEffect(() => {
     const initialMessages: Record<string, any[]> = {};
@@ -54,10 +57,11 @@ export default function MultiChat() {
   // Abort any in-flight streams on unmount
   useEffect(() => {
     return () => {
-      for (const handle of streamHandlesRef.current.values()) {
+      const current = streamHandlesRef.current
+      for (const handle of current.values()) {
         try { handle.abort('unmount') } catch {}
       }
-      streamHandlesRef.current.clear()
+      current.clear()
     }
   }, [])
 
@@ -155,7 +159,7 @@ export default function MultiChat() {
           streamHandlesRef.current.set(provider.id, handle)
         } else {
           // Non-streaming: Call the chat API and append full response
-          const response = await fetch("/api/llm/chat", {
+          const response = await fetch("/api/llm", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -263,8 +267,9 @@ export default function MultiChat() {
                 handleSendToAll();
               }
             }}
+            disabled={isAnyLoading} // Added disabled prop
           />
-          <Button onClick={handleSendToAll}>Send to All</Button>
+          <Button onClick={handleSendToAll} disabled={isAnyLoading}>Send to All</Button> {/* Added disabled prop */}
           <Button
             variant="outline"
             onClick={() => {
@@ -375,10 +380,11 @@ function ChatBox({
                   message.role === "user"
                     ? "bg-blue-900 ml-6"
                     : message.metadata?.error 
-                      ? "bg-red-900/30 border border-red-800 mr-6"
+                      ? "bg-red-900/30 border border-red-800 mr-6 flex items-center gap-2"
                       : "bg-gray-800 mr-6"
                 }`}
               >
+                {message.metadata?.error && <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />}
                 {message.content}
                 {message.metadata && !message.metadata.error && (
                   <div className="mt-2 text-xs text-gray-400 flex flex-wrap gap-2">

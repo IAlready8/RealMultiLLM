@@ -12,7 +12,6 @@
  */
 
 import { 
-  decryptString, 
   getStoredApiKey 
 } from './secure-storage';
 

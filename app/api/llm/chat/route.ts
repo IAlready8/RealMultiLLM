@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
-import { callLLMApi } from '@/services/api-client';
+import { callLLMApi } from '@/services/server-api-client';
 import { recordAnalyticsEvent } from '@/services/analytics-service';
 import { badRequest, internalError, tooManyRequests, unauthorized } from '@/lib/http';
 import { checkAndConsume } from '@/lib/rate-limit';
@@ -30,8 +30,8 @@ export async function POST(request: Request) {
     const perUserMax = parseInt(process.env.RATE_LIMIT_LLM_PER_USER_PER_MIN || '60', 10)
     const globalMax = parseInt(process.env.RATE_LIMIT_LLM_GLOBAL_PER_MIN || '600', 10)
     const windowMs = parseInt(process.env.RATE_LIMIT_LLM_WINDOW_MS || '60000', 10)
-    const perUser = checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax });
-    const global = checkAndConsume(`llm:global`, { windowMs, max: globalMax });
+    const perUser = await checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax });
+    const global = await checkAndConsume(`llm:global`, { windowMs, max: globalMax });
     if (!perUser.allowed || !global.allowed) {
       return tooManyRequests('Rate limit exceeded', {
         retryAfterMs: Math.max(perUser.retryAfterMs, global.retryAfterMs),
@@ -39,16 +39,13 @@ export async function POST(request: Request) {
       });
     }
 
-    // The callLLMApi service now handles API key logic internally for client-side calls.
-    // For server-side calls like this API route, we would typically fetch the key securely.
-    // The service is already set up to use process.env, so we rely on that here.
-    // Use env-based defaults; service also applies per-provider defaults
+    // Use server-side API client that gets encrypted keys from database
     const envTimeout = Number(process.env.LLM_FETCH_TIMEOUT_MS || 0) || undefined;
     const envRetries = Number(process.env.LLM_FETCH_RETRIES || 0) || undefined;
     const safeOptions = { ...options } as any;
     if (safeOptions.timeoutMs == null && envTimeout != null) safeOptions.timeoutMs = envTimeout;
     if (safeOptions.retries == null && envRetries != null) safeOptions.retries = envRetries;
-    const response = await callLLMApi(provider, messages, safeOptions);
+    const response = await callLLMApi(session.user.id, provider, messages, safeOptions);
 
     const endTime = Date.now();
     const responseTime = endTime - startTime;

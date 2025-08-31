@@ -65,10 +65,11 @@ export default function Comparison() {
   // Abort in-flight streams on unmount
   useEffect(() => {
     return () => {
-      for (const h of streamHandlesRef.current.values()) {
+      const current = streamHandlesRef.current
+      for (const h of current.values()) {
         try { h.abort('unmount') } catch {}
       }
-      streamHandlesRef.current.clear()
+      current.clear()
     }
   }, [])
 

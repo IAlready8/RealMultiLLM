@@ -8,6 +8,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./test/setup.tsx'],
     globals: true,
+    exclude: [
+      'node_modules/**',
+      'dist/**',
+      '.next/**',
+      'coverage/**',
+      'test/e2e/**',
+    ],
     // Reduce flakiness in CI runners; can be overridden via CLI flags
     pool: process.env.CI ? 'forks' : 'threads',
     coverage: {
