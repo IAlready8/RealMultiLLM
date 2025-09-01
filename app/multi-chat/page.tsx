@@ -56,12 +56,12 @@ export default function MultiChat() {
 
   // Abort any in-flight streams on unmount
   useEffect(() => {
+    const handlesAtMount = streamHandlesRef.current
     return () => {
-      const current = streamHandlesRef.current
-      for (const handle of current.values()) {
+      for (const handle of handlesAtMount.values()) {
         try { handle.abort('unmount') } catch {}
       }
-      current.clear()
+      handlesAtMount.clear()
     }
   }, [])
 

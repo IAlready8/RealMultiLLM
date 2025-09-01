@@ -12,34 +12,34 @@
 
 ## Build, Test, and Development Commands
 - `npm run dev`: Start Next.js dev server.
-- `npm run build`: Build app (runs `prisma generate` via `prebuild`).
+- `npm run build`: Build app; runs `prisma generate` via `prebuild`.
 - `npm start`: Serve production build.
 - `npm run lint`: Lint with ESLint (`next/core-web-vitals`).
 - `npm run type-check`: Strict TypeScript checks.
 - `npm run test`: Run Vitest; `npm run test:coverage` for coverage.
-- Python (optional): `pytest -q` in `tests/`; install with `poetry install` or `pip install -r requirements.txt`.
+- Python (optional): `pytest -q` in `tests/`; install deps via `poetry install` or `pip install -r requirements.txt`.
 
 ## Coding Style & Naming Conventions
 - **Formatting**: Prettier (2 spaces, single quotes, trailing commas, ~80 cols).
-- **Linting**: ESLint `next/core-web-vitals`; fix issues before PR.
-- **TypeScript**: `strict: true`; prefer explicit types at module boundaries.
+- **Linting**: Fix ESLint issues before PR; no ignored warnings.
+- **TypeScript**: `strict: true`; add explicit types at module boundaries.
 - **Names**: Components `PascalCase`, hooks `use-*.ts`, utilities `kebab-case.ts`.
-- **Tests**: `*.test.tsx|ts` in `test/`; mirror source paths where possible.
+- **Files**: Co-locate small helpers; avoid one‑letter vars; no license headers.
 
 ## Testing Guidelines
 - **Frameworks**: Vitest + Testing Library (JS/TS); Pytest for Python utils.
-- **Run**: `npm run test` locally; keep `npm run test:coverage` clean.
-- **Patterns**: Co-locate mocks in `test/**/__mocks__` or `test/test-utils.tsx`.
-- **Stability**: Avoid flaky timers or network reliance in unit tests.
+- **Conventions**: `*.test.ts(x)` under `test/`; mirror source paths.
+- **Stability**: Avoid flaky timers and real network calls.
+- **Run**: `npm run test` locally and keep `npm run test:coverage` clean.
 
 ## Commit & Pull Request Guidelines
 - **Commits**: Conventional Commits (e.g., `feat:`, `fix:`, `perf:`, `chore:`; optional scopes like `feat(security): ...`).
-- **PRs**: Clear description, linked issues, screenshots for UI changes, test coverage notes, and migration notes if Prisma changes.
+- **PRs**: Clear description, linked issues, screenshots for UI changes, and test notes. Include migration notes when Prisma schema changes.
 - **Checks**: Ensure `npm run lint`, `npm run type-check`, and tests pass.
 
 ## Security & Configuration Tips
 - **Env**: Copy `.env.example` to `.env.local`; never commit secrets.
 - **Keys**: Validate API keys with `node test-api-key.js`.
-- **Database**: Keep Prisma schema in sync; regenerate with `npx prisma generate` if needed.
+- **Database**: Keep Prisma schema in sync; run `npx prisma generate` if needed.
 - **Context**: See `ARCHITECTURE.md` and `DESIGN_SYSTEM.md` for deeper details.
 

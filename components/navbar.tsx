@@ -20,20 +20,20 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="border-b border-gray-800">
+    <nav className="border-b border-border/60 bg-background/80 backdrop-blur-lg">
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
-        <Link href="/" className="text-xl font-bold">
+        <Link href="/" className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
           MultiLLM
         </Link>
-        <div className="hidden space-x-2 md:flex">
+        <div className="hidden space-x-1 md:flex">
           {navItems.map((item) => (
             <Link
               key={item.path}
               href={item.path}
-              className={`relative px-3 py-1 rounded-md transition-colors rainbow-outline-hover ${
+              className={`relative px-4 py-2 rounded-lg transition-all smooth-transition ${
                 pathname === item.path
-                  ? "text-white bg-gray-800/60 after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full after:bg-blue-500 after:rounded-full"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800/40"
+                  ? "text-foreground font-medium bg-card border border-border shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-card/50"
               }`}
             >
               {item.name}

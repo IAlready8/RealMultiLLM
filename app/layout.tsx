@@ -15,7 +15,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "MultiLLM Chat Assistant",
-  description: "A tool for interacting with multiple LLM APIs",
+  description: "A professional tool for interacting with multiple LLM APIs",
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.className} bg-gray-950 text-white`}>
+      <body className={`${inter.className} bg-background text-foreground`}>
         <AuthProvider>
           <ThemeProvider
             attribute="class"

@@ -246,7 +246,8 @@ export class ErrorManager {
                 severity: appError.severity,
                 message: appError.message,
               }),
-              userId: appError.context.userId || null,
+              // Analytics.userId is required in schema; default to 'system' if absent
+              userId: appError.context.userId ?? 'system',
             },
           })
         } catch (persistErr) {
@@ -397,7 +398,15 @@ export class ErrorManager {
         topErrors,
       }
     } catch {
-      return { total: 0, byCategory: {}, bySeverity: {}, topErrors: [] }
+      const zeroByCategory = Object.values(ErrorCategory).reduce((acc, key) => {
+        acc[key as ErrorCategory] = 0
+        return acc
+      }, {} as Record<ErrorCategory, number>)
+      const zeroBySeverity = Object.values(ErrorSeverity).reduce((acc, key) => {
+        acc[key as ErrorSeverity] = 0
+        return acc
+      }, {} as Record<ErrorSeverity, number>)
+      return { total: 0, byCategory: zeroByCategory, bySeverity: zeroBySeverity, topErrors: [] }
     }
   }
 }
