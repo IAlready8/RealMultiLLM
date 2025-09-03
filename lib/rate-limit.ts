@@ -1,4 +1,14 @@
-import { createClient, RedisClientType } from 'redis';
+// Conditional import for Redis
+let createClient: any = null;
+let RedisClientType: any = null;
+
+try {
+  const redis = require('redis');
+  createClient = redis.createClient;
+  RedisClientType = redis.RedisClientType;
+} catch (error) {
+  console.warn('Redis not available for rate limiting, using memory-only implementation');
+}
 
 type Key = string
 
@@ -11,12 +21,12 @@ interface LimitConfig {
 const hits = new Map<Key, number[]>()
 
 // Redis client instance
-let redisClient: RedisClientType | null = null;
+let redisClient: any = null;
 let isRedisConnected = false;
 
 // Initialize Redis connection if REDIS_URL is provided
 async function initRedis() {
-  if (!process.env.REDIS_URL || redisClient) return;
+  if (!process.env.REDIS_URL || redisClient || !createClient) return;
   
   try {
     redisClient = createClient({
