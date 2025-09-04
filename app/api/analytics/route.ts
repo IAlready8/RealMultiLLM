@@ -1,80 +1,156 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { getAnalytics, getDailyUsage } from "@/services/analytics-service";
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getAnalytics, getDailyUsage } from '@/services/analytics-service';
+import {
+  getGlobalAnalyticsEngine,
+  getAnalyticsDashboardData,
+  generateAnalyticsPredictions,
+  detectAnalyticsAnomalies
+} from '@/lib/analytics';
+import { 
+  checkApiRateLimit, 
+  withErrorHandling,
+  createErrorResponse
+} from '@/lib/api';
+import { processSecurityRequest } from '@/lib/security';
 
 export async function GET(request: Request) {
+  // Apply security middleware
+  const securityResult = await processSecurityRequest(request);
+  if (!securityResult.success) {
+    return NextResponse.json(
+      { error: { message: securityResult.error } },
+      { status: 400 }
+    );
+  }
+  
   const session = await getServerSession(authOptions);
-
+  
   if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+    return NextResponse.json(
+      { error: { message: 'Unauthorized' } },
+      { status: 401 }
+    );
   }
 
+  const userId = session.user.id!;
+  const endpoint = 'analytics';
+  
   try {
+    // Check rate limit
+    const rateLimitResult = await checkApiRateLimit(request, endpoint, userId);
+    
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { 
+          error: { 
+            message: `Rate limit exceeded. Try again in ${Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)} seconds.` 
+          } 
+        },
+        { status: 429 }
+      );
+    }
+    
     const { searchParams } = new URL(request.url);
-    const timeRange = searchParams.get("timeRange") || "7d";
-    const days = parseInt(timeRange.replace("d", ""));
+    const timeRange = searchParams.get('timeRange') || '7d';
+    const days = parseInt(timeRange.replace('d', ''));
+    const includePredictions = searchParams.get('predictions') === 'true';
+    const includeAnomalies = searchParams.get('anomalies') === 'true';
 
     // Get overall analytics
-    const analytics = await getAnalytics(session.user.id!);
+    const analytics = await getAnalytics(userId);
     
     // Get daily usage data
-    const dailyUsage = await getDailyUsage(session.user.id!, days);
-
-    // Calculate aggregated stats
+    const dailyUsage = await getDailyUsage(userId, days);
+    
+    // Calculate summary statistics
     const totalRequests = analytics.reduce((sum, item) => sum + item.requests, 0);
-    const totalTokens = analytics.reduce((sum, item) => sum + item.tokens, 0);
-    const totalErrors = analytics.reduce((sum, item) => sum + item.errors, 0);
-    const avgResponseTime = analytics.length > 0 
-      ? analytics.reduce((sum, item) => sum + item.avgResponseTime, 0) / analytics.length 
-      : 0;
-
-    // Find top provider
-    const topProvider = analytics.reduce((top, current) => 
-      current.requests > top.requests ? current : top, 
-      analytics[0] || { provider: "None", requests: 0 }
-    );
-
-    // Transform data for frontend
-    const providerStats = analytics.map(item => ({
-      provider: item.provider,
-      requests: item.requests,
-      tokens: item.tokens,
-      errors: item.errors,
-      avgResponseTime: item.avgResponseTime,
-      successRate: item.requests > 0 ? ((item.requests - item.errors) / item.requests) * 100 : 0
+    const totalTokens = analytics.reduce((sum, item) => sum + item.totalTokens, 0);
+    
+    // Calculate provider stats
+    const providerStats: Record<string, { requests: number; tokens: number }> = {};
+    analytics.forEach(item => {
+      if (!providerStats[item.provider]) {
+        providerStats[item.provider] = { requests: 0, tokens: 0 };
+      }
+      providerStats[item.provider].requests += item.requests;
+      providerStats[item.provider].tokens += item.totalTokens;
+    });
+    
+    // Calculate model comparison
+    const modelComparison: Record<string, { requests: number; avgTokens: number }> = {};
+    analytics.forEach(item => {
+      if (!modelComparison[item.model]) {
+        modelComparison[item.model] = { requests: 0, avgTokens: 0 };
+      }
+      modelComparison[item.model].requests += item.requests;
+      modelComparison[item.model].avgTokens = 
+        (modelComparison[item.model].avgTokens * (modelComparison[item.model].requests - item.requests) + item.totalTokens) / 
+        modelComparison[item.model].requests;
+    });
+    
+    // Generate mock quality metrics
+    const qualityMetrics = Array.from({ length: 7 }, (_, i) => ({
+      date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      accuracy: Math.min(4.2 + Math.random() * 0.8, 5.0),
+      relevance: Math.min(4.0 + Math.random() * 1.0, 5.0),
+      conciseness: Math.min(3.8 + Math.random() * 1.2, 5.0),
     }));
 
-    // Create model comparison data (simplified for now)
-    const modelComparison = analytics.map(item => ({
-      provider: item.provider,
-      factualAccuracy: Math.min(4.0 + Math.random() * 1.0, 5.0),
-      creativity: Math.min(3.5 + Math.random() * 1.5, 5.0),
-      helpfulness: Math.min(4.0 + Math.random() * 1.0, 5.0),
-      coherence: Math.min(4.0 + Math.random() * 1.0, 5.0),
-      conciseness: Math.min(3.8 + Math.random() * 1.2, 5.0)
-    }));
+    // Get real-time dashboard data
+    const dashboardData = await getAnalyticsDashboardData([
+      'llm_request',
+      'llm_error',
+      'user_activity'
+    ]);
+
+    // Generate predictions if requested
+    let predictions: any = null;
+    if (includePredictions) {
+      const analyticsEngine = getGlobalAnalyticsEngine();
+      predictions = await generateAnalyticsPredictions('llm_request', 'day');
+    }
+
+    // Detect anomalies if requested
+    let anomalies: any = null;
+    if (includeAnomalies) {
+      const analyticsEngine = getGlobalAnalyticsEngine();
+      const now = Date.now();
+      anomalies = await detectAnalyticsAnomalies('llm_request', {
+        start: now - 86400000, // Last 24 hours
+        end: now
+      });
+    }
 
     const response = {
       totalRequests,
       totalTokens,
-      totalErrors,
-      avgResponseTime: Math.round(avgResponseTime * 100) / 100,
-      topProvider: topProvider.provider,
-      dailyStats: dailyUsage.map(item => ({
-        date: item.date || new Date().toISOString().split('T')[0],
-        requests: item.requests,
-        tokens: item.tokens,
-        errors: item.errors,
-        responseTime: item.avgResponseTime
-      })),
+      dailyUsage,
+      qualityMetrics,
       providerStats,
-      modelComparison
+      modelComparison,
+      dashboard: dashboardData,
+      predictions,
+      anomalies
     };
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, {
+      headers: {
+        ...securityResult.headers,
+        'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+      }
+    });
   } catch (error) {
-    console.error("Error fetching analytics:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error('Error getting analytics:', error);
+    
+    // Return standardized error response
+    const errorResponse = createErrorResponse(error);
+    return NextResponse.json(errorResponse, { 
+      status: errorResponse.error.statusCode || 500,
+      headers: securityResult.headers
+    });
   }
 }
