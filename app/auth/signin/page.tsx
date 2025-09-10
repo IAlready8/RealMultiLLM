@@ -125,7 +125,7 @@ export default function SignIn() {
             <p className="text-center text-sm text-gray-500 mt-4">
               For demo purposes, use: <br />
               Email: demo@example.com <br />
-              Password: password123
+              Password: DemoPassword123!@#
             </p>
           </form>
         </CardContent>

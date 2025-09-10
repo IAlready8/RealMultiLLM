@@ -30,7 +30,7 @@ describe('SignIn Page', () => {
     render(<SignInPage />, { session: null })
     
     expect(screen.getByText(/demo@example.com/)).toBeInTheDocument()
-    expect(screen.getByText(/password123/)).toBeInTheDocument()
+    expect(screen.getByText(/DemoPassword123!@#/)).toBeInTheDocument()
   })
 
   it('has Google and GitHub sign-in buttons', () => {

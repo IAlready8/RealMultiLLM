@@ -8,6 +8,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./test/setup.tsx'],
     globals: true,
+    env: {
+      NODE_ENV: 'test',
+      NEXTAUTH_SECRET: 'test-secret-key-for-testing-purposes-only-32-characters',
+      DATABASE_URL: 'file:./test.db',
+      ENCRYPTION_MASTER_KEY: 'test-encryption-key-64-characters-long-for-testing-purposes-only123456789012',
+      ALLOW_DEMO_MODE: 'true'
+    },
     exclude: [
       'node_modules/**',
       'dist/**',
