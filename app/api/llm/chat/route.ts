@@ -1,30 +1,23 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { callLLMApi } from '@/lib/llm-api-client-server';
-import { logger } from '@/lib/logger';
-import { ChatRequestSchema } from '@/lib/validation';
-import { withValidation } from '@/lib/validation-middleware';
-import crypto from 'crypto';
-import { processSecurityRequest } from '@/lib/security';
-import { logDataAccessEvent } from '@/lib/compliance';
 import { 
   checkApiRateLimit, 
-  executeWithCircuitBreaker, 
   withErrorHandling,
-  createErrorResponse,
-  RateLimitError,
-  CircuitBreakerError
-} from '@/lib/api';
-
-// Create a middleware for chat request validation
-const validateChat = withValidation(ChatRequestSchema);
+  createErrorResponse
+} from '@/lib/api'
+import { processSecurityRequest } from '@/lib/security'
+import { logger } from '@/lib/observability/logger'
+import { 
+  llmRequestsTotal, 
+  llmRequestDuration, 
+  llmTokensTotal 
+} from '@/lib/observability/metrics'
+import { withObservability } from '@/lib/observability/middleware'
 
 // Adds centralized logging and supports new Ollama provider via callLLMApi.
-// Enhanced with AI coordination system for intelligent routing and load balancing.
-// Secured with military-grade encryption and threat detection.
 // Compliant with audit logging and data governance.
-// Protected with advanced rate limiting and circuit breaker patterns.
 
 export async function POST(request: Request) {
   // Apply security middleware
@@ -35,16 +28,17 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-
+  
   const session = await getServerSession(authOptions);
-  if (!session || !session.user) {
+  
+  if (!session?.user?.id) {
     return NextResponse.json(
       { error: { message: 'Unauthorized' } },
       { status: 401 }
     );
   }
 
-  const userId = session.user.id!;
+  const userId = session.user.id;
   const endpoint = 'llm/chat';
   
   try {
@@ -81,9 +75,13 @@ export async function POST(request: Request) {
     const startTime = Date.now();
 
     // Validate request body
-    const { data: body, error } = await validateChat(await request.json());
-    if (error) {
-      return NextResponse.json({ error }, { status: 400 });
+    const { data: body, error: validationError } = await validateChat(await request.json());
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+
+    if (!body) {
+      return NextResponse.json({ error: { message: 'Invalid request body' } }, { status: 400 });
     }
 
     const { messages, provider, options } = body;
@@ -92,9 +90,11 @@ export async function POST(request: Request) {
     // Execute with circuit breaker protection
     const response = await executeWithCircuitBreaker(
       endpoint,
-      () => callLLMApi(provider, messages, {
-        ...options,
-        userId,
+      () => callLLMApi({
+        provider,
+        messages,
+        options,
+        userId
       }),
       {
         failureThreshold: 3,
@@ -127,6 +127,15 @@ export async function POST(request: Request) {
     );
 
     log.info({ ms }, 'llm.chat.success');
+
+    // Record success metrics
+    (llmRequestsTotal as any).attributes = { provider, model: options?.model || 'default', status: 'success' };
+    llmRequestsTotal.inc(1);
+    llmRequestDuration.observe(ms / 1000); // Convert to seconds
+    if (response.usage?.totalTokens) {
+      (llmTokensTotal as any).attributes = { provider, model: options?.model || 'default' };
+      llmTokensTotal.inc(response.usage.totalTokens);
+    }
 
     // Handle successful request with security middleware
     return NextResponse.json(response, {
@@ -163,8 +172,12 @@ export async function POST(request: Request) {
       logger.error({ error, ms }, 'llm.chat.error');
     }
 
+    // Record error metrics
+    (llmRequestsTotal as any).attributes = { provider, model: options?.model || 'default', status: 'error' };
+    llmRequestsTotal.inc(1);
+
     // Return standardized error response
-    const errorResponse = createErrorResponse(error);
+    const errorResponse = createErrorResponse(error as any);
     return NextResponse.json(errorResponse, { 
       status: errorResponse.error.statusCode || 500,
       headers: securityResult.headers

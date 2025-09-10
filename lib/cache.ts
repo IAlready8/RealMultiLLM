@@ -2,15 +2,6 @@
 let createClient: any = null;
 let RedisClientType: any = null;
 
-try {
-  const redis = require('redis');
-  createClient = redis.createClient;
-  RedisClientType = redis.RedisClientType;
-} catch (error) {
-  // Redis not available, will fall back to memory cache only
-  console.warn('Redis not available, using memory cache only');
-}
-
 // Cache configuration interface
 export interface CacheConfig {
   ttl: number; // Time to live in seconds
@@ -103,9 +94,14 @@ class RedisCache {
   }
 
   private async initializeClient() {
-    if (!process.env.REDIS_URL || !createClient) return;
+    if (!process.env.REDIS_URL) return;
 
     try {
+      // Dynamically import redis to avoid webpack issues
+      const redisModule = await import('redis');
+      createClient = redisModule.createClient;
+      RedisClientType = redisModule.RedisClientType;
+      
       this.client = createClient({ url: process.env.REDIS_URL });
       
       this.client.on('error', (err) => {

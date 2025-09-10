@@ -35,6 +35,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "idb": "^8.0.0",
+    "ioredis": "^5.7.0",
     "lucide-react": "^0.354.0",
     "next": "^14.2.31",
     "next-auth": "^4.24.7",

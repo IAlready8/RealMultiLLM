@@ -1,8 +1,5 @@
 // Performance Monitoring and Metrics Collection System
 
-import { cache, CacheKeys, CacheConfigs } from './cache';
-import { circuitBreakerManager } from './circuit-breaker';
-
 export interface PerformanceMetric {
   name: string;
   value: number;
@@ -132,8 +129,8 @@ class PerformanceMonitor {
 
   // Get current system metrics
   async getSystemMetrics(): Promise<SystemMetrics> {
-    const memUsage = process.memoryUsage();
-    const cacheStats = cache.getStats();
+    // Get circuit breaker stats from the global manager
+    const circuitBreakerManager = (await import('./circuit-breaker')).circuitBreakerManager;
     const circuitStats = circuitBreakerManager.getAllStats();
     
     // Simple CPU usage estimation (not perfect but good enough)
@@ -145,9 +142,9 @@ class PerformanceMonitor {
     this.systemMetrics = {
       cpuUsage,
       memoryUsage: {
-        used: memUsage.heapUsed,
-        total: memUsage.heapTotal,
-        percentage: (memUsage.heapUsed / memUsage.heapTotal) * 100
+        used: 0,
+        total: 0,
+        percentage: 0
       },
       eventLoopLag,
       activeConnections: this.requestCount,

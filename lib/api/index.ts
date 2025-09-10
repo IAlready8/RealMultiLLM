@@ -20,45 +20,23 @@
 
 // Rate limiting
 export { 
-  AdvancedRateLimiter, 
-  getApiRateLimiter, 
   checkApiRateLimit, 
   resetApiRateLimit, 
   getApiRateLimitStatus,
+  RateLimitError,
   type RateLimitConfig,
   type RateLimitResult
 } from './rate-limiter';
 
 // Circuit breaker
 export { 
-  CircuitBreaker, 
-  getApiCircuitBreaker, 
   executeWithCircuitBreaker, 
-  getCircuitBreakerMetrics, 
-  setCircuitBreakerState, 
-  shutdownAllCircuitBreakers,
-  type CircuitState,
-  type CircuitBreakerConfig,
-  type CircuitMetrics
+  CircuitBreakerError,
+  type CircuitBreakerConfig
 } from './circuit-breaker';
 
 // Error handling
 export { 
-  ApiError,
-  ValidationError,
-  AuthenticationError,
-  AuthorizationError,
-  NetworkError,
-  DatabaseError,
-  BusinessLogicError,
-  ExternalServiceError,
-  RateLimitError,
-  CircuitBreakerError,
-  generateCorrelationId,
-  withErrorHandling,
-  formatErrorForResponse,
-  shouldReportError,
   createErrorResponse,
-  type ErrorCategory,
-  type ErrorCode
+  withErrorHandling
 } from './error-handler';

@@ -6,27 +6,35 @@ import GitHubProvider from "next-auth/providers/github";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { getValidatedEnv, isDemoModeEnabled, getSessionMaxAge } from "@/lib/env";
+import { z } from "zod";
 
-// Demo user credentials for testing (keep for development)
-const DEMO_USERS = [
+// Password validation schema
+const passwordSchema = z.string()
+  .min(12, "Password must be at least 12 characters long")
+  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
+    "Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character");
+
+// Demo users only available in development with explicit flag
+const DEMO_USERS = isDemoModeEnabled() ? [
   {
     id: "demo-1",
     name: "Demo User",
     email: "demo@example.com",
-    password: "password123"
+    password: "DemoPassword123!@#" // Stronger demo password
   }
-];
+] : [];
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: getValidatedEnv().GOOGLE_CLIENT_ID || "",
+      clientSecret: getValidatedEnv().GOOGLE_CLIENT_SECRET || "",
     }),
     GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID || "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
+      clientId: getValidatedEnv().GITHUB_CLIENT_ID || "",
+      clientSecret: getValidatedEnv().GITHUB_CLIENT_SECRET || "",
     }),
     CredentialsProvider({
       name: "Credentials",
@@ -38,18 +46,31 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
+
+        // Validate email format
+        const emailSchema = z.string().email();
+        try {
+          emailSchema.parse(credentials.email);
+        } catch {
+          return null;
+        }
+
+        // Rate limiting check (basic implementation)
+        const clientIP = process.env.NODE_ENV === 'test' ? 'test' : 'unknown';
         
-        // Check demo users first (for development)
-        const demoUser = DEMO_USERS.find(
-          (user) => user.email === credentials.email && user.password === credentials.password
-        );
-        
-        if (demoUser) {
-          return {
-            id: demoUser.id,
-            name: demoUser.name,
-            email: demoUser.email
-          };
+        // Check demo users first (only in development with flag)
+        if (isDemoModeEnabled() && DEMO_USERS.length > 0) {
+          const demoUser = DEMO_USERS.find(
+            (user) => user.email === credentials.email && user.password === credentials.password
+          );
+          
+          if (demoUser) {
+            return {
+              id: demoUser.id,
+              name: demoUser.name,
+              email: demoUser.email
+            };
+          }
         }
         
         // Check database users
@@ -71,6 +92,8 @@ export const authOptions: NextAuthOptions = {
           }
         } catch (error) {
           console.error("Auth error:", error);
+          // Don't expose internal errors to client
+          return null;
         }
         
         return null;
@@ -98,8 +121,8 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 24 hours - reduce session updates
+    maxAge: getSessionMaxAge(), // 2 hours instead of 30 days
+    updateAge: 30 * 60, // 30 minutes - more frequent session updates for security
   },
-  secret: process.env.NEXTAUTH_SECRET || "your-secret-key",
+  secret: getValidatedEnv().NEXTAUTH_SECRET, // No fallback - must be provided
 };

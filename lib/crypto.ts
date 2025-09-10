@@ -195,14 +195,28 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
   }
 }
 
-// Simplified API for components
+// DEPRECATED: These functions are kept for backward compatibility only
+// Use crypto-enterprise.ts for new implementations
+
+import { encryptApiKey as secureEncryptApiKey, decryptApiKey as secureDecryptApiKey } from './crypto-enterprise';
+
 const DEFAULT_KEY = 'default-encryption-key-12345678901234567890123456789012';
 
-export function encryptApiKey(apiKey: string): string {
+/**
+ * @deprecated Use encryptApiKey from crypto-enterprise.ts instead
+ */
+export function encryptApiKey(apiKey: string, provider: string = 'unknown'): string {
   if (!apiKey) return '';
   
+  console.warn('Using deprecated encryptApiKey function. Please migrate to crypto-enterprise.ts');
+  
   try {
-    // Simple XOR encryption for demo purposes
+    // Fallback to secure implementation
+    return secureEncryptApiKey(apiKey, provider);
+  } catch (error) {
+    console.error('Secure encryption failed, using legacy method:', error);
+    
+    // Legacy XOR encryption as absolute fallback
     const encrypted = Array.from(apiKey)
       .map((char, i) => 
         String.fromCharCode(char.charCodeAt(0) ^ DEFAULT_KEY.charCodeAt(i % DEFAULT_KEY.length))
@@ -210,17 +224,24 @@ export function encryptApiKey(apiKey: string): string {
       .join('');
     
     return isServer ? Buffer.from(encrypted).toString('base64') : btoa(encrypted);
-  } catch (error) {
-    console.error('Encryption error:', error);
-    return apiKey;
   }
 }
 
-export function decryptApiKey(encryptedApiKey: string): string {
+/**
+ * @deprecated Use decryptApiKey from crypto-enterprise.ts instead
+ */
+export function decryptApiKey(encryptedApiKey: string, provider: string = 'unknown'): string {
   if (!encryptedApiKey) return '';
   
+  console.warn('Using deprecated decryptApiKey function. Please migrate to crypto-enterprise.ts');
+  
   try {
-    // Check if it's already decrypted (plain text)
+    // Try secure decryption first
+    if (encryptedApiKey.startsWith('v3:AES-256-GCM:')) {
+      return secureDecryptApiKey(encryptedApiKey, provider);
+    }
+    
+    // Legacy decryption for old data
     if (!isValidBase64(encryptedApiKey)) {
       return encryptedApiKey;
     }

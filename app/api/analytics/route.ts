@@ -14,6 +14,8 @@ import {
   createErrorResponse
 } from '@/lib/api';
 import { processSecurityRequest } from '@/lib/security';
+import { logger } from '@/lib/observability/logger';
+import { withObservability } from '@/lib/observability/middleware';
 
 export async function GET(request: Request) {
   // Apply security middleware
@@ -24,7 +26,7 @@ export async function GET(request: Request) {
       { status: 400 }
     );
   }
-  
+
   const session = await getServerSession(authOptions);
   
   if (!session || !session.user) {
@@ -66,7 +68,7 @@ export async function GET(request: Request) {
     
     // Calculate summary statistics
     const totalRequests = analytics.reduce((sum, item) => sum + item.requests, 0);
-    const totalTokens = analytics.reduce((sum, item) => sum + item.totalTokens, 0);
+    const totalTokens = analytics.reduce((sum, item) => sum + item.tokens, 0);
     
     // Calculate provider stats
     const providerStats: Record<string, { requests: number; tokens: number }> = {};
@@ -75,19 +77,19 @@ export async function GET(request: Request) {
         providerStats[item.provider] = { requests: 0, tokens: 0 };
       }
       providerStats[item.provider].requests += item.requests;
-      providerStats[item.provider].tokens += item.totalTokens;
+      providerStats[item.provider].tokens += item.tokens;
     });
     
     // Calculate model comparison
     const modelComparison: Record<string, { requests: number; avgTokens: number }> = {};
     analytics.forEach(item => {
-      if (!modelComparison[item.model]) {
-        modelComparison[item.model] = { requests: 0, avgTokens: 0 };
+      if (!modelComparison[item.provider]) {
+        modelComparison[item.provider] = { requests: 0, avgTokens: 0 };
       }
-      modelComparison[item.model].requests += item.requests;
-      modelComparison[item.model].avgTokens = 
-        (modelComparison[item.model].avgTokens * (modelComparison[item.model].requests - item.requests) + item.totalTokens) / 
-        modelComparison[item.model].requests;
+      modelComparison[item.provider].requests += item.requests;
+      modelComparison[item.provider].avgTokens = 
+        (modelComparison[item.provider].avgTokens * (modelComparison[item.provider].requests - item.requests) + item.tokens) / 
+        modelComparison[item.provider].requests;
     });
     
     // Generate mock quality metrics
@@ -143,11 +145,11 @@ export async function GET(request: Request) {
         'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
       }
     });
-  } catch (error) {
-    console.error('Error getting analytics:', error);
+  } catch (error: any) {
+    logger.error('Error getting analytics:', { error: error.message });
     
     // Return standardized error response
-    const errorResponse = createErrorResponse(error);
+    const errorResponse = createErrorResponse(error as any);
     return NextResponse.json(errorResponse, { 
       status: errorResponse.error.statusCode || 500,
       headers: securityResult.headers

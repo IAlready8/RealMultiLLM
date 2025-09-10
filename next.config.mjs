@@ -27,12 +27,26 @@ const nextConfig = {
   reactStrictMode: true,
   
   // Optimize bundle
-  webpack: (config, { dev }) => {
+  webpack: (config, { dev, isServer }) => {
     if (!dev) {
       // Tree shake unused code more aggressively
       config.optimization.usedExports = true;
       config.optimization.sideEffects = false;
     }
+    
+    // Handle Node.js modules in browser
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        "fs": false,
+        "net": false,
+        "tls": false,
+        "crypto": false,
+        "events": false,
+        "timers/promises": false
+      };
+    }
+    
     return config;
   },
 };

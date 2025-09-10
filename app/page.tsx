@@ -30,7 +30,7 @@ export default function Home() {
         </Link>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-6xl px-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-6xl px-4">
         <Card className="flex flex-col glass-card rainbow-outline-hover smooth-transition hover:-translate-y-1">
           <CardHeader>
             <div className="bg-primary/10 p-3 rounded-lg w-fit mb-4">
@@ -81,6 +81,23 @@ export default function Home() {
           <CardContent className="flex-grow flex items-end">
             <Link href="/settings" passHref>
               <Button className="w-full glass-button">Go to Settings</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col glass-card rainbow-outline-hover smooth-transition hover:-translate-y-1">
+          <CardHeader>
+            <div className="bg-primary/10 p-3 rounded-lg w-fit mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+            <CardTitle>Observability</CardTitle>
+            <CardDescription>Monitor system health and performance metrics.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link href="/observability" passHref>
+              <Button className="w-full glass-button">View Dashboard</Button>
             </Link>
           </CardContent>
         </Card>
