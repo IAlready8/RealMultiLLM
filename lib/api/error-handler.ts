@@ -18,7 +18,7 @@
  * - Operational vs. programmer error distinction
  */
 
-import { logger } from '@/lib/logger';
+import { logger } from '@/lib/observability/logger';
 
 // Error categories
 export type ErrorCategory = 

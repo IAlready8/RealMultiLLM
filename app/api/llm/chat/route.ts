@@ -5,16 +5,19 @@ import { callLLMApi } from '@/lib/llm-api-client-server';
 import { 
   checkApiRateLimit, 
   withErrorHandling,
-  createErrorResponse
+  createErrorResponse,
+  RateLimitError,
+  executeWithCircuitBreaker,
+  CircuitBreakerError
 } from '@/lib/api'
 import { processSecurityRequest } from '@/lib/security'
 import { logger } from '@/lib/observability/logger'
 import { 
-  llmRequestsTotal, 
-  llmRequestDuration, 
-  llmTokensTotal 
+  metricsRegistry 
 } from '@/lib/observability/metrics'
 import { withObservability } from '@/lib/observability/middleware'
+import { validateChatRequest } from '@/schemas/llm'
+import { logDataAccessEvent } from '@/lib/compliance'
 
 // Adds centralized logging and supports new Ollama provider via callLLMApi.
 // Compliant with audit logging and data governance.
@@ -40,6 +43,8 @@ export async function POST(request: Request) {
 
   const userId = session.user.id;
   const endpoint = 'llm/chat';
+  const startTime = Date.now();
+  let body: any = null;
   
   try {
     // Check rate limit
@@ -71,41 +76,32 @@ export async function POST(request: Request) {
         }
       );
     }
-    
-    const startTime = Date.now();
-
     // Validate request body
-    const { data: body, error: validationError } = await validateChat(await request.json());
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 });
+    const validationResult = validateChatRequest(await request.json());
+    if (!validationResult.ok) {
+      return NextResponse.json({ error: { message: validationResult.error } }, { status: 400 });
     }
-
-    if (!body) {
-      return NextResponse.json({ error: { message: 'Invalid request body' } }, { status: 400 });
-    }
+    body = validationResult.data;
 
     const { messages, provider, options } = body;
     const log = logger.child({ userId });
 
     // Execute with circuit breaker protection
     const response = await executeWithCircuitBreaker(
-      endpoint,
+      provider, // Use provider name instead of endpoint
       () => callLLMApi({
         provider,
         messages,
-        options,
-        userId
+        userId,
+        ...options
       }),
       {
         failureThreshold: 3,
+        successThreshold: 2,
         timeout: 30000, // 30 seconds
-        failureWindow: 300000, // 5 minutes
-        fallback: () => {
-          throw new CircuitBreakerError(
-            'Service temporarily unavailable due to high failure rate. Please try again later.',
-            'SERVICE_UNAVAILABLE'
-          );
-        }
+        resetTimeout: 60000, // 1 minute
+        monitoringWindow: 300000, // 5 minutes
+        expectedFailureRate: 0.1
       }
     );
 
@@ -126,15 +122,31 @@ export async function POST(request: Request) {
       }
     );
 
-    log.info({ ms }, 'llm.chat.success');
+    log.info('llm.chat.success', { ms });
 
     // Record success metrics
-    (llmRequestsTotal as any).attributes = { provider, model: options?.model || 'default', status: 'success' };
-    llmRequestsTotal.inc(1);
-    llmRequestDuration.observe(ms / 1000); // Convert to seconds
+    const successMetric = metricsRegistry.registerCounter(
+      'llm_requests_total',
+      'Total number of LLM requests',
+      { provider, model: options?.model || 'default', status: 'success' }
+    );
+    successMetric.inc(1);
+    
+    const durationMetric = metricsRegistry.registerHistogram(
+      'llm_request_duration_seconds',
+      'LLM request duration in seconds',
+      [0.1, 0.5, 1, 2, 5, 10, 30, 60],
+      { provider, model: options?.model || 'default' }
+    );
+    durationMetric.observe(ms / 1000); // Convert to seconds
+    
     if (response.usage?.totalTokens) {
-      (llmTokensTotal as any).attributes = { provider, model: options?.model || 'default' };
-      llmTokensTotal.inc(response.usage.totalTokens);
+      const tokenMetric = metricsRegistry.registerCounter(
+        'llm_tokens_total',
+        'Total number of tokens used',
+        { provider, model: options?.model || 'default', type: 'total' }
+      );
+      tokenMetric.inc(response.usage.totalTokens);
     }
 
     // Handle successful request with security middleware
@@ -148,6 +160,7 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     const ms = Date.now() - startTime;
+    const { messages, provider, options } = body || {};
 
     try {
       // Log data access error for compliance
@@ -158,7 +171,7 @@ export async function POST(request: Request) {
         securityResult.context?.ip,
         securityResult.context?.userAgent,
         {
-          provider,
+          provider: provider || 'unknown',
           error: error?.message || 'Unknown',
           responseTime: ms
         }
@@ -169,12 +182,16 @@ export async function POST(request: Request) {
       process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
 
     if (!isTest) {
-      logger.error({ error, ms }, 'llm.chat.error');
+      logger.error('llm.chat.error', { error, ms });
     }
 
     // Record error metrics
-    (llmRequestsTotal as any).attributes = { provider, model: options?.model || 'default', status: 'error' };
-    llmRequestsTotal.inc(1);
+    const errorMetric = metricsRegistry.registerCounter(
+      'llm_requests_total',
+      'Total number of LLM requests',
+      { provider: provider || 'unknown', model: options?.model || 'default', status: 'error' }
+    );
+    errorMetric.inc(1);
 
     // Return standardized error response
     const errorResponse = createErrorResponse(error as any);

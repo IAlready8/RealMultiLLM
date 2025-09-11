@@ -8,7 +8,7 @@ import { enterpriseRateLimiter, defaultConfigs } from "@/lib/rate-limiter-enterp
 import { getValidatedEnv } from "@/lib/env";
 
 export async function POST(request: NextRequest) {
-  const clientIP = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
+  const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
   const userAgent = request.headers.get('user-agent') || '';
   
   try {

@@ -1,5 +1,9 @@
 "use server";
 
+// DEPRECATED: This file uses client-side API key storage which is a security vulnerability.
+// Use the /api/config route instead for secure backend API key management.
+// This file is kept for backward compatibility but should not be used for new features.
+
 import { getStoredApiKey, setStoredApiKey } from "@/lib/secure-storage";
 
 // LLM providers (should ideally come from a centralized config or API)

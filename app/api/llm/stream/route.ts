@@ -7,14 +7,13 @@ import { checkAndConsume } from '@/lib/rate-limit'
 import { validateChatRequest } from '@/schemas/llm'
 import { logger } from '@/lib/observability/logger'
 import { 
-  llmRequestsTotal, 
-  llmRequestDuration, 
-  llmTokensTotal 
+  metricsRegistry 
 } from '@/lib/observability/metrics'
-import { withObservability } from '@/lib/observability/middleware'
 
 export async function POST(request: Request) {
-  return withObservability(async () => {
+  const startTime = Date.now();
+  
+  try {
     const session = await getServerSession(authOptions);
 
     if (!session || !session.user?.id) {
@@ -43,8 +42,12 @@ export async function POST(request: Request) {
       }
 
       // Increment LLM request counter
-      (llmRequestsTotal as any).attributes = { provider, model: options?.model || 'unknown' };
-      llmRequestsTotal.inc(1);
+      const requestMetric = metricsRegistry.registerCounter(
+        'llm_requests_total',
+        'Total number of LLM requests',
+        { provider, model: options?.model || 'unknown' }
+      );
+      requestMetric.inc(1);
       
       // Start timing
       const startTime = Date.now();
@@ -75,8 +78,13 @@ export async function POST(request: Request) {
             const duration = (Date.now() - startTime) / 1000; // in seconds
             
             // Record request duration
-            (llmRequestDuration as any).attributes = { provider, model: options?.model || 'unknown' };
-            llmRequestDuration.observe(duration);
+            const durationMetric = metricsRegistry.registerHistogram(
+              'llm_request_duration_seconds',
+              'LLM request duration in seconds',
+              [0.1, 0.5, 1, 2, 5, 10, 30, 60],
+              { provider, model: options?.model || 'unknown' }
+            );
+            durationMetric.observe(duration);
             
             logger.info('llm.stream.success', { 
               provider, 
@@ -87,8 +95,12 @@ export async function POST(request: Request) {
             logger.error('llm_stream_error', { provider, message: error?.message })
             
             // Record error metrics
-            (llmRequestsTotal as any).attributes = { provider, model: options?.model || 'unknown', status: 'error' };
-            llmRequestsTotal.inc(1);
+            const errorMetric = metricsRegistry.registerCounter(
+              'llm_requests_total',
+              'Total number of LLM requests',
+              { provider, model: options?.model || 'unknown', status: 'error' }
+            );
+            errorMetric.inc(1);
             
             writeJson({ type: 'error', error: error?.message || 'Internal Error' })
             controller.error(error)
@@ -105,10 +117,17 @@ export async function POST(request: Request) {
       logger.error('llm_stream_error_outer', { message: error?.message })
       
       // Record error metrics
-      (llmRequestsTotal as any).attributes = { provider: 'unknown', model: 'unknown', status: 'error' };
-      llmRequestsTotal.inc(1);
+      const globalErrorMetric = metricsRegistry.registerCounter(
+        'llm_requests_total',
+        'Total number of LLM requests',
+        { provider: 'unknown', model: 'unknown', status: 'error' }
+      );
+      globalErrorMetric.inc(1);
       
       return internalError(error.message || 'Internal Server Error')
     }
-  });
+  } catch (error: any) {
+    logger.error('stream_route_error', { error: error.message });
+    return internalError('Internal Server Error');
+  }
 }

@@ -6,9 +6,9 @@ import { badRequest, internalError, unauthorized } from '@/lib/http'
 import { logger } from '@/lib/logger'
 
 interface RouteContext {
-  params: {
+  params: Promise<{
     provider: string
-  }
+  }>
 }
 
 // DELETE /api/provider-configs/[provider] - Delete a provider configuration
@@ -20,7 +20,7 @@ export async function DELETE(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const { provider } = params
+    const { provider } = await params
 
     if (!provider) {
       return badRequest('Provider parameter is required')
@@ -35,9 +35,10 @@ export async function DELETE(request: Request, { params }: RouteContext) {
 
     return NextResponse.json({ success: true })
   } catch (error: any) {
+    const { provider: providerName } = await params;
     logger.error('provider_config_delete_error', {
       userId: session.user.id,
-      provider: params.provider,
+      provider: providerName,
       message: error?.message,
     })
     return internalError('Failed to delete provider configuration')
@@ -53,7 +54,7 @@ export async function GET(request: Request, { params }: RouteContext) {
   }
 
   try {
-    const { provider } = params
+    const { provider } = await params
 
     if (!provider) {
       return badRequest('Provider parameter is required')
@@ -66,9 +67,10 @@ export async function GET(request: Request, { params }: RouteContext) {
       hasValidKey: hasKey,
     })
   } catch (error: any) {
+    const { provider: providerName } = await params;
     logger.error('provider_config_status_error', {
       userId: session.user.id,
-      provider: params.provider,
+      provider: providerName,
       message: error?.message,
     })
     return internalError('Failed to check provider configuration status')

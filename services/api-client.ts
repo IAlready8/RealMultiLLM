@@ -1,4 +1,8 @@
 
+// DEPRECATED: This file implements client-side API key management which is a security vulnerability.
+// All LLM API calls should now go through the secure backend proxy at /api/llm/stream
+// This file is kept for backward compatibility but should not be used for new features.
+
 import { getStoredApiKey, getLegacyApiKeyIfPresent } from "@/lib/secure-storage";
 
 export interface LLMResponse {

@@ -16,7 +16,6 @@ import { UsageChart } from "@/components/analytics/usage-chart";
 import { ModelComparisonChart } from "@/components/analytics/model-comparison-chart";
 import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
-import { setStoredApiKey, getStoredApiKey } from "@/lib/secure-storage";
 import { useSession } from "next-auth/react";
 
 // LLM providers we'll support
@@ -42,6 +41,7 @@ interface LogEntry {
 export default function Settings() {
   const { data: session } = useSession();
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [configuredProviders, setConfiguredProviders] = useState<string[]>([]);
   const [modelSettings, setModelSettings] = useState<Record<string, any>>({});
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -49,6 +49,7 @@ export default function Settings() {
   const [importData, setImportData] = useState("");
   const [importError, setImportError] = useState("");
   const [openRouterModels, setOpenRouterModels] = useState<any[]>([]);
+  const [saving, setSaving] = useState<Record<string, boolean>>({});
   
   // Generate some sample logs for demo purposes
   useEffect(() => {
@@ -75,44 +76,44 @@ export default function Settings() {
     setLogs(sampleLogs.sort((a, b) => b.timestamp - a.timestamp));
   }, []);
   
-  // Load API keys and settings from localStorage
+  // Load configured providers from backend
   useEffect(() => {
-    const loadData = async () => {
-      // Load API keys
-      const savedKeys: Record<string, string> = {};
-      for (const provider of providers) {
-        const key = await getStoredApiKey(provider.id);
-        if (key) {
-          savedKeys[provider.id] = key;
+    const loadConfiguredProviders = async () => {
+      try {
+        const response = await fetch('/api/config');
+        if (response.ok) {
+          const data = await response.json();
+          setConfiguredProviders(data.configuredProviders || []);
         }
-      }
-      setApiKeys(savedKeys);
-      
-      // Load model settings
-      const savedSettings = localStorage.getItem("modelSettings");
-      if (savedSettings) {
-        try {
-          const parsed = JSON.parse(savedSettings);
-          setModelSettings(parsed);
-        } catch (e) {
-          console.error("Failed to load model settings:", e);
-        }
-      } else {
-        // Default settings
-        const defaults: Record<string, any> = {};
-        providers.forEach(provider => {
-          defaults[provider.id] = {
-            temperature: 0.7,
-            maxTokens: 2048,
-            defaultModel: "gpt-4"
-          };
-        });
-        setModelSettings(defaults);
-        localStorage.setItem("modelSettings", JSON.stringify(defaults));
+      } catch (error) {
+        console.error("Failed to load configured providers:", error);
       }
     };
     
-    loadData();
+    loadConfiguredProviders();
+    
+    // Load model settings from localStorage (this is safe since it's just UI preferences)
+    const savedSettings = localStorage.getItem("modelSettings");
+    if (savedSettings) {
+      try {
+        const parsed = JSON.parse(savedSettings);
+        setModelSettings(parsed);
+      } catch (e) {
+        console.error("Failed to load model settings:", e);
+      }
+    } else {
+      // Default settings
+      const defaults: Record<string, any> = {};
+      providers.forEach(provider => {
+        defaults[provider.id] = {
+          temperature: 0.7,
+          maxTokens: 2048,
+          defaultModel: "gpt-4"
+        };
+      });
+      setModelSettings(defaults);
+      localStorage.setItem("modelSettings", JSON.stringify(defaults));
+    }
   }, []);
 
   // Load OpenRouter models for model picker (free vs paid)
@@ -131,27 +132,87 @@ export default function Settings() {
     fetchModels();
   }, []);
   
-  // Save API key to localStorage
+  // Save API key via backend API
   const saveApiKey = async (providerId: string, key: string) => {
     if (!key) return;
     
-    // Securely store the API key
-    await setStoredApiKey(providerId, key);
+    setSaving(prev => ({ ...prev, [providerId]: true }));
     
-    // Update state
-    setApiKeys(prev => ({
-      ...prev,
-      [providerId]: key
-    }));
+    try {
+      // Save to backend securely
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: providerId, apiKey: key }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save API key.');
+      }
+
+      // Update state - clear the input and mark as configured
+      setApiKeys(prev => ({ ...prev, [providerId]: "" }));
+      setConfiguredProviders(prev => [...new Set([...prev, providerId])]);
+      
+      // Add log entry
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "success",
+        message: `Updated API key for ${providers.find(p => p.id === providerId)?.name}`
+      });
+    } catch (error) {
+      console.error("Error saving API key:", error);
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "error",
+        message: `Failed to save API key for ${providers.find(p => p.id === providerId)?.name}`
+      });
+    } finally {
+      setSaving(prev => ({ ...prev, [providerId]: false }));
+    }
+  };
+
+  // Clear API key via backend API
+  const clearApiKey = async (providerId: string) => {
+    setSaving(prev => ({ ...prev, [providerId]: true }));
     
-    // Add log entry
-    addLogEntry({
-      id: `log_${Date.now()}`,
-      timestamp: Date.now(),
-      provider: providerId,
-      type: "success",
-      message: `Updated API key for ${providers.find(p => p.id === providerId)?.name}`
-    });
+    try {
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: providerId, apiKey: "" }), // Empty key clears it
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to clear API key.');
+      }
+
+      setConfiguredProviders(prev => prev.filter(p => p !== providerId));
+      setApiKeys(prev => ({ ...prev, [providerId]: "" }));
+      
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "success",
+        message: `Cleared API key for ${providers.find(p => p.id === providerId)?.name}`
+      });
+    } catch (error) {
+      console.error("Error clearing API key:", error);
+      addLogEntry({
+        id: `log_${Date.now()}`,
+        timestamp: Date.now(),
+        provider: providerId,
+        type: "error",
+        message: `Failed to clear API key for ${providers.find(p => p.id === providerId)?.name}`
+      });
+    } finally {
+      setSaving(prev => ({ ...prev, [providerId]: false }));
+    }
   };
   
   // Save model settings to localStorage
@@ -184,9 +245,9 @@ export default function Settings() {
   
   // Clear all data
   const clearAllData = async () => {
-    // Clear API keys
-    for (const provider of providers) {
-      // setStoredApiKey(provider.id, ''); // We could clear the key by setting it to empty string
+    // Clear all API keys via backend
+    for (const providerId of configuredProviders) {
+      await clearApiKey(providerId);
     }
     
     // Clear settings
@@ -195,6 +256,7 @@ export default function Settings() {
     // Reset state
     setApiKeys({});
     setModelSettings({});
+    setConfiguredProviders([]);
     
     // Add log entry
     addLogEntry({
@@ -291,23 +353,33 @@ export default function Settings() {
                         <Input
                           id={`apiKey-${provider.id}`}
                           type="password"
-                          placeholder={`Enter your ${provider.name} API key`}
+                          placeholder={configuredProviders.includes(provider.id) ? "••••••••••••••••••••••" : `Enter your ${provider.name} API key`}
                           value={apiKeys[provider.id] || ""}
                           onChange={(e) => setApiKeys(prev => ({ ...prev, [provider.id]: e.target.value }))}
                           className="bg-gray-800 border-gray-700"
                         />
                         <Button 
                           onClick={() => saveApiKey(provider.id, apiKeys[provider.id] || "")}
-                          disabled={!apiKeys[provider.id]}
+                          disabled={!apiKeys[provider.id] || saving[provider.id]}
                         >
-                          Save
+                          {saving[provider.id] ? "Saving..." : "Save"}
                         </Button>
+                        {configuredProviders.includes(provider.id) && (
+                          <Button 
+                            onClick={() => clearApiKey(provider.id)}
+                            disabled={saving[provider.id]}
+                            variant="destructive"
+                            size="sm"
+                          >
+                            Clear
+                          </Button>
+                        )}
                       </div>
                     </div>
                     
                     <div className="text-sm">
                       <div className="flex items-center space-x-2">
-                        {apiKeys[provider.id] ? (
+                        {configuredProviders.includes(provider.id) ? (
                           <>
                             <Check className="h-4 w-4 text-green-500" />
                             <span className="text-green-500">API key is configured</span>
