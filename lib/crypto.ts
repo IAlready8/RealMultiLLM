@@ -205,14 +205,14 @@ const DEFAULT_KEY = 'default-encryption-key-12345678901234567890123456789012';
 /**
  * @deprecated Use encryptApiKey from crypto-enterprise.ts instead
  */
-export function encryptApiKey(apiKey: string, provider: string = 'unknown'): string {
+export async function encryptApiKey(apiKey: string, provider: string = 'unknown'): Promise<string> {
   if (!apiKey) return '';
   
   console.warn('Using deprecated encryptApiKey function. Please migrate to crypto-enterprise.ts');
   
   try {
     // Fallback to secure implementation
-    return secureEncryptApiKey(apiKey, provider);
+    return await secureEncryptApiKey(apiKey, provider);
   } catch (error) {
     console.error('Secure encryption failed, using legacy method:', error);
     
@@ -230,7 +230,7 @@ export function encryptApiKey(apiKey: string, provider: string = 'unknown'): str
 /**
  * @deprecated Use decryptApiKey from crypto-enterprise.ts instead
  */
-export function decryptApiKey(encryptedApiKey: string, provider: string = 'unknown'): string {
+export async function decryptApiKey(encryptedApiKey: string, provider: string = 'unknown'): Promise<string> {
   if (!encryptedApiKey) return '';
   
   console.warn('Using deprecated decryptApiKey function. Please migrate to crypto-enterprise.ts');
@@ -238,7 +238,7 @@ export function decryptApiKey(encryptedApiKey: string, provider: string = 'unkno
   try {
     // Try secure decryption first
     if (encryptedApiKey.startsWith('v3:AES-256-GCM:')) {
-      return secureDecryptApiKey(encryptedApiKey, provider);
+      return await secureDecryptApiKey(encryptedApiKey, provider);
     }
     
     // Legacy decryption for old data

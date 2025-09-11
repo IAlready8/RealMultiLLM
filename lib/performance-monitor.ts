@@ -4,7 +4,7 @@ export interface PerformanceMetric {
   name: string;
   value: number;
   timestamp: number;
-  labels?: Record<string, string>;
+  labels?: Record<string, string | number | boolean>;
   unit?: string;
 }
 
@@ -17,6 +17,7 @@ export interface RequestMetrics {
   userAgent?: string;
   provider?: string;
   model?: string;
+  timestamp?: number;
   tokenUsage?: {
     prompt: number;
     completion: number;
@@ -76,7 +77,7 @@ class PerformanceMonitor {
   }
 
   // Record a performance metric
-  recordMetric(name: string, value: number, labels?: Record<string, string>, unit?: string): void {
+  recordMetric(name: string, value: number, labels?: Record<string, string | number | boolean>, unit?: string): void {
     const metric: PerformanceMetric = {
       name,
       value,
@@ -493,7 +494,7 @@ export function trackPerformance(metricName?: string) {
         }, 'ms');
         
         return result;
-      } catch (error) {
+      } catch (error: any) {
         const duration = Date.now() - startTime;
         
         performanceMonitor.recordMetric(`${name}_duration`, duration, {

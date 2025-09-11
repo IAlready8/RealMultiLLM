@@ -175,4 +175,4 @@ export class Logger {
 export const logger = new Logger();
 
 // Export types for convenience
-export type { LoggerConfig, LogEntry };
+export type { LoggerConfig };

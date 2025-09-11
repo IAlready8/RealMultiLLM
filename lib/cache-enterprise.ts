@@ -235,19 +235,19 @@ class RedisCache implements CacheLayer {
   }
 
   private async initializeRedis(): Promise<void> {
+    // Disable Redis in test environment to avoid network calls
+    if (process.env.NODE_ENV === 'test') {
+      this.redis = null;
+      return;
+    }
     const env = getValidatedEnv();
     if (!env.REDIS_URL) return;
 
     try {
       this.redis = new Redis(env.REDIS_URL, {
-        retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
         lazyConnect: true,
-        // Compression support
         enableReadyCheck: true,
-        // Connection pooling
-        maxRetriesPerRequest: 2,
-        retryDelayOnFailover: 100
       });
 
       await this.redis.ping();

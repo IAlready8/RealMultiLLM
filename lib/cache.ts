@@ -1,6 +1,5 @@
 // Conditional import for Redis to handle environments where it's not available
 let createClient: any = null;
-let RedisClientType: any = null;
 
 // Cache configuration interface
 export interface CacheConfig {
@@ -99,12 +98,11 @@ class RedisCache {
     try {
       // Dynamically import redis to avoid webpack issues
       const redisModule = await import('redis');
-      createClient = redisModule.createClient;
-      RedisClientType = redisModule.RedisClientType;
+      createClient = (redisModule as any).createClient;
       
       this.client = createClient({ url: process.env.REDIS_URL });
       
-      this.client.on('error', (err) => {
+      this.client.on('error', (err: unknown) => {
         console.error('Redis Cache Error:', err);
         this.isConnected = false;
       });

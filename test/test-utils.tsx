@@ -253,96 +253,11 @@ export const mockWindow = {
   },
 }
 
-// Database mocking utilities
-export const createMockPrisma = () => ({
-  user: {
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-  conversation: {
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-  providerConfig: {
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    upsert: vi.fn(),
-    delete: vi.fn(),
-  },
-  persona: {
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  },
-  analytics: {
-    create: vi.fn(),
-    findMany: vi.fn(),
-  },
-  $queryRaw: vi.fn(),
-  $transaction: vi.fn(),
-})
+
 
 // Create testing utilities for the test framework
 
-// Create screen utility manually
-export const screen = typeof document !== 'undefined' ? {
-  getByText: (text: string) => document.body.querySelector(`*:contains("${text}")`) as Element,
-  getByRole: (role: string) => document.body.querySelector(`[role="${role}"]`) as Element,
-  getByTestId: (testId: string) => document.body.querySelector(`[data-testid="${testId}"]`) as Element,
-  queryByText: (text: string) => document.body.querySelector(`*:contains("${text}")`),
-  queryByRole: (role: string) => document.body.querySelector(`[role="${role}"]`),
-  queryByTestId: (testId: string) => document.body.querySelector(`[data-testid="${testId}"]`),
-} : {} as any;
 
-// Create fireEvent utility manually  
-export const fireEvent = {
-  click: (element: Element) => {
-    element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  },
-  change: (element: Element, options: { target: { value: string } }) => {
-    if (element instanceof HTMLInputElement) {
-      element.value = options.target.value;
-      element.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  },
-  submit: (element: Element) => {
-    element.dispatchEvent(new Event('submit', { bubbles: true }));
-  }
-};
-
-// Create waitFor utility manually
-export const waitFor = async (callback: () => void | Promise<void>, options: { timeout?: number } = {}) => {
-  const timeout = options.timeout || 1000;
-  const startTime = Date.now();
-  
-  while (Date.now() - startTime < timeout) {
-    try {
-      await callback();
-      return;
-    } catch (error) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-    }
-  }
-  
-  await callback(); // Final attempt, let it throw if it fails
-};
-
-// Create within utility
-export const within = (element: Element) => ({
-  getByText: (text: string) => element.querySelector(`*:contains("${text}")`) as Element,
-  getByRole: (role: string) => element.querySelector(`[role="${role}"]`) as Element,
-  queryByText: (text: string) => element.querySelector(`*:contains("${text}")`),
-  queryByRole: (role: string) => element.querySelector(`[role="${role}"]`),
-});
 
 export { default as userEvent } from '@testing-library/user-event'
 

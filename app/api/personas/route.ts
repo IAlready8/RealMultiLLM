@@ -1,99 +1,110 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import logger from "@/lib/logger";
+
+// Define Zod schemas for persona input validation
+const personaSchema = z.object({
+  title: z.string().min(1, "Title is required").max(100),
+  description: z.string().max(500).optional(),
+  prompt: z.string().min(1, "Prompt is required"),
+});
+
+const updatePersonaSchema = personaSchema.extend({
+  id: z.string().cuid("Invalid ID"),
+});
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const personas = await prisma.persona.findMany({
       where: {
-        userId: session.user.id!,
+        userId: session.user.id,
       },
       orderBy: {
-        createdAt: "desc",
+        updatedAt: "desc",
       },
     });
     return NextResponse.json(personas);
   } catch (error) {
-    console.error("Error fetching personas:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    logger.error("Failed to fetch personas", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const { title, description, prompt } = body;
-
-    if (!title || !prompt) {
-      return new NextResponse("Title and prompt are required", { status: 400 });
-    }
+    const validatedData = personaSchema.parse(body);
 
     const newPersona = await prisma.persona.create({
       data: {
-        title,
-        description: description || null,
-        prompt,
-        userId: session.user.id!,
+        ...validatedData,
+        userId: session.user.id,
       },
     });
     return NextResponse.json(newPersona, { status: 201 });
   } catch (error) {
-    console.error("Error creating persona:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    logger.error("Failed to create persona", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const { id, title, description, prompt } = body;
+    const validatedData = updatePersonaSchema.parse(body);
+    const { id, ...dataToUpdate } = validatedData;
 
-    if (!id || !title || !prompt) {
-      return new NextResponse("ID, title, and prompt are required", { status: 400 });
+    const personaToUpdate = await prisma.persona.findUnique({
+      where: { id },
+    });
+
+    if (!personaToUpdate || personaToUpdate.userId !== session.user.id) {
+      return NextResponse.json({ error: "Persona not found or not owned by user" }, { status: 404 });
     }
 
     const updatedPersona = await prisma.persona.update({
-      where: {
-        id,
-        userId: session.user.id!, // Ensure user can only update their own personas
-      },
-      data: {
-        title,
-        description: description || null,
-        prompt,
-      },
+      where: { id },
+      data: dataToUpdate,
     });
     return NextResponse.json(updatedPersona);
   } catch (error) {
-    console.error("Error updating persona:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    logger.error("Failed to update persona", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -101,18 +112,24 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id");
 
     if (!id) {
-      return new NextResponse("Persona ID is required", { status: 400 });
+      return NextResponse.json({ error: "Persona ID is required" }, { status: 400 });
+    }
+
+    const personaToDelete = await prisma.persona.findUnique({
+      where: { id },
+    });
+
+    if (!personaToDelete || personaToDelete.userId !== session.user.id) {
+      return NextResponse.json({ error: "Persona not found or not owned by user" }, { status: 404 });
     }
 
     await prisma.persona.delete({
-      where: {
-        id,
-        userId: session.user.id!, // Ensure user can only delete their own personas
-      },
+      where: { id },
     });
+
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Error deleting persona:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    logger.error("Failed to delete persona", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

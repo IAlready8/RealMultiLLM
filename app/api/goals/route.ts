@@ -1,19 +1,33 @@
+
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import logger from "@/lib/logger";
+
+// Define Zod schemas for input validation
+const goalSchema = z.object({
+  title: z.string().min(1, "Title is required").max(255),
+  description: z.string().max(1000).optional(),
+});
+
+const updateGoalSchema = goalSchema.extend({
+  id: z.string().cuid("Invalid ID"),
+  status: z.enum(["pending", "in_progress", "completed"]),
+});
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const goals = await prisma.goal.findMany({
       where: {
-        userId: session.user.id!,
+        userId: session.user.id,
       },
       orderBy: {
         createdAt: "desc",
@@ -21,78 +35,77 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(goals);
   } catch (error) {
-    console.error("Error fetching goals:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    logger.error("Failed to fetch goals", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const { title, description } = body;
-
-    if (!title) {
-      return new NextResponse("Title is required", { status: 400 });
-    }
+    const validatedData = goalSchema.parse(body);
 
     const newGoal = await prisma.goal.create({
       data: {
-        title,
-        description,
-        userId: session.user.id!,
+        ...validatedData,
+        userId: session.user.id,
       },
     });
     return NextResponse.json(newGoal, { status: 201 });
   } catch (error) {
-    console.error("Error creating goal:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    logger.error("Failed to create goal", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await request.json();
-    const { id, title, description, status } = body;
+    const validatedData = updateGoalSchema.parse(body);
+    const { id, ...dataToUpdate } = validatedData;
 
-    if (!id || !title || !status) {
-      return new NextResponse("ID, title, and status are required", { status: 400 });
+    const goalToUpdate = await prisma.goal.findUnique({
+      where: { id },
+    });
+
+    if (!goalToUpdate || goalToUpdate.userId !== session.user.id) {
+      return NextResponse.json({ error: "Goal not found or not owned by user" }, { status: 404 });
     }
 
     const updatedGoal = await prisma.goal.update({
-      where: {
-        id,
-        userId: session.user.id!, // Ensure user can only update their own goals
-      },
-      data: {
-        title,
-        description,
-        status,
-      },
+      where: { id },
+      data: dataToUpdate,
     });
     return NextResponse.json(updatedGoal);
   } catch (error) {
-    console.error("Error updating goal:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.issues }, { status: 400 });
+    }
+    logger.error("Failed to update goal", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session || !session.user) {
-    return new NextResponse("Unauthorized", { status: 401 });
+  if (!session || !session.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -100,18 +113,23 @@ export async function DELETE(request: Request) {
     const id = searchParams.get("id");
 
     if (!id) {
-      return new NextResponse("Goal ID is required", { status: 400 });
+      return NextResponse.json({ error: "Goal ID is required" }, { status: 400 });
+    }
+    
+    const goalToDelete = await prisma.goal.findUnique({
+      where: { id },
+    });
+
+    if (!goalToDelete || goalToDelete.userId !== session.user.id) {
+      return NextResponse.json({ error: "Goal not found or not owned by user" }, { status: 404 });
     }
 
     await prisma.goal.delete({
-      where: {
-        id,
-        userId: session.user.id!, // Ensure user can only delete their own goals
-      },
+      where: { id },
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error("Error deleting goal:", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    logger.error("Failed to delete goal", { userId: session.user.id, error });
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

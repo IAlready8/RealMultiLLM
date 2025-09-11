@@ -80,7 +80,8 @@ export default function Settings() {
   useEffect(() => {
     const loadConfiguredProviders = async () => {
       try {
-        const response = await fetch('/api/config');
+        const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
+        const response = await fetch(toApiUrl('/api/config'));
         if (response.ok) {
           const data = await response.json();
           setConfiguredProviders(data.configuredProviders || []);
@@ -120,7 +121,8 @@ export default function Settings() {
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const res = await fetch("/api/openrouter/models");
+        const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
+        const res = await fetch(toApiUrl("/api/openrouter/models"));
         if (!res.ok) return;
         const data = await res.json();
         const list = Array.isArray(data?.data) ? data.data : [];
@@ -140,7 +142,8 @@ export default function Settings() {
     
     try {
       // Save to backend securely
-      const response = await fetch('/api/config', {
+      const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
+      const response = await fetch(toApiUrl('/api/config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: providerId, apiKey: key }),
@@ -181,7 +184,8 @@ export default function Settings() {
     setSaving(prev => ({ ...prev, [providerId]: true }));
     
     try {
-      const response = await fetch('/api/config', {
+      const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
+      const response = await fetch(toApiUrl('/api/config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: providerId, apiKey: "" }), // Empty key clears it

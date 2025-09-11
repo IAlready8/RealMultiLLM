@@ -3,63 +3,56 @@ import { encryptApiKey, decryptApiKey, isValidBase64 } from '@/lib/crypto';
 
 describe('Crypto Utilities', () => {
   describe('encryptApiKey', () => {
-    it('should encrypt a plain text API key', () => {
+    it('should encrypt a plain text API key', async () => {
       const apiKey = 'sk-test-api-key-123';
-      const encrypted = encryptApiKey(apiKey);
+      const encrypted = await encryptApiKey(apiKey);
 
       expect(encrypted).toBeDefined();
       expect(encrypted).not.toBe(apiKey);
       expect(typeof encrypted).toBe('string');
     });
 
-    it('should return consistent encrypted values for the same input', () => {
-      const apiKey = 'sk-test-api-key-123';
-      const encrypted1 = encryptApiKey(apiKey);
-      const encrypted2 = encryptApiKey(apiKey);
+    
 
-      // Our implementation is deterministic for simplicity
-      expect(encrypted1).toBe(encrypted2);
-    });
-
-    it('should handle empty strings', () => {
-      const encrypted = encryptApiKey('');
+    it('should handle empty strings', async () => {
+      const encrypted = await encryptApiKey('');
       expect(encrypted).toBeDefined();
       expect(typeof encrypted).toBe('string');
     });
   });
 
   describe('decryptApiKey', () => {
-    it('should decrypt an encrypted API key', () => {
+    it('should decrypt an encrypted API key', async () => {
       const apiKey = 'sk-test-api-key-123';
-      const encrypted = encryptApiKey(apiKey);
-      const decrypted = decryptApiKey(encrypted);
+      const encrypted = await encryptApiKey(apiKey);
+      const decrypted = await decryptApiKey(encrypted);
 
       expect(decrypted).toBe(apiKey);
     });
 
-    it('should handle plain text API keys (fallback)', () => {
+    it('should handle plain text API keys (fallback)', async () => {
       const plainKey = 'sk-plain-text-key';
-      const result = decryptApiKey(plainKey);
+      const result = await decryptApiKey(plainKey);
 
       expect(result).toBe(plainKey);
     });
 
-    it('should handle invalid encrypted data gracefully', () => {
+    it('should handle invalid encrypted data gracefully', async () => {
       const invalidEncrypted = 'invalid-encrypted-data';
-      const result = decryptApiKey(invalidEncrypted);
+      const result = await decryptApiKey(invalidEncrypted);
 
       // Should fallback to returning the original string
       expect(result).toBe(invalidEncrypted);
     });
 
-    it('should handle empty strings', () => {
-      const result = decryptApiKey('');
+    it('should handle empty strings', async () => {
+      const result = await decryptApiKey('');
       expect(result).toBe('');
     });
 
-    it('should handle null and undefined', () => {
-      expect(decryptApiKey(null as any)).toBe('');
-      expect(decryptApiKey(undefined as any)).toBe('');
+    it('should handle null and undefined', async () => {
+      expect(await decryptApiKey(null as any)).toBe('');
+      expect(await decryptApiKey(undefined as any)).toBe('');
     });
   });
 
@@ -82,7 +75,7 @@ describe('Crypto Utilities', () => {
   });
 
   describe('encryption round-trip', () => {
-    it('should successfully encrypt and decrypt various API key formats', () => {
+    it('should successfully encrypt and decrypt various API key formats', async () => {
       const testKeys = [
         'sk-test-openai-key-123456789',
         'claude-api-key-abcdef',
@@ -93,11 +86,11 @@ describe('Crypto Utilities', () => {
         'Multi\nLine\nKey'
       ];
 
-      testKeys.forEach(key => {
-        const encrypted = encryptApiKey(key);
-        const decrypted = decryptApiKey(encrypted);
+      for (const key of testKeys) {
+        const encrypted = await encryptApiKey(key);
+        const decrypted = await decryptApiKey(encrypted);
         expect(decrypted).toBe(key);
-      });
+      }
     });
   });
 });

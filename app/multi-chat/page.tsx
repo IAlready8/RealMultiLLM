@@ -232,7 +232,7 @@ export default function MultiChat() {
           <ConversationManager 
             type="multi-chat"
             data={{ messages }}
-            onLoad={(data) => setMessages(data.messages)}
+            onLoad={(data) => setMessages((data as any).messages as Record<string, any[]>)}
           />
           
           <ExportImportDialog

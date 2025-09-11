@@ -1,31 +1,33 @@
-
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Save, FileDown, Trash2, MoreVertical, Clock } from 'lucide-react';
+import { Save, Trash2, Clock } from 'lucide-react';
 import { useConversation } from '@/hooks/use-conversation';
 import { formatTimestamp } from '@/lib/utils';
+import type { Conversation, ConversationData } from '@/types/app';
 
-interface ConversationManagerProps {
-  type: 'multi-chat' | 'goal-hub' | 'comparison' | 'pipeline';
-  data: any;
-  onLoad: (data: any) => void;
+// The component is now generic, constrained to a valid conversation type.
+interface ConversationManagerProps<T extends Conversation['type']> {
+  type: T;
+  data: ConversationData<T>;
+  onLoad: (data: ConversationData<T>) => void;
   buttonVariant?: "default" | "outline" | "secondary";
 }
 
-export function ConversationManager({ 
+export function ConversationManager<T extends Conversation['type']>({ 
   type, 
   data, 
   onLoad,
   buttonVariant = "outline" 
-}: ConversationManagerProps) {
+}: ConversationManagerProps<T>) {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [conversationTitle, setConversationTitle] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   
+  // The hook is now called with the generic type, ensuring type safety.
   const { 
     conversations, 
     isLoading, 
@@ -37,10 +39,12 @@ export function ConversationManager({
     if (!conversationTitle.trim()) return;
     
     try {
+      // `data` is now strongly typed, not `any`.
       await saveConversation(conversationTitle, data);
       setShowSaveDialog(false);
       setConversationTitle("");
     } catch (error) {
+      // TODO: Replace with a proper toast notification
       console.error("Error saving conversation:", error);
     }
   };
@@ -50,6 +54,7 @@ export function ConversationManager({
       await deleteConversation(id);
       setShowDeleteConfirm(null);
     } catch (error) {
+      // TODO: Replace with a proper toast notification
       console.error("Error deleting conversation:", error);
     }
   };
@@ -63,7 +68,7 @@ export function ConversationManager({
             Save
           </Button>
         </DialogTrigger>
-        <DialogContent className="bg-gray-900 border-gray-800">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Save Conversation</DialogTitle>
           </DialogHeader>
@@ -75,7 +80,6 @@ export function ConversationManager({
                 placeholder="Enter a title for this conversation"
                 value={conversationTitle}
                 onChange={(e) => setConversationTitle(e.target.value)}
-                className="bg-gray-800 border-gray-700"
               />
             </div>
             <DialogFooter>
@@ -90,33 +94,35 @@ export function ConversationManager({
         <DropdownMenuTrigger asChild>
           <Button variant={buttonVariant}>Load</Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="bg-gray-900 border-gray-800">
+        <DropdownMenuContent>
           {isLoading ? (
             <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
           ) : conversations.length > 0 ? (
             conversations.map((conv) => (
               <DropdownMenuItem 
                 key={conv.id}
-                onClick={() => onLoad(conv.data)}
-                className="flex flex-col items-start"
+                // `conv.data` is now also strongly typed.
+                onClick={() => onLoad(conv.data as ConversationData<T>)}
+                className="flex flex-col items-start cursor-pointer"
               >
                 <span className="font-medium">{conv.title}</span>
-                <span className="text-xs text-gray-400 flex items-center mt-1">
+                <span className="text-xs text-muted-foreground flex items-center mt-1">
                   <Clock className="h-3 w-3 mr-1" />
                   {formatTimestamp(conv.timestamp)}
                 </span>
-                <DropdownMenuSeparator />
-                <div className="flex w-full justify-end mt-1">
+                <DropdownMenuSeparator className="my-1" />
+                <div className="flex w-full justify-end">
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    className="h-6 px-2"
+                    className="h-6 px-2 hover:bg-destructive/10"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowDeleteConfirm(conv.id);
                     }}
                   >
-                    <Trash2 className="h-3 w-3 text-red-500" />
+                    {/* ✅ Fixed: Using theme-aware color */}
+                    <Trash2 className="h-3 w-3 text-destructive" />
                   </Button>
                 </div>
               </DropdownMenuItem>
@@ -128,17 +134,17 @@ export function ConversationManager({
       </DropdownMenu>
       
       <Dialog open={!!showDeleteConfirm} onOpenChange={() => setShowDeleteConfirm(null)}>
-        <DialogContent className="bg-gray-900 border-gray-800">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Conversation</DialogTitle>
+            <DialogTitle>Are you absolutely sure?</DialogTitle>
           </DialogHeader>
           <div className="py-4">
-            <p>Are you sure you want to delete this conversation? This action cannot be undone.</p>
+            <p>This action cannot be undone. This will permanently delete the conversation.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>Cancel</Button>
             <Button 
-              variant="destructive" 
+              variant="destructive"
               onClick={() => showDeleteConfirm && handleDelete(showDeleteConfirm)}
             >
               Delete

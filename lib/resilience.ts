@@ -85,7 +85,7 @@ export class CircuitBreaker {
       monitoring.recordMetric(`circuit_breaker_${this.name}_failure`, 1);
       
       // If circuit opened and fallback available, use it
-      if (this.state === CircuitBreakerState.OPEN && fallback) {
+      if (this.getState().state === CircuitBreakerState.OPEN && fallback) {
         monitoring.recordMetric(`circuit_breaker_${this.name}_fallback`, 1);
         return fallback();
       }

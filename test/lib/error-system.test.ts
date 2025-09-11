@@ -46,12 +46,12 @@ describe('error-system', () => {
   it('logs critical database error to analytics with fallback userId', async () => {
     const ctx = createErrorContext('/api/x')
     const err = new DatabaseError('db down', ctx)
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     prisma.analytics.create.mockResolvedValue({})
     await errorManager.logError(err)
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     expect(prisma.analytics.create).toHaveBeenCalledTimes(1)
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     const arg = prisma.analytics.create.mock.calls[0][0]
     expect(arg.data.event).toBe('error')
     expect(arg.data.userId).toBe('system')
@@ -60,10 +60,10 @@ describe('error-system', () => {
   it('does not persist non-critical errors', async () => {
     const ctx = createErrorContext('/api/y', 'user-1')
     const err = new ValidationError('bad field', 'name', ctx)
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     prisma.analytics.create.mockResolvedValue({})
     await errorManager.logError(err as unknown as Error)
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     expect(prisma.analytics.create).not.toHaveBeenCalled()
   })
 
@@ -76,7 +76,7 @@ describe('error-system', () => {
   })
 
   it('aggregates error stats from analytics rows', async () => {
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     prisma.analytics.findMany.mockResolvedValue([
       { payload: JSON.stringify({ code: 'VAL_001', category: ErrorCategory.VALIDATION, severity: ErrorSeverity.MEDIUM }) },
       { payload: JSON.stringify({ code: 'NET_001', category: ErrorCategory.NETWORK, severity: ErrorSeverity.HIGH }) },
@@ -91,7 +91,7 @@ describe('error-system', () => {
   })
 
   it('returns zeroed records on stats failure', async () => {
-    // @ts-expect-error mocked
+    // @ts-ignore mocked
     prisma.analytics.findMany.mockRejectedValue(new Error('db'))
     const stats = await errorManager.getErrorStats({ from: new Date(0), to: new Date() })
     expect(stats.total).toBe(0)
@@ -100,4 +100,3 @@ describe('error-system', () => {
     expect(Object.values(ErrorSeverity).every(k => typeof (stats.bySeverity as any)[k] === 'number' && (stats.bySeverity as any)[k] === 0)).toBe(true)
   })
 })
-

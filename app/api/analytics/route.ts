@@ -16,6 +16,7 @@ import {
 import { processSecurityRequest } from '@/lib/security';
 import { logger } from '@/lib/observability/logger';
 import { withObservability } from '@/lib/observability/middleware';
+import { cache, CacheKeys, CacheConfigs } from '@/lib/cache';
 
 export async function GET(request: Request) {
   // Apply security middleware
@@ -59,6 +60,23 @@ export async function GET(request: Request) {
     const days = parseInt(timeRange.replace('d', ''));
     const includePredictions = searchParams.get('predictions') === 'true';
     const includeAnomalies = searchParams.get('anomalies') === 'true';
+
+    // Check cache first
+    const cacheKey = CacheKeys.analytics(`${userId}-${timeRange}-${includePredictions}-${includeAnomalies}`, timeRange);
+    const cachedResult = await cache.get(cacheKey);
+    
+    if (cachedResult) {
+      logger.info('analytics.cache.hit', { userId, timeRange });
+      return NextResponse.json(cachedResult, {
+        headers: {
+          ...securityResult.headers,
+          'X-Cache': 'HIT',
+          'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+        }
+      });
+    }
 
     // Get overall analytics
     const analytics = await getAnalytics(userId);
@@ -137,9 +155,14 @@ export async function GET(request: Request) {
       anomalies
     };
 
+    // Cache the response
+    await cache.set(cacheKey, response, CacheConfigs.analytics);
+    logger.info('analytics.cache.set', { userId, timeRange });
+
     return NextResponse.json(response, {
       headers: {
         ...securityResult.headers,
+        'X-Cache': 'MISS',
         'X-RateLimit-Limit': rateLimitResult.limit.toString(),
         'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
         'X-RateLimit-Reset': rateLimitResult.resetTime.toString()

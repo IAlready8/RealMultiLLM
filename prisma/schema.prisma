@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -41,12 +41,17 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?   // For credential-based authentication
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   accounts      Account[]
   sessions      Session[]
   conversations Conversation[]
   providerConfigs ProviderConfig[]
   goals         Goal[]
   personas      Persona[]
+
+  @@index([email])
+  @@index([createdAt])
 }
 
 model VerificationToken {
@@ -64,14 +69,18 @@ model Conversation {
   updatedAt DateTime @updatedAt
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages  String
+  messages  Json
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([userId, updatedAt])
 }
 
 model ProviderConfig {
   id         String   @id @default(cuid())
   provider   String
   apiKey     String?  // Encrypted API key stored server-side
-  settings   String?  // JSON string for additional provider settings
+  settings   Json?  // JSON object for additional provider settings
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -84,9 +93,13 @@ model ProviderConfig {
 model Analytics {
   id        String   @id @default(cuid())
   event     String
-  payload   String?
+  payload   Json?
   createdAt DateTime @default(now())
   userId    String
+
+  @@index([userId, createdAt])
+  @@index([event, createdAt])
+  @@index([createdAt])
 }
 
 model Goal {
@@ -98,6 +111,10 @@ model Goal {
   updatedAt   DateTime  @updatedAt
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Persona {
@@ -109,4 +126,7 @@ model Persona {
   updatedAt   DateTime @updatedAt
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

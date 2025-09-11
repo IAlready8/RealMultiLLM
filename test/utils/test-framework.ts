@@ -1,6 +1,9 @@
 import { vi, beforeEach, afterEach, describe, it, expect } from 'vitest';
+vi.mock('next-auth');
+vi.mock('@/lib/prisma');
+vi.mock('@/lib/audit-logger');
+vi.mock('@/lib/monitoring');
 import { NextRequest, NextResponse } from 'next/server';
-import { createMocks } from 'node-mocks-http';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { auditLogger } from '@/lib/audit-logger';
@@ -133,22 +136,23 @@ export class TestMocks {
     const models = ['user', 'conversation', 'providerConfig', 'analytics', 'persona', 'goal'];
     
     models.forEach(model => {
-      if (prisma[model as keyof typeof prisma]) {
-        vi.mocked(prisma[model as keyof typeof prisma]).findMany = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).findUnique = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).findFirst = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).create = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).update = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).delete = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).deleteMany = vi.fn();
-        vi.mocked(prisma[model as keyof typeof prisma]).count = vi.fn();
+      const modelName = model as keyof typeof prisma;
+      if (prisma[modelName]) {
+        (prisma[modelName] as any).findMany = vi.fn().mockResolvedValue([]);
+        (prisma[modelName] as any).findUnique = vi.fn().mockResolvedValue(null);
+        (prisma[modelName] as any).findFirst = vi.fn().mockResolvedValue(null);
+        (prisma[modelName] as any).create = vi.fn().mockResolvedValue({} as any);
+        (prisma[modelName] as any).update = vi.fn().mockResolvedValue({} as any);
+        (prisma[modelName] as any).delete = vi.fn().mockResolvedValue({} as any);
+        (prisma[modelName] as any).deleteMany = vi.fn().mockResolvedValue({ count: 0 });
+        (prisma[modelName] as any).count = vi.fn().mockResolvedValue(0);
       }
     });
 
     // Mock special Prisma methods
-    vi.mocked(prisma.$queryRaw).mockResolvedValue([]);
-    vi.mocked(prisma.$executeRaw).mockResolvedValue(0);
-    vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+    (prisma as any).$queryRaw = vi.fn().mockResolvedValue([]);
+    (prisma as any).$executeRaw = vi.fn().mockResolvedValue(0);
+    (prisma as any).$transaction = vi.fn().mockImplementation(async (fn: any) => {
       if (typeof fn === 'function') {
         return fn(prisma);
       }
@@ -207,20 +211,23 @@ export class TestMocks {
   }
 
   mockDatabaseData(model: string, data: any[]) {
-    const mockModel = prisma[model as keyof typeof prisma];
+    const mockModel = (prisma as any)[model as keyof typeof prisma] as any;
     if (mockModel) {
-      vi.mocked(mockModel.findMany).mockResolvedValue(data);
+      vi.mocked(mockModel.findMany).mockResolvedValue(data as any);
       if (data.length > 0) {
-        vi.mocked(mockModel.findUnique).mockResolvedValue(data[0]);
-        vi.mocked(mockModel.findFirst).mockResolvedValue(data[0]);
+        vi.mocked(mockModel.findUnique).mockResolvedValue(data[0] as any);
+        vi.mocked(mockModel.findFirst).mockResolvedValue(data[0] as any);
+      } else {
+        vi.mocked(mockModel.findUnique).mockResolvedValue(null as any);
+        vi.mocked(mockModel.findFirst).mockResolvedValue(null as any);
       }
     }
   }
 
   mockDatabaseError(model: string, method: string, error: Error) {
-    const mockModel = prisma[model as keyof typeof prisma];
-    if (mockModel && mockModel[method as keyof typeof mockModel]) {
-      vi.mocked(mockModel[method as keyof typeof mockModel]).mockRejectedValue(error);
+    const mockModel = (prisma as any)[model as keyof typeof prisma] as any;
+    if (mockModel && mockModel[method as any]) {
+      vi.mocked(mockModel[method as any] as any).mockRejectedValue(error);
     }
   }
 }
@@ -295,7 +302,7 @@ export class TestRequestBuilder {
         : JSON.stringify(this.body);
     }
 
-    return new NextRequest(this.url, requestInit);
+    return new NextRequest(this.url, requestInit as any);
   }
 }
 

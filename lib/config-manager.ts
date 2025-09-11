@@ -120,7 +120,8 @@ export class ConfigurationManager {
       }
 
       const decryptedApiKey = config.apiKey ? await decryptApiKey(config.apiKey) : ''
-      const settings = config.settings ? JSON.parse(config.settings) : {}
+      const settingsRaw: any = (config as any).settings
+      const settings = settingsRaw ? (typeof settingsRaw === 'string' ? JSON.parse(settingsRaw) : settingsRaw) : {}
 
       const providerConfig: ProviderConfig = {
         apiKey: decryptedApiKey,
@@ -280,7 +281,8 @@ export class ConfigurationManager {
 
       for (const config of configs) {
         const decryptedApiKey = config.apiKey ? await decryptApiKey(config.apiKey) : ''
-        const settings = config.settings ? JSON.parse(config.settings) : {}
+        const settingsRaw: any = (config as any).settings
+        const settings = settingsRaw ? (typeof settingsRaw === 'string' ? JSON.parse(settingsRaw) : settingsRaw) : {}
 
         result[config.provider] = {
           apiKey: decryptedApiKey,

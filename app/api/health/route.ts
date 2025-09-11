@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import { performanceMonitor } from '@/lib/performance-monitor';
 import { logger } from '@/lib/observability/logger';
+import { getApiSecurityHeaders, getCorsHeaders } from '@/lib/security-headers';
 
 export async function GET(request: Request) {
   try {
@@ -51,20 +52,25 @@ export async function GET(request: Request) {
       cpuUsage: healthData.system.cpuUsage
     });
     
-    return NextResponse.json(healthData, {
+    const response = NextResponse.json(healthData, {
       status: isHealthy ? 200 : 503,
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Content-Type': 'application/json',
       },
     });
+    // Apply security and CORS headers
+    const origin = (typeof request.headers.get === 'function') ? request.headers.get('origin') ?? undefined : undefined;
+    const headers = { ...getApiSecurityHeaders(), ...getCorsHeaders(origin) };
+    Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
   } catch (error: any) {
     logger.error('Health check failed', { 
       error: error.message,
       stack: error.stack
     });
     
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
@@ -78,5 +84,9 @@ export async function GET(request: Request) {
         },
       }
     );
+    const origin = (typeof request.headers.get === 'function') ? request.headers.get('origin') ?? undefined : undefined;
+    const headers = { ...getApiSecurityHeaders(), ...getCorsHeaders(origin) };
+    Object.entries(headers).forEach(([k, v]) => response.headers.set(k, v));
+    return response;
   }
 }

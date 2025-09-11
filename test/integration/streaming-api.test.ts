@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createMockStreamingResponse, createMockPrisma } from '../test-utils'
+import { createMockPrisma } from '../mocks/prisma';
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/llm/stream/route'
 import * as authModule from 'next-auth'
@@ -9,7 +9,7 @@ import { iterNdjson } from '@/services/ndjson'
 // Mock dependencies
 vi.mock('next-auth')
 vi.mock('@/lib/prisma', () => ({
-  prisma: createMockPrisma(),
+  default: createMockPrisma(),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({

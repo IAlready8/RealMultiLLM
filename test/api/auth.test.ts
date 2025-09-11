@@ -1,86 +1,63 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { testUtils, setupTestSuite, TestRequestBuilder } from '../utils/test-framework';
+import { POST as registerHandler } from '@/app/api/auth/register/route';
+import prisma from '@/lib/prisma';
 
-// Mock Prisma
-const mockPrisma = {
-  user: {
-    findUnique: vi.fn(),
-    create: vi.fn(),
-  }
-};
-
-vi.mock('@/lib/prisma', () => ({
-  default: mockPrisma
-}));
-
-// Mock bcryptjs
-vi.mock('bcryptjs', () => ({
-  default: {
-    hash: vi.fn().mockResolvedValue('hashedPassword123'),
-    compare: vi.fn().mockResolvedValue(true)
-  }
-}));
-
-// Mock Next.js
-vi.mock('next/server', () => ({
-  NextRequest: class {
-    json = vi.fn();
-    constructor(url: string, options?: any) {
-      this.json = vi.fn().mockResolvedValue({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'password123'
-      });
-    }
-  },
-  NextResponse: {
-    json: vi.fn().mockImplementation((data, init) => ({
-      json: () => Promise.resolve(data),
-      status: init?.status || 200
-    }))
-  }
-}));
+setupTestSuite();
 
 describe('Authentication API', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('POST /api/auth/register', () => {
     it('should create a new user successfully', async () => {
-      // Mock successful user creation
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.user.create).mockResolvedValue({
         id: 'user1',
         name: 'Test User',
         email: 'test@example.com',
-        createdAt: new Date()
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        emailVerified: null,
+        image: null,
+        password: 'hashedpassword'
       });
 
-      // Import and test the API route
-      const { POST } = await import('@/app/api/auth/register/route');
-      const mockRequest = new (await import('next/server')).NextRequest('http://localhost/api/auth/register');
+      const request = new TestRequestBuilder()
+        .setMethod('POST')
+        .setBody({
+          name: 'Test User',
+          email: 'test@example.com',
+          password: 'Password123!'
+        })
+        .build();
+
+      const response = await registerHandler(request);
       
-      const response = await POST(mockRequest);
+      expect(response.status).toBe(201);
       const responseData = await response.json();
-
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: 'test@example.com' }
-      });
-      expect(mockPrisma.user.create).toHaveBeenCalled();
       expect(responseData.message).toBe('User created successfully');
     });
 
     it('should return error for existing user', async () => {
-      // Mock existing user
-      mockPrisma.user.findUnique.mockResolvedValue({
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
         id: 'existing-user',
-        email: 'test@example.com'
+        email: 'test@example.com',
+        name: 'Existing User',
+        password: 'hashedpassword',
+        emailVerified: null,
+        image: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
 
-      const { POST } = await import('@/app/api/auth/register/route');
-      const mockRequest = new (await import('next/server')).NextRequest('http://localhost/api/auth/register');
-      
-      const response = await POST(mockRequest);
+      const request = new TestRequestBuilder()
+        .setMethod('POST')
+        .setBody({
+          name: 'Test User',
+          email: 'test@example.com',
+          password: 'Password123!'
+        })
+        .build();
+        
+      const response = await registerHandler(request);
       const responseData = await response.json();
 
       expect(responseData.message).toBe('User with this email already exists');
@@ -88,18 +65,19 @@ describe('Authentication API', () => {
     });
 
     it('should validate password length', async () => {
-      const mockRequest = new (await import('next/server')).NextRequest('http://localhost/api/auth/register');
-      mockRequest.json = vi.fn().mockResolvedValue({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: '123' // Too short
-      });
+      const request = new TestRequestBuilder()
+        .setMethod('POST')
+        .setBody({
+          name: 'Test User',
+          email: 'test@example.com',
+          password: '123' // Too short
+        })
+        .build();
 
-      const { POST } = await import('@/app/api/auth/register/route');
-      const response = await POST(mockRequest);
+      const response = await registerHandler(request);
       const responseData = await response.json();
 
-      expect(responseData.message).toBe('Password must be at least 6 characters long');
+      expect(responseData.errors[0].message).toBe('Password must be at least 8 characters long');
       expect(response.status).toBe(400);
     });
   });

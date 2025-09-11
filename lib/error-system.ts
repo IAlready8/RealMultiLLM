@@ -373,7 +373,8 @@ export class ErrorManager {
 
       for (const row of rows) {
         try {
-          const payload = JSON.parse(row.payload || '{}')
+          const payloadRaw: any = (row as any).payload
+          const payload = typeof payloadRaw === 'string' ? JSON.parse(payloadRaw) : (payloadRaw || {})
           const code = payload.code as string | undefined
           const category = payload.category as ErrorCategory | undefined
           const severity = payload.severity as ErrorSeverity | undefined

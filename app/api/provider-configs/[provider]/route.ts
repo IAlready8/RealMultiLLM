@@ -1,78 +1,93 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { deleteUserProviderConfig, hasValidApiKey } from '@/lib/api-key-service'
-import { badRequest, internalError, unauthorized } from '@/lib/http'
-import { logger } from '@/lib/logger'
+
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { z } from 'zod';
+import { authOptions } from '@/lib/auth';
+import { deleteUserProviderConfig, hasValidApiKey } from '@/lib/api-key-service';
+import { badRequest, internalError, unauthorized } from '@/lib/http';
+import logger from '@/lib/logger';
+
+const validProviders = [
+  'openai',
+  'anthropic',
+  'claude',
+  'google',
+  'google-ai',
+  'openrouter',
+  'github',
+  'llama',
+  'grok',
+] as const;
+
+// Schema to validate the dynamic route parameter
+const routeContextSchema = z.object({
+  provider: z.enum(validProviders),
+});
 
 interface RouteContext {
-  params: Promise<{
-    provider: string
-  }>
+  params: {
+    provider: string;
+  };
 }
 
 // DELETE /api/provider-configs/[provider] - Delete a provider configuration
-export async function DELETE(request: Request, { params }: RouteContext) {
-  const session = await getServerSession(authOptions)
+export async function DELETE(request: Request, context: RouteContext) {
+  const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
-    return unauthorized()
+    return unauthorized();
   }
 
   try {
-    const { provider } = await params
+    const { provider } = routeContextSchema.parse(context.params);
 
-    if (!provider) {
-      return badRequest('Provider parameter is required')
-    }
+    await deleteUserProviderConfig(session.user.id, provider);
 
-    await deleteUserProviderConfig(session.user.id, provider.toLowerCase())
-
-    logger.info('provider_config_deleted', {
+    logger.info('Provider config deleted', {
       userId: session.user.id,
-      provider: provider.toLowerCase(),
-    })
+      provider: provider,
+    });
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    const { provider: providerName } = await params;
-    logger.error('provider_config_delete_error', {
+    if (error instanceof z.ZodError) {
+      return badRequest('Invalid provider in URL', { details: error.issues });
+    }
+    logger.error('Failed to delete provider configuration', {
       userId: session.user.id,
-      provider: providerName,
-      message: error?.message,
-    })
-    return internalError('Failed to delete provider configuration')
+      provider: context.params.provider, // Log the raw param on error
+      error: error.message,
+    });
+    return internalError('Failed to delete provider configuration');
   }
 }
 
-// GET /api/provider-configs/[provider]/status - Check if user has valid API key
-export async function GET(request: Request, { params }: RouteContext) {
-  const session = await getServerSession(authOptions)
+// GET /api/provider-configs/[provider] - Check if user has valid API key
+export async function GET(request: Request, context: RouteContext) {
+  const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
-    return unauthorized()
+    return unauthorized();
   }
 
   try {
-    const { provider } = await params
+    const { provider } = routeContextSchema.parse(context.params);
 
-    if (!provider) {
-      return badRequest('Provider parameter is required')
-    }
-
-    const hasKey = await hasValidApiKey(session.user.id, provider.toLowerCase())
+    const hasKey = await hasValidApiKey(session.user.id, provider);
 
     return NextResponse.json({
-      provider: provider.toLowerCase(),
+      provider: provider,
       hasValidKey: hasKey,
-    })
+    });
   } catch (error: any) {
-    const { provider: providerName } = await params;
-    logger.error('provider_config_status_error', {
+    if (error instanceof z.ZodError) {
+      return badRequest('Invalid provider in URL', { details: error.issues });
+    }
+    logger.error('Failed to check provider configuration status', {
       userId: session.user.id,
-      provider: providerName,
-      message: error?.message,
-    })
-    return internalError('Failed to check provider configuration status')
+      provider: context.params.provider, // Log the raw param on error
+      error: error.message,
+    });
+    return internalError('Failed to check provider configuration status');
   }
 }

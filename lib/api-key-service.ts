@@ -37,7 +37,7 @@ export async function storeUserApiKey(
     },
     update: {
       apiKey: encryptedApiKey,
-      settings: settings ? JSON.stringify(settings) : null,
+      settings: settings ? (settings as any) : null,
       isActive: true,
       updatedAt: new Date(),
     },
@@ -45,7 +45,7 @@ export async function storeUserApiKey(
       userId,
       provider,
       apiKey: encryptedApiKey,
-      settings: settings ? JSON.stringify(settings) : null,
+      settings: settings ? (settings as any) : null,
       isActive: true,
     },
   })
@@ -54,7 +54,11 @@ export async function storeUserApiKey(
     id: config.id,
     provider: config.provider,
     isActive: config.isActive,
-    settings: config.settings ? JSON.parse(config.settings) : undefined,
+    settings: ((): Record<string, any> | undefined => {
+      const s: any = (config as any).settings;
+      if (!s) return undefined;
+      return typeof s === 'string' ? JSON.parse(s) : s;
+    })(),
     createdAt: config.createdAt,
     updatedAt: config.updatedAt,
   }
@@ -112,7 +116,11 @@ export async function getUserProviderConfigs(userId: string): Promise<ProviderCo
     id: config.id,
     provider: config.provider,
     isActive: config.isActive,
-    settings: config.settings ? JSON.parse(config.settings) : undefined,
+    settings: ((): Record<string, any> | undefined => {
+      const s: any = (config as any).settings;
+      if (!s) return undefined;
+      return typeof s === 'string' ? JSON.parse(s) : s;
+    })(),
     createdAt: config.createdAt,
     updatedAt: config.updatedAt,
   }))
@@ -172,7 +180,7 @@ export async function updateProviderSettings(
       isActive: true,
     },
     data: {
-      settings: JSON.stringify(settings),
+      settings: settings as any,
       updatedAt: new Date(),
     },
   })
@@ -196,7 +204,11 @@ export async function updateProviderSettings(
     id: updated.id,
     provider: updated.provider,
     isActive: updated.isActive,
-    settings: updated.settings ? JSON.parse(updated.settings) : undefined,
+    settings: ((): Record<string, any> | undefined => {
+      const s: any = (updated as any).settings;
+      if (!s) return undefined;
+      return typeof s === 'string' ? JSON.parse(s) : s;
+    })(),
     createdAt: updated.createdAt,
     updatedAt: updated.updatedAt,
   }

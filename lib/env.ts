@@ -28,23 +28,23 @@ const envSchema = z.object({
   ENCRYPTION_MASTER_KEY: z.string().min(64, 'ENCRYPTION_MASTER_KEY must be at least 64 characters for AES-256'),
   
   // Rate Limiting
-  RATE_LIMIT_ENABLED: z.string().transform((val) => val === 'true').default('true'),
-  RATE_LIMIT_MAX_REQUESTS: z.string().transform((val) => parseInt(val, 10)).default('100'),
-  RATE_LIMIT_WINDOW_MS: z.string().transform((val) => parseInt(val, 10)).default('900000'), // 15 minutes
+  RATE_LIMIT_ENABLED: z.string().transform((val) => val === 'true').default(true as unknown as any),
+  RATE_LIMIT_MAX_REQUESTS: z.string().transform((val) => parseInt(val, 10)).default(100 as unknown as any),
+  RATE_LIMIT_WINDOW_MS: z.string().transform((val) => parseInt(val, 10)).default(900000 as unknown as any), // 15 minutes
   
   // Session Security
-  SESSION_MAX_AGE: z.string().transform((val) => parseInt(val, 10)).default('7200'), // 2 hours instead of 30 days
+  SESSION_MAX_AGE: z.string().transform((val) => parseInt(val, 10)).default(7200 as unknown as any), // 2 hours instead of 30 days
   
   // Development/Demo Mode
-  ALLOW_DEMO_MODE: z.string().transform((val) => val === 'true').default('false'),
+  ALLOW_DEMO_MODE: z.string().transform((val) => val === 'true').default(false as unknown as any),
   
   // Monitoring and Logging
   SENTRY_DSN: z.string().optional(),
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   
   // Feature Flags
-  ENABLE_ANALYTICS: z.string().transform((val) => val === 'true').default('true'),
-  ENABLE_TELEMETRY: z.string().transform((val) => val === 'true').default('true'),
+  ENABLE_ANALYTICS: z.string().transform((val) => val === 'true').default(true as unknown as any),
+  ENABLE_TELEMETRY: z.string().transform((val) => val === 'true').default(true as unknown as any),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -57,23 +57,8 @@ export function getValidatedEnv(): Env {
       validatedEnv = envSchema.parse(process.env);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const missingVars = error.errors
-          .filter(err => err.code === 'invalid_type' && err.received === 'undefined')
-          .map(err => err.path.join('.'));
-        
-        const invalidVars = error.errors
-          .filter(err => err.code !== 'invalid_type' || err.received !== 'undefined')
-          .map(err => `${err.path.join('.')}: ${err.message}`);
-        
-        console.error('❌ Environment validation failed:');
-        if (missingVars.length > 0) {
-          console.error('Missing required environment variables:', missingVars.join(', '));
-        }
-        if (invalidVars.length > 0) {
-          console.error('Invalid environment variables:', invalidVars.join('\n'));
-        }
-        
-        // In production, fail fast. In development, provide helpful guidance.
+        const issues = error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('\n');
+        console.error('❌ Environment validation failed:', issues);
         if (process.env.NODE_ENV === 'production') {
           process.exit(1);
         } else {

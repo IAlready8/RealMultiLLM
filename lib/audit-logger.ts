@@ -312,17 +312,17 @@ class AuditLogger {
         await prisma.analytics.createMany({
           data: criticalLogs.map(log => ({
             userId: log.userId || 'system',
-            action: `${log.category}:${log.action}`,
-            timestamp: log.timestamp,
-            metadata: JSON.stringify({
+            event: `${log.category}:${log.action}`,
+            payload: {
               resource: log.resource,
               resourceId: log.resourceId,
               outcome: log.outcome,
               severity: log.severity,
               details: log.details,
               ipAddress: log.ipAddress,
-              correlationId: log.correlationId
-            })
+              correlationId: log.correlationId,
+              timestamp: log.timestamp
+            } as any,
           }))
         });
       } catch (error) {
@@ -378,10 +378,10 @@ class AuditLogger {
       // Clean up from analytics table (temporary storage)
       const deleted = await prisma.analytics.deleteMany({
         where: {
-          timestamp: {
+          createdAt: {
             lt: cutoffDate
           },
-          action: {
+          event: {
             contains: ':'  // Our audit logs contain category:action format
           }
         }

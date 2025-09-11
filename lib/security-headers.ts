@@ -13,7 +13,7 @@ export interface SecurityHeaders {
  * Get Content Security Policy for the application
  */
 export function getContentSecurityPolicy(): string {
-  const csp = {
+  const csp: Record<string, string[]> = {
     'default-src': ["'self'"],
     'script-src': [
       "'self'",
@@ -231,7 +231,6 @@ export function getApiSecurityHeaders(): SecurityHeaders {
     'Expires': '0',
     
     // Additional API security headers
-    'X-Content-Type-Options': 'nosniff',
     'X-Permitted-Cross-Domain-Policies': 'none',
     'X-XSS-Protection': '1; mode=block'
   };

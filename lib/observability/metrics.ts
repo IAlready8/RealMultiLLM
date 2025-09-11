@@ -44,7 +44,7 @@ export class Counter extends Metric {
     this.value += value;
     // In a real implementation, we would send metrics to a backend service
     // For now, we'll just record with performanceMonitor
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes);
+    performanceMonitor.recordMetric(this.name, this.value, this.attributes as any);
   }
 
   getValue(): number {
@@ -66,12 +66,12 @@ export class Gauge extends Metric {
   set(value: number): void {
     this.value = value;
     // In a real implementation, we would send metrics to a backend service
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes);
+    performanceMonitor.recordMetric(this.name, this.value, this.attributes as any);
   }
 
   inc(value: number = 1): void {
     this.value += value;
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes);
+    performanceMonitor.recordMetric(this.name, this.value, this.attributes as any);
   }
 
   dec(value: number = 1): void {
@@ -116,8 +116,8 @@ export class Histogram extends Metric {
     }
 
     // Record metrics for observability
-    performanceMonitor.recordMetric(`${this.name}_sum`, this.sum, this.attributes);
-    performanceMonitor.recordMetric(`${this.name}_count`, this.count, this.attributes);
+    performanceMonitor.recordMetric(`${this.name}_sum`, this.sum, this.attributes as any);
+    performanceMonitor.recordMetric(`${this.name}_count`, this.count, this.attributes as any);
     
     // Record individual bucket counts
     for (const bucket of this.buckets) {
@@ -125,13 +125,13 @@ export class Histogram extends Metric {
         performanceMonitor.recordMetric(
           `${this.name}_bucket_le_${bucket.le}`, 
           bucket.count, 
-          this.attributes
+          this.attributes as any
         );
       } else {
         performanceMonitor.recordMetric(
           `${this.name}_bucket_le_inf`, 
           bucket.count, 
-          this.attributes
+          this.attributes as any
         );
       }
     }

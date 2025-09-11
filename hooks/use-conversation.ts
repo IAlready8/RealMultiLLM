@@ -1,78 +1,76 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  saveConversation, 
-  getConversationsByType, 
-  deleteConversation, 
-  updateConversation 
+  saveConversation as save, 
+  getConversationsByType as getByType, 
+  deleteConversation as del, 
+  updateConversation as update
 } from '@/services/conversation-storage';
+import type { Conversation, ConversationData } from '@/types/app';
 
-interface ConversationData {
-  id: string;
-  type: 'multi-chat' | 'goal-hub' | 'comparison' | 'pipeline';
-  title: string;
-  timestamp: number;
-  data: any;
-}
+// Define a more specific type for the updates to avoid using 'any'
+type ConversationUpdate<T extends Conversation['type']> = Partial<Omit<Extract<Conversation, { type: T }>, 'id'>>;
 
-export function useConversation(type: 'multi-chat' | 'goal-hub' | 'comparison' | 'pipeline') {
-  const [conversations, setConversations] = useState<ConversationData[]>([]);
+/**
+ * A generic hook for managing conversations of a specific type.
+ * @param type The type of conversation to manage (e.g., 'multi-chat').
+ */
+export function useConversation<T extends Conversation['type']>(type: T) {
+  // The state is now strongly typed based on the provided conversation type
+  const [conversations, setConversations] = useState<Extract<Conversation, { type: T }>[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Load conversations
   const loadConversations = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await getConversationsByType(type);
-      setConversations(data.sort((a, b) => b.timestamp - a.timestamp));
+      const data = await getByType(type);
+      // Sort by timestamp, newest first
+      data.sort((a, b) => b.timestamp - a.timestamp);
+      setConversations(data);
     } catch (err) {
-      console.error('Error loading conversations:', err);
+      console.error(`Error loading conversations of type '${type}':`, err);
       setError('Failed to load conversations');
     } finally {
       setIsLoading(false);
     }
   }, [type]);
   
-  // Save a new conversation
-  const saveNewConversation = useCallback(async (title: string, data: any) => {
+  const saveConversation = useCallback(async (title: string, data: ConversationData<T>) => {
     try {
-      const id = await saveConversation(type, title, data);
-      await loadConversations();
+      const id = await save(type, title, data);
+      await loadConversations(); // Refresh the list
       return id;
     } catch (err) {
-      console.error('Error saving conversation:', err);
+      console.error(`Error saving conversation of type '${type}':`, err);
       setError('Failed to save conversation');
       throw err;
     }
   }, [type, loadConversations]);
   
-  // Update an existing conversation
-  const updateExistingConversation = useCallback(async (id: string, updates: { title?: string; data?: any }) => {
+  const updateConversation = useCallback(async (id: string, updates: ConversationUpdate<T>) => {
     try {
-      await updateConversation(id, updates);
-      await loadConversations();
+      await update(id, updates);
+      await loadConversations(); // Refresh the list
     } catch (err) {
-      console.error('Error updating conversation:', err);
+      console.error(`Error updating conversation with id '${id}':`, err);
       setError('Failed to update conversation');
       throw err;
     }
   }, [loadConversations]);
   
-  // Delete a conversation
-  const deleteExistingConversation = useCallback(async (id: string) => {
+  const deleteConversation = useCallback(async (id: string) => {
     try {
-      await deleteConversation(id);
-      await loadConversations();
+      await del(id);
+      await loadConversations(); // Refresh the list
     } catch (err) {
-      console.error('Error deleting conversation:', err);
+      console.error(`Error deleting conversation with id '${id}':`, err);
       setError('Failed to delete conversation');
       throw err;
     }
   }, [loadConversations]);
   
-  // Load conversations on mount
+  // Load conversations on initial mount
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
@@ -81,9 +79,9 @@ export function useConversation(type: 'multi-chat' | 'goal-hub' | 'comparison' |
     conversations,
     isLoading,
     error,
-    saveConversation: saveNewConversation,
-    updateConversation: updateExistingConversation,
-    deleteConversation: deleteExistingConversation,
+    saveConversation,
+    updateConversation,
+    deleteConversation,
     refreshConversations: loadConversations
   };
 }

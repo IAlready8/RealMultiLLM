@@ -62,11 +62,15 @@ export class EnterpriseRateLimiter {
   }
 
   private async initializeRedis(): Promise<void> {
+    // Do not attempt Redis connections in test environment
+    if (process.env.NODE_ENV === 'test') {
+      this.redis = null;
+      return;
+    }
     const env = getValidatedEnv();
     if (env.REDIS_URL) {
       try {
         this.redis = new Redis(env.REDIS_URL, {
-          retryDelayOnFailover: 100,
           maxRetriesPerRequest: 3,
           lazyConnect: true
         });
