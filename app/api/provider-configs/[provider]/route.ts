@@ -24,14 +24,12 @@ const routeContextSchema = z.object({
   provider: z.enum(validProviders),
 });
 
-interface RouteContext {
-  params: {
-    provider: string;
-  };
+interface RouteParams {
+  provider: string;
 }
 
 // DELETE /api/provider-configs/[provider] - Delete a provider configuration
-export async function DELETE(request: Request, context: RouteContext) {
+export async function DELETE(request: Request, context: { params: RouteParams }) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
@@ -63,7 +61,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 }
 
 // GET /api/provider-configs/[provider] - Check if user has valid API key
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(request: Request, context: { params: RouteParams }) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {

@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma'
-import { logger } from '@/lib/logger'
+import logger from '@/lib/logger'
 import { v4 as uuidv4 } from 'uuid'
 
 // Error categories for better classification

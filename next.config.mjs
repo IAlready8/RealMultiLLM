@@ -3,11 +3,7 @@
 const nextConfig = {
   // Performance optimizations (conservative)
   experimental: {
-    turbo: {
-      rules: {
-        '*.svg': ['@svgr/webpack'],
-      },
-    },
+    // turbo option has been moved to turbopack
   },
   
   // Compiler optimizations
@@ -20,8 +16,8 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif'],
   },
   
-  // Enable swcMinify for better performance
-  swcMinify: true,
+  // swcMinify is now enabled by default in Next.js 13+
+  // swcMinify: true, // Removed as it's deprecated
   
   // Reduce runtime overhead
   reactStrictMode: true,

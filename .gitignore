@@ -49,3 +49,42 @@ tsconfig.tsbuildinfo
 prisma/dev.db
 # env
 .env
+
+
+
+
+
+# 1) Tighten .gitignore
+cat > .gitignore <<'EOF'
+# OS/editor
+.DS_Store
+*.swp
+
+*.swo
+# Next.js builds
+.next
+out
+
+# Env
+.env
+.env.*.local
+.env.local
+
+# Prisma local DBs
+prisma/*.db
+prisma/*.db-journal
+prisma/**/dev.db
+prisma/**/dev.db-journal
+
+# Logs and caches
+*.log
+*.tsbuildinfo
+EOF
+
+# 2) Untrack local-only files from git history index (keep local copies)
+git rm -r --cached -- .DS_Store "*.swp" "*.swo" || true
+git rm -r --cached -- prisma/*.db prisma/*.db-journal prisma/**/dev.db prisma/**/dev.db-journal || true
+git rm -r --cached -- build.log || true
+
+git add .gitignore
+git commit -m "chore: ignore local DBs, OS/editor files, logs; untrack generated files"

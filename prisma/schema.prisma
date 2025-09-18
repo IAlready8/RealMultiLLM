@@ -49,6 +49,11 @@ model User {
   providerConfigs ProviderConfig[]
   goals         Goal[]
   personas      Persona[]
+  ownedTeams    Team[]               @relation("TeamOwner")
+  teamMemberships TeamMember[]       @relation("UserTeamMemberships")
+  sharedConversations SharedConversation[] @relation("SharedConversationOwner")
+  sharedConversationAccess SharedConversationUser[] @relation("SharedConversationAccess")
+  sharedConversationShares SharedConversationUser[] @relation("SharedConversationSharedBy")
 
   @@index([email])
   @@index([createdAt])
@@ -129,4 +134,72 @@ model Persona {
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+enum TeamMemberRole {
+  MEMBER
+  ADMIN
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  ownerId     String
+  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id])
+  members     TeamMember[]
+  sharedConversations SharedConversation[]
+
+  @@index([ownerId, createdAt])
+  @@index([createdAt])
+}
+
+model TeamMember {
+  id       String         @id @default(cuid())
+  teamId   String
+  userId   String
+  role     TeamMemberRole @default(MEMBER)
+  joinedAt DateTime       @default(now())
+  team     Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User           @relation("UserTeamMemberships", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([userId, role])
+}
+
+model SharedConversation {
+  id         String   @id @default(cuid())
+  title      String
+  messages   Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  ownerId    String
+  owner      User     @relation("SharedConversationOwner", fields: [ownerId], references: [id])
+  teamId     String?
+  team       Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  sharedWith SharedConversationUser[]
+  isPublic   Boolean  @default(false)
+  canEdit    Boolean  @default(false)
+
+  @@index([ownerId, createdAt])
+  @@index([teamId])
+  @@index([isPublic])
+}
+
+model SharedConversationUser {
+  id                   String   @id @default(cuid())
+  sharedConversationId String
+  userId               String
+  canEdit              Boolean  @default(false)
+  sharedAt             DateTime @default(now())
+  sharedBy             String
+  conversation         SharedConversation @relation(fields: [sharedConversationId], references: [id], onDelete: Cascade)
+  user                 User              @relation("SharedConversationAccess", fields: [userId], references: [id], onDelete: Cascade)
+  sharedByUser         User              @relation("SharedConversationSharedBy", fields: [sharedBy], references: [id], onDelete: Restrict)
+
+  @@unique([sharedConversationId, userId])
+  @@index([userId])
+  @@index([sharedBy])
 }
