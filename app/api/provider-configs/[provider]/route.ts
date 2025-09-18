@@ -1,5 +1,5 @@
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 import { authOptions } from '@/lib/auth';
@@ -24,12 +24,11 @@ const routeContextSchema = z.object({
   provider: z.enum(validProviders),
 });
 
-interface RouteParams {
-  provider: string;
-}
-
 // DELETE /api/provider-configs/[provider] - Delete a provider configuration
-export async function DELETE(request: Request, context: { params: RouteParams }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ provider: string }> }
+) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
@@ -37,7 +36,7 @@ export async function DELETE(request: Request, context: { params: RouteParams })
   }
 
   try {
-    const { provider } = routeContextSchema.parse(context.params);
+    const { provider } = routeContextSchema.parse(await params);
 
     await deleteUserProviderConfig(session.user.id, provider);
 
@@ -53,7 +52,7 @@ export async function DELETE(request: Request, context: { params: RouteParams })
     }
     logger.error('Failed to delete provider configuration', {
       userId: session.user.id,
-      provider: context.params.provider, // Log the raw param on error
+      provider: (await params).provider, // Log the raw param on error
       error: error.message,
     });
     return internalError('Failed to delete provider configuration');
@@ -61,7 +60,10 @@ export async function DELETE(request: Request, context: { params: RouteParams })
 }
 
 // GET /api/provider-configs/[provider] - Check if user has valid API key
-export async function GET(request: Request, context: { params: RouteParams }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ provider: string }> }
+) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
@@ -69,7 +71,7 @@ export async function GET(request: Request, context: { params: RouteParams }) {
   }
 
   try {
-    const { provider } = routeContextSchema.parse(context.params);
+    const { provider } = routeContextSchema.parse(await params);
 
     const hasKey = await hasValidApiKey(session.user.id, provider);
 
@@ -83,7 +85,7 @@ export async function GET(request: Request, context: { params: RouteParams }) {
     }
     logger.error('Failed to check provider configuration status', {
       userId: session.user.id,
-      provider: context.params.provider, // Log the raw param on error
+      provider: (await params).provider, // Log the raw param on error
       error: error.message,
     });
     return internalError('Failed to check provider configuration status');

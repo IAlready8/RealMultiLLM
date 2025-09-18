@@ -27,13 +27,13 @@ const validProviders = [
 const providerConfigSchema = z.object({
   provider: z.enum(validProviders),
   apiKey: z.string().min(1, 'API key is required'),
-  settings: z.record(z.unknown()).optional(), // Allows any JSON object for settings
+  settings: z.record(z.string(), z.unknown()).optional(), // Allows any JSON object for settings
 });
 
 // Schema for updating only the settings of a provider
 const providerSettingsSchema = z.object({
   provider: z.enum(validProviders),
-  settings: z.record(z.unknown()).min(1, 'Settings object cannot be empty'),
+  settings: z.record(z.string(), z.unknown()),
 });
 
 // GET /api/provider-configs - Get all provider configurations for the user

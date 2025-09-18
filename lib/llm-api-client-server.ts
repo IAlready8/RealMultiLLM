@@ -78,12 +78,31 @@ export async function streamLLMApi(
       },
       onComplete: async (fullResponse) => {
         const endTime = Date.now();
-        await recordAnalyticsEvent({ /* ... analytics ... */ });
+        await recordAnalyticsEvent({
+          event: 'llm_stream_complete',
+          userId: request.userId,
+          payload: {
+            provider: request.provider,
+            model: request.model,
+            tokens: totalTokens,
+            responseTime: (endTime - startTime) / 1000,
+            success: true
+          }
+        });
         callbacks.onComplete?.(fullResponse);
       },
       onError: async (error) => {
         const endTime = Date.now();
-        await recordAnalyticsEvent({ /* ... analytics ... */ });
+        await recordAnalyticsEvent({
+          event: 'llm_stream_error',
+          userId: request.userId,
+          payload: {
+            provider: request.provider,
+            model: request.model,
+            error: error.message,
+            responseTime: (endTime - startTime) / 1000
+          }
+        });
         callbacks.onError?.(error);
       }
     };

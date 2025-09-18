@@ -1,20 +1,20 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { deleteTeam, getTeamById, updateTeam } from '@/services/team-service';
 
-type RouteContext = {
-  params: { id: string };
-};
-
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const team = await getTeamById(context.params.id, session.user.id);
+    const { id } = await params;
+    const team = await getTeamById(id, session.user.id);
 
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
@@ -29,15 +29,19 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 }
 
-export async function PUT(request: Request, context: RouteContext) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { id } = await params;
     const payload = await request.json();
-    const team = await updateTeam(context.params.id, session.user.id, payload);
+    const team = await updateTeam(id, session.user.id, payload);
 
     return NextResponse.json(team);
   } catch (error: any) {
@@ -45,14 +49,18 @@ export async function PUT(request: Request, context: RouteContext) {
   }
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    await deleteTeam(context.params.id, session.user.id);
+    const { id } = await params;
+    await deleteTeam(id, session.user.id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ error: error?.message ?? 'Failed to delete team' }, { status: 400 });
