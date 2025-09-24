@@ -4,9 +4,11 @@ const nextConfig = {
   // 1. Optimize for constrained hardware (8GB RAM)
   // 2. Enable proper testing support
   // 3. Configure for both development and production
-  
+
   reactStrictMode: true,
   swcMinify: true,
+  // Enable standalone output for Docker (optional) and native deployment
+  output: 'standalone',
   images: {
     domains: ['avatars.githubusercontent.com', 'lh3.googleusercontent.com'],
   },

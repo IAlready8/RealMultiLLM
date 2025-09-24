@@ -18,16 +18,10 @@ import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { secureStore, secureRetrieve, secureRemove } from "@/lib/secure-storage";
 import { useSession } from "next-auth/react";
+import { getAllProviders, getProviderModels, PROVIDERS } from "@/lib/providers";
 
-// LLM providers we'll support
-const providers = [
-  { id: "openai", name: "OpenAI" },
-  { id: "claude", name: "Claude" },
-  { id: "google", name: "Google AI" },
-  { id: "llama", name: "Llama" },
-  { id: "github", name: "GitHub" },
-  { id: "grok", name: "Grok" },
-];
+// Get all supported providers
+const providers = getAllProviders().map(p => ({ id: p.id, name: p.name }));
 
 interface LogEntry {
   id: string;
@@ -333,42 +327,11 @@ export default function Settings() {
                             <SelectValue placeholder="Select a model" />
                           </SelectTrigger>
                           <SelectContent className="bg-gray-900 border-gray-800">
-                            {provider.id === "openai" && (
-                              <>
-                                <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                                <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                                <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "claude" && (
-                              <>
-                                <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
-                                <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
-                                <SelectItem value="claude-3-haiku">Claude 3 Haiku</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "google" && (
-                              <>
-                                <SelectItem value="gemini-pro">Gemini Pro</SelectItem>
-                                <SelectItem value="gemini-ultra">Gemini Ultra</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "llama" && (
-                              <>
-                                <SelectItem value="llama-3">Llama 3</SelectItem>
-                                <SelectItem value="llama-2-70b">Llama 2 70B</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "github" && (
-                              <>
-                                <SelectItem value="github-copilot">GitHub Copilot</SelectItem>
-                              </>
-                            )}
-                            {provider.id === "grok" && (
-                              <>
-                                <SelectItem value="grok-1">Grok-1</SelectItem>
-                              </>
-                            )}
+                            {getProviderModels(provider.id).map(model => (
+                              <SelectItem key={model.id} value={model.id}>
+                                {model.name}
+                              </SelectItem>
+                            ))}
                             <SelectItem value="default">Default</SelectItem>
                           </SelectContent>
                         </Select>

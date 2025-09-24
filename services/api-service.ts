@@ -1,4 +1,5 @@
 import { callLLMApi, LLMRequestOptions, LLMResponse } from "./api-client";
+import { getStoredApiKey } from "@/lib/secure-storage";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -13,6 +14,12 @@ export async function sendChatMessage(
   options: LLMRequestOptions = {}
 ): Promise<ChatMessage> {
   try {
+    // Get API key for the selected provider
+    const apiKey = await getStoredApiKey(provider);
+    if (!apiKey) {
+      throw new Error(`No API key configured for ${provider}. Please add it in Settings.`);
+    }
+
     // Format messages for the API
     const formattedPrompt = messages.map(msg => msg.content);
     
@@ -23,15 +30,14 @@ export async function sendChatMessage(
     }
     
     // Call the API
-    const response = await callLLMApi(provider, formattedPrompt, options);
+    const response = await callLLMApi(provider, formattedPrompt, apiKey, options);
     
     // Return formatted response
     return {
       role: "assistant",
-      content: response.text,
+      content: response.content,
       timestamp: Date.now(),
       metadata: {
-        ...response.usage,
         ...response.metadata
       }
     };
@@ -48,6 +54,12 @@ export async function streamChatMessage(
   options: LLMRequestOptions = {}
 ): Promise<void> {
   try {
+    // Get API key for the selected provider
+    const apiKey = await getStoredApiKey(provider);
+    if (!apiKey) {
+      throw new Error(`No API key configured for ${provider}. Please add it in Settings.`);
+    }
+
     // Format messages for the API
     const formattedPrompt = messages.map(msg => msg.content);
     
@@ -62,7 +74,7 @@ export async function streamChatMessage(
     options.onChunk = onChunk;
     
     // Call the API
-    await callLLMApi(provider, formattedPrompt, options);
+    await callLLMApi(provider, formattedPrompt, apiKey, options);
   } catch (error) {
     console.error(`Error streaming from ${provider} API:`, error);
     onChunk(`Error: ${error instanceof Error ? error.message : "Failed to get response"}`);

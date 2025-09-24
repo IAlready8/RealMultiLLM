@@ -90,7 +90,7 @@ export async function encryptString(text: string, password: string = 'default-ap
     combinedData.set(iv);
     combinedData.set(new Uint8Array(encryptedData), iv.length);
     
-    return arrayBufferToBase64(combinedData);
+    return arrayBufferToBase64(combinedData.buffer);
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt data');
@@ -163,6 +163,11 @@ export function clearAllApiKeys(): void {
     .filter(key => key.startsWith(API_KEY_PREFIX))
     .forEach(key => localStorage.removeItem(key));
 }
+
+// Aliases for the functions to match the expected imports
+export const secureStore = storeApiKey;
+export const secureRetrieve = getStoredApiKey;
+export const secureRemove = removeApiKey;
 
 // Validate if a string looks like a valid API key format
 export function validateApiKeyFormat(provider: string, apiKey: string): boolean {

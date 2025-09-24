@@ -32,7 +32,7 @@ export const prisma =
 
 // scalability: Gracefully handle connection errors
 prisma.$connect()
-  .catch((error) => {
+  .catch((error: any) => {
     console.error('Failed to connect to the database:', error);
     process.exit(1); // Exit if we can't connect to database
   });

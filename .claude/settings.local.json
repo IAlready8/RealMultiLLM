@@ -4,7 +4,12 @@
       "Bash(find:*)",
       "Bash(npm run build:*)",
       "Bash(npx prisma generate:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(npm run test:unit:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(node:*)",
+      "Bash(npx tsc:*)",
+      "Bash(chmod:*)"
     ],
     "deny": []
   }

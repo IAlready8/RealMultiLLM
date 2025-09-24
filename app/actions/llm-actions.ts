@@ -1,16 +1,19 @@
 
 "use server";
 
-import { sendChatMessage as sendLLMChatMessage } from "@/services/api-service";
+import { callLLM } from "@/services/api-client";
 import { saveConversation as saveConv, updateConversation as updateConv } from "@/services/conversation-storage";
 
 export async function sendPrompt(provider: string, messages: any[], options: any) {
-  return await sendLLMChatMessage(provider, messages, options);
+  // Convert messages array to prompt string for the API client
+  const prompt = Array.isArray(messages) ? messages.map(m => m.content || m).join('\n') : messages;
+  return await callLLM(provider, prompt, options.apiKey || '', options);
 }
 
 export async function sendMultiPrompt(providers: string[], messages: any[], options: any) {
+  const prompt = Array.isArray(messages) ? messages.map(m => m.content || m).join('\n') : messages;
   const responses = await Promise.all(
-    providers.map(provider => sendLLMChatMessage(provider, messages, options))
+    providers.map(provider => callLLM(provider, prompt, options.apiKey || '', options))
   );
   return responses;
 }

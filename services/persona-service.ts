@@ -1,3 +1,5 @@
+import { monitoring } from "@/lib/monitoring.browser";
+
 export interface Persona {
   id: string;
   title: string;
@@ -22,55 +24,95 @@ export interface UpdatePersonaRequest {
 }
 
 export async function getPersonas(): Promise<Persona[]> {
-  const response = await fetch("/api/personas");
-  if (!response.ok) {
-    throw new Error(`Failed to fetch personas: ${response.statusText}`);
+  monitoring.startTimer('get_personas');
+  
+  try {
+    const response = await fetch("/api/personas");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch personas: ${response.statusText}`);
+    }
+    const personas = response.json();
+    monitoring.endTimer('get_personas');
+    return personas;
+  } catch (error) {
+    monitoring.endTimer('get_personas');
+    monitoring.recordError(error as Error, { operation: 'getPersonas' });
+    throw error;
   }
-  return response.json();
 }
 
 export async function createPersona(data: CreatePersonaRequest): Promise<Persona> {
-  const response = await fetch("/api/personas", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  monitoring.startTimer('create_persona');
   
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to create persona: ${errorText}`);
+  try {
+    const response = await fetch("/api/personas", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create persona: ${errorText}`);
+    }
+    
+    const persona = response.json();
+    monitoring.endTimer('create_persona');
+    return persona;
+  } catch (error) {
+    monitoring.endTimer('create_persona');
+    monitoring.recordError(error as Error, { operation: 'createPersona' });
+    throw error;
   }
-  
-  return response.json();
 }
 
 export async function updatePersona(id: string, data: Partial<UpdatePersonaRequest>): Promise<Persona> {
-  const response = await fetch(`/api/personas/${id}`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  monitoring.startTimer('update_persona');
   
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to update persona: ${errorText}`);
+  try {
+    const response = await fetch(`/api/personas/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to update persona: ${errorText}`);
+    }
+    
+    const persona = response.json();
+    monitoring.endTimer('update_persona');
+    return persona;
+  } catch (error) {
+    monitoring.endTimer('update_persona');
+    monitoring.recordError(error as Error, { operation: 'updatePersona', id });
+    throw error;
   }
-  
-  return response.json();
 }
 
 export async function deletePersona(id: string): Promise<void> {
-  const response = await fetch(`/api/personas/${id}`, {
-    method: "DELETE",
-  });
+  monitoring.startTimer('delete_persona');
   
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Failed to delete persona: ${errorText}`);
+  try {
+    const response = await fetch(`/api/personas/${id}`, {
+      method: "DELETE",
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to delete persona: ${errorText}`);
+    }
+    
+    monitoring.endTimer('delete_persona');
+  } catch (error) {
+    monitoring.endTimer('delete_persona');
+    monitoring.recordError(error as Error, { operation: 'deletePersona', id });
+    throw error;
   }
 }
 

@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Testing
+coverage
+test
+**/*.test.js
+**/*.test.ts
+**/*.test.tsx
+
+# Next.js
+.next/
+out/
+
+# Production
+build
+
+# Misc
+.DS_Store
+*.log
+
+# Environment files
+.env*
+!.env.example
+
+# IDE
+.vscode
+.idea
+
+# OS
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in container)
+README.md
+DEPLOYMENT_NO_DOCKER.md
+ENHANCED_FEATURES.md
+PROJECT_STRUCTURE.md
+
+# Scripts (used for native deployment)
+scripts/setup.sh
+
+# Playwright
+playwright-report/
+test-results/
+
+# Other
+.cache
+tsconfig.tsbuildinfo
