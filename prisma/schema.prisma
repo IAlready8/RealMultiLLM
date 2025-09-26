@@ -87,12 +87,15 @@ model ProviderConfig {
   apiKey     String?  // Encrypted API key stored server-side
   settings   Json?  // JSON object for additional provider settings
   isActive   Boolean  @default(true)
+  lastUsedAt DateTime? // Track when API key was last used (added for lifecycle management)
+  usageCount Int      @default(0) // Track API key usage (added for lifecycle management)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   userId     String
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
+  @@index([lastUsedAt]) // Index for lifecycle queries
 }
 
 model Analytics {

@@ -12,9 +12,38 @@ const prisma = global.prisma || new PrismaClient({
       url: process.env.DATABASE_URL,
     },
   },
-  // Note: Advanced connection pool settings would be configured via DATABASE_URL parameters
-  // For PostgreSQL: postgresql://user:password@localhost:5432/db?connection_limit=10&pool_timeout=5000
+  // Connection pool optimization via DATABASE_URL parameters:
+  // PostgreSQL: postgresql://user:password@localhost:5432/db?connection_limit=20&pool_timeout=20&connect_timeout=60
+  // SQLite: file:./dev.db?connection_limit=1 (SQLite only supports 1 connection)
 });
+
+// Add query monitoring for performance optimization (non-breaking)
+if (process.env.NODE_ENV !== "test") {
+  import('./prisma-pool-monitor').then(({ prismaPoolMonitor }) => {
+    // Wrap critical query methods with monitoring
+    const originalFindMany = prisma.$queryRaw.bind(prisma);
+    const originalFindUnique = prisma.$executeRaw.bind(prisma);
+
+    // Monitor raw queries for performance insights
+    prisma.$queryRaw = new Proxy(originalFindMany, {
+      apply: (target, thisArg, argArray) => {
+        return prismaPoolMonitor.monitorQuery('$queryRaw', () =>
+          target.apply(thisArg, argArray)
+        );
+      }
+    });
+
+    prisma.$executeRaw = new Proxy(originalFindUnique, {
+      apply: (target, thisArg, argArray) => {
+        return prismaPoolMonitor.monitorQuery('$executeRaw', () =>
+          target.apply(thisArg, argArray)
+        );
+      }
+    });
+  }).catch(() => {
+    // Fail silently - monitoring is optional
+  });
+}
 
 // Enhanced connection management
 if (!global.prisma && typeof window === "undefined") {

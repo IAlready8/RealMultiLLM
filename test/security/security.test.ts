@@ -46,7 +46,18 @@ describe('Security Tests', () => {
 
     it('should accept strong passwords during registration', async () => {
       testUtils.mocks.mockDatabaseData('user', []); // No existing users
-      
+      const { default: prisma } = await import('@/lib/prisma');
+      vi.mocked(prisma.user.create).mockResolvedValue({
+        id: 'new-user-id',
+        name: 'Test User',
+        email: 'test@example.com',
+        emailVerified: null,
+        image: null,
+        role: 'USER',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
       const strongPassword = 'StrongPassword123!@#';
       const request = TestRequestBuilder.create()
         .setMethod('POST')

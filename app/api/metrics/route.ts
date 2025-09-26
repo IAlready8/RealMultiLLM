@@ -1,86 +1,135 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { monitoring } from '@/lib/monitoring';
-import { getApiSecurityHeaders } from '@/lib/security-headers';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { monitoring } from '@/lib/monitoring'
+import { getApiSecurityHeaders } from '@/lib/security-headers'
+
+const toNumberOrNull = (value: number) => (Number.isFinite(value) ? value : null)
 
 export async function GET(request: NextRequest) {
-  try {
-    // Only allow authenticated admin users to view metrics
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { 
-          status: 401,
-          headers: getApiSecurityHeaders()
-        }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const metricName = searchParams.get('metric');
-    const limit = parseInt(searchParams.get('limit') || '100');
-    const format = searchParams.get('format') || 'json';
-
-    if (metricName) {
-      // Get specific metric
-      const metrics = monitoring.getMetrics(metricName, limit);
-      
-      if (format === 'prometheus') {
-        // Return in Prometheus format
-        const prometheusData = metrics.map(metric => {
-          const labels = metric.tags 
-            ? Object.entries(metric.tags).map(([key, value]) => `${key}="${value}"`).join(',')
-            : '';
-          return `${metric.name}{${labels}} ${metric.value} ${metric.timestamp.getTime()}`;
-        }).join('\n');
-
-        return new Response(prometheusData, {
-          status: 200,
-          headers: {
-            'Content-Type': 'text/plain',
-            ...getApiSecurityHeaders()
-          }
-        });
-      }
-
-      return NextResponse.json(metrics, {
-        headers: getApiSecurityHeaders()
-      });
-    } else {
-      // Get all available metrics
-      const metricNames = monitoring.getMetricNames();
-      const systemMetrics = await monitoring.getSystemMetrics();
-      const performanceSummary = monitoring.getPerformanceSummary();
-
-      const response = {
-        timestamp: new Date().toISOString(),
-        availableMetrics: metricNames,
-        system: systemMetrics,
-        performance: performanceSummary,
-        summary: {
-          totalMetrics: metricNames.length,
-          uptime: systemMetrics.uptime,
-          requestCount: systemMetrics.requestCount,
-          errorCount: systemMetrics.errorCount,
-          memoryUsage: `${(systemMetrics.memory.percentage).toFixed(2)}%`
-        }
-      };
-
-      return NextResponse.json(response, {
-        headers: getApiSecurityHeaders()
-      });
-    }
-  } catch (error) {
-    console.error('Metrics API error:', error);
-    
-    return NextResponse.json({
-      error: 'Internal server error',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }, {
-      status: 500,
-      headers: getApiSecurityHeaders()
-    });
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: getApiSecurityHeaders() }
+    )
   }
+
+  if (session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const url = new URL(request.url)
+  const format = url.searchParams.get('format') ?? 'json'
+  const windowParam = url.searchParams.get('window')
+  const parsedWindow = windowParam !== null ? parseInt(windowParam, 10) : 300000
+
+  if (format === 'prometheus') {
+    const payload = monitoring.exportMetrics('prometheus') as string
+    return new NextResponse(payload, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain',
+        ...getApiSecurityHeaders(),
+      },
+    })
+  }
+
+  try {
+    const summary = monitoring.getMetricsSummary(parsedWindow)
+    const memoryUsage = process.memoryUsage()
+    const cpuUsage = process.cpuUsage()
+    const uptimeSeconds = Math.floor(process.uptime())
+    const now = Date.now()
+
+    const response = NextResponse.json(
+      {
+        metrics: summary,
+        health: {
+          status: summary.errorRate >= 0.1 ? 'degraded' : 'healthy',
+          uptime: uptimeSeconds,
+          memory: memoryUsage,
+          cpu: cpuUsage,
+          timestamp: now,
+        },
+        meta: {
+          format: 'json',
+          timeWindow: toNumberOrNull(parsedWindow),
+          timestamp: now,
+        },
+      },
+      { headers: getApiSecurityHeaders() }
+    )
+
+    return response
+  } catch (error) {
+    monitoring.recordError(error as Error, { endpoint: '/api/metrics' })
+    return NextResponse.json(
+      { error: 'Failed to retrieve metrics' },
+      { status: 500, headers: getApiSecurityHeaders() }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: getApiSecurityHeaders() }
+    )
+  }
+
+  if (session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  let payload: any
+  try {
+    payload = await request.json()
+  } catch (error) {
+    monitoring.recordError(error as Error, { endpoint: '/api/metrics' })
+    return NextResponse.json(
+      { error: 'Failed to record metric' },
+      { status: 500, headers: getApiSecurityHeaders() }
+    )
+  }
+
+  if (payload?.type !== 'client-performance') {
+    return NextResponse.json(
+      { error: 'Invalid metric type' },
+      { status: 400, headers: getApiSecurityHeaders() }
+    )
+  }
+
+  const metricTimestamp = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now()
+  const metricTags: Record<string, any> = {
+    source: 'client',
+    ...(payload.tags ?? {}),
+  }
+
+  if (session.user?.id) {
+    metricTags.userId = session.user.id
+  }
+
+  try {
+    monitoring.recordMetric({
+      name: payload.name,
+      value: payload.value,
+      timestamp: metricTimestamp,
+      type: 'gauge',
+      tags: metricTags,
+    })
+  } catch (error) {
+    monitoring.recordError(error as Error, { endpoint: '/api/metrics' })
+    return NextResponse.json(
+      { error: 'Failed to record metric' },
+      { status: 500, headers: getApiSecurityHeaders() }
+    )
+  }
+
+  return NextResponse.json(
+    { success: true },
+    { status: 200, headers: getApiSecurityHeaders() }
+  )
 }

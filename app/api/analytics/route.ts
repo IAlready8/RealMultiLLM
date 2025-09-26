@@ -155,8 +155,14 @@ export async function GET(request: Request) {
       anomalies
     };
 
-    // Cache the response
-    await cache.set(cacheKey, response, CacheConfigs.analytics);
+    // Cache the response with smart dependency tracking
+    const { smartCacheInvalidator } = await import('@/lib/smart-cache-invalidator');
+    await smartCacheInvalidator.setWithDependencies(
+      cacheKey,
+      response,
+      CacheConfigs.analytics.ttl || 300000,
+      ['llm_request', 'user_activity', 'conversation_created']
+    );
     logger.info('analytics.cache.set', { userId, timeRange });
 
     return NextResponse.json(response, {

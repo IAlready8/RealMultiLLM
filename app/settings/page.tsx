@@ -18,6 +18,20 @@ import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { useSession } from "next-auth/react";
 
+const DEFAULT_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+
+const toApiUrl = (path: string) => {
+  const base =
+    typeof window !== "undefined" && typeof window.location !== "undefined" && window.location.origin &&
+    window.location.origin !== "null" &&
+    window.location.origin !== "about:blank"
+      ? window.location.origin
+      : DEFAULT_BASE_URL;
+
+  return new URL(path, base).toString();
+};
+
 // LLM providers we'll support
 const providers = [
   { id: "openai", name: "OpenAI" },
@@ -80,7 +94,6 @@ export default function Settings() {
   useEffect(() => {
     const loadConfiguredProviders = async () => {
       try {
-        const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
         const response = await fetch(toApiUrl('/api/config'));
         if (response.ok) {
           const data = await response.json();
@@ -121,7 +134,6 @@ export default function Settings() {
   useEffect(() => {
     const fetchModels = async () => {
       try {
-        const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
         const res = await fetch(toApiUrl("/api/openrouter/models"));
         if (!res.ok) return;
         const data = await res.json();
@@ -142,7 +154,6 @@ export default function Settings() {
     
     try {
       // Save to backend securely
-      const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
       const response = await fetch(toApiUrl('/api/config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -184,7 +195,6 @@ export default function Settings() {
     setSaving(prev => ({ ...prev, [providerId]: true }));
     
     try {
-      const toApiUrl = (path: string) => (typeof window === 'undefined' ? new URL(path, 'http://localhost').toString() : path);
       const response = await fetch(toApiUrl('/api/config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -345,7 +355,11 @@ export default function Settings() {
         <TabsContent value="api-keys">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {providers.map(provider => (
-              <Card key={provider.id} className="bg-gray-900 border-gray-800">
+              <Card
+                key={provider.id}
+                className="bg-gray-900 border-gray-800"
+                data-testid={`api-card-${provider.id}`}
+              >
                 <CardHeader>
                   <CardTitle>{provider.name} API Key</CardTitle>
                 </CardHeader>

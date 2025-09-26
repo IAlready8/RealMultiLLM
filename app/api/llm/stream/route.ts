@@ -34,10 +34,18 @@ export async function POST(request: Request) {
       const windowMs = parseInt(process.env.RATE_LIMIT_LLM_WINDOW_MS || '60000', 10)
       const perUser = await checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax })
       const global = await checkAndConsume(`llm:global`, { windowMs, max: globalMax })
+
+      if (!perUser || !global) {
+        logger.error('rate_limiter_unavailable', { perUser, global })
+        return internalError('Rate limiter unavailable')
+      }
+
       if (!perUser.allowed || !global.allowed) {
+        const retryAfterMs = Math.max(perUser.retryAfterMs ?? 0, global.retryAfterMs ?? 0)
+        const remaining = Math.min(perUser.remaining ?? 0, global.remaining ?? 0)
         return tooManyRequests('Rate limit exceeded', {
-          retryAfterMs: Math.max(perUser.retryAfterMs, global.retryAfterMs),
-          remaining: Math.min(perUser.remaining, global.remaining),
+          retryAfterMs,
+          remaining,
         })
       }
 
@@ -58,11 +66,18 @@ export async function POST(request: Request) {
       const stream = new ReadableStream<Uint8Array>({
         async start(controller) {
           const writeJson = (obj: any) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
-          // Provide a way to cancel
-          const abortHandler = () => {
-            writeJson({ type: 'aborted' })
-            controller.close()
-          }
+
+          // Enhanced connection management with memory leak prevention
+          const { streamConnectionManager } = await import('@/lib/stream-connection-manager');
+          const connectionId = streamConnectionManager.registerConnection(
+            session.user.id,
+            provider,
+            controller,
+            300000 // 5 minute timeout
+          );
+
+          // Enhanced abort handler with connection cleanup
+          const abortHandler = streamConnectionManager.createAbortHandler(connectionId, writeJson);
           request.signal.addEventListener('abort', abortHandler)
           try {
             await streamChatMessage(
@@ -73,6 +88,9 @@ export async function POST(request: Request) {
             )
             writeJson({ type: 'done' })
             controller.close()
+
+            // Clean up connection tracking
+            streamConnectionManager.removeConnection(connectionId);
             
             // Calculate duration
             const duration = (Date.now() - startTime) / 1000; // in seconds
@@ -86,11 +104,21 @@ export async function POST(request: Request) {
             );
             durationMetric.observe(duration);
             
-            logger.info('llm.stream.success', { 
-              provider, 
-              userId: session.user.id, 
-              duration: `${duration.toFixed(3)}s` 
-            })
+            logger.info('llm.stream.success', {
+              provider,
+              userId: session.user.id,
+              duration: `${duration.toFixed(3)}s`
+            });
+
+            // Track API key usage for lifecycle management (non-blocking)
+            import('@/lib/api-key-tracker').then(({ trackApiKeyUsage }) => {
+              trackApiKeyUsage({
+                userId: session.user.id,
+                provider,
+                success: true,
+                timestamp: new Date()
+              });
+            });
           } catch (error: any) {
             logger.error('llm_stream_error', { provider, message: error?.message })
             
@@ -105,6 +133,8 @@ export async function POST(request: Request) {
             writeJson({ type: 'error', error: error?.message || 'Internal Error' })
             controller.error(error)
           } finally {
+            // Ensure connection cleanup in all cases
+            streamConnectionManager.removeConnection(connectionId);
             request.signal.removeEventListener('abort', abortHandler)
           }
         },

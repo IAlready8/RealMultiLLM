@@ -3,8 +3,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { observabilityAggregator } from '@/lib/observability/aggregator';
-import { performanceMonitor } from '@/lib/performance-monitor';
+import { monitoring } from '@/lib/monitoring';
 import { globalTracer } from '@/lib/observability/tracing';
 import { metricsRegistry } from '@/lib/observability/metrics';
 import { logger } from '@/lib/observability/logger';
@@ -27,10 +26,10 @@ export async function GET(request: Request) {
     const include = searchParams.get('include') || 'all';
     
     // Get performance summary
-    const performanceSummary = performanceMonitor.getPerformanceSummary();
+    const performanceSummary = monitoring.getMetricsSummary();
     
     // Get system metrics
-    const systemMetrics = await performanceMonitor.getSystemMetrics();
+    const systemMetrics = await monitoring.getSystemMetrics();
     
     // Get metrics based on include parameter
     let metricsData: any = {};
@@ -61,11 +60,11 @@ export async function GET(request: Request) {
       };
     }
     
-    // Get alerts based on include parameter
-    let alertsData: any = {};
-    if (include === 'all' || include.includes('alerts')) {
-      alertsData = {
-        alerts: performanceMonitor.getActiveAlerts()
+    // Get health checks based on include parameter
+    let healthData: any = {};
+    if (include === 'all' || include.includes('health')) {
+      healthData = {
+        health: await monitoring.runHealthChecks()
       };
     }
     
@@ -76,12 +75,12 @@ export async function GET(request: Request) {
       system: systemMetrics,
       ...metricsData,
       ...tracesData,
-      ...alertsData
+      ...healthData
     };
     
     // Return data in requested format
     if (format === 'prometheus') {
-      const prometheusData = observabilityAggregator.exportPrometheusFormat();
+      const prometheusData = await monitoring.exportMetrics('prometheus');
       return new NextResponse(prometheusData, {
         headers: {
           'Content-Type': 'text/plain; version=0.0.4',
@@ -127,29 +126,16 @@ export async function POST(request: Request) {
     // Handle different actions
     switch (action) {
       case 'acknowledge-alert':
-        const { alertId } = body;
-        if (!alertId) {
-          return NextResponse.json(
-            { error: { message: 'Missing alertId' } },
-            { status: 400 }
-          );
-        }
-        
-        const success = performanceMonitor.acknowledgeAlert(alertId);
-        if (success) {
-          logger.info('Alert acknowledged', { alertId });
-          return NextResponse.json({ success: true });
-        } else {
-          return NextResponse.json(
-            { error: { message: 'Alert not found' } },
-            { status: 404 }
-          );
-        }
+        return NextResponse.json(
+          { error: { message: 'Alerting system has been deprecated. Please use the new health check system.' } },
+          { status: 400 }
+        );
         
       case 'trigger-collection':
-        await observabilityAggregator.collectAndExport();
-        logger.info('Manual observability collection triggered');
-        return NextResponse.json({ success: true });
+        return NextResponse.json(
+          { error: { message: 'Manual collection is no longer supported. Metrics are collected automatically.' } },
+          { status: 400 }
+        );
         
       default:
         return NextResponse.json(

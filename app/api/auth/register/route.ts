@@ -6,6 +6,7 @@ import { getPasswordSchema, validatePasswordStrength, checkPasswordBreach, rateL
 import { auditLogger } from "@/lib/audit-logger";
 import { enterpriseRateLimiter, defaultConfigs } from "@/lib/rate-limiter-enterprise";
 import { getValidatedEnv } from "@/lib/env";
+import { sanitizeInput } from "@/lib/security";
 
 export async function POST(request: NextRequest) {
   const clientIP = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
@@ -15,7 +16,9 @@ export async function POST(request: NextRequest) {
     // Rate limiting for registration attempts
     // Skip rate limiting in test runs to avoid flakiness in validation tests
     const rateLimitKey = `registration:ip:${clientIP}`;
-    const rateLimitResult = process.env.NODE_ENV === 'test' ? { isBlocked: false } as any : await enterpriseRateLimiter.checkRateLimit(
+    const rateLimitResult = (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test') ?
+      { isBlocked: false, msBeforeNext: 0 } :
+      await enterpriseRateLimiter.checkRateLimit(
       rateLimitKey,
       {
         ...defaultConfigs.auth,
@@ -45,6 +48,9 @@ export async function POST(request: NextRequest) {
 
     const { name, email, password } = await request.json();
 
+    const sanitizedName = sanitizeInput(name);
+    const sanitizedEmail = sanitizeInput(email);
+
     // Validate input schema
     const registrationSchema = z.object({
       name: z.string().min(1, "Name is required").max(100, "Name is too long"),
@@ -53,7 +59,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      registrationSchema.parse({ name, email, password });
+      registrationSchema.parse({ name: sanitizedName, email: sanitizedEmail, password });
     } catch (validationError) {
       if (validationError instanceof z.ZodError) {
         await auditLogger.logSecurityEvent(
@@ -62,7 +68,7 @@ export async function POST(request: NextRequest) {
           { 
             clientIP, 
             userAgent,
-            email: email?.substring(0, 3) + '***', // Partially obscure for privacy
+            email: sanitizedEmail?.substring(0, 3) + '***', // Partially obscure for privacy
             errors: (validationError as any).errors?.map((e: any) => ({ field: e.path.join('.'), message: e.message })) || []
           },
           { ipAddress: clientIP },
@@ -83,7 +89,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Advanced password strength validation
-    const passwordStrength = validatePasswordStrength(password, { name, email });
+    const passwordStrength = validatePasswordStrength(password, { name: sanitizedName, email: sanitizedEmail });
     if (passwordStrength.score < 60) {
       return NextResponse.json(
         {
@@ -106,7 +112,7 @@ export async function POST(request: NextRequest) {
         'warning',
         { 
           clientIP,
-          email: email.substring(0, 3) + '***',
+          email: sanitizedEmail.substring(0, 3) + '***',
           occurrences: breachCheck.occurrences
         },
         { ipAddress: clientIP },
@@ -124,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: sanitizedEmail }
     });
 
     if (existingUser) {
@@ -133,7 +139,7 @@ export async function POST(request: NextRequest) {
         'warning',
         { 
           clientIP,
-          email: email.substring(0, 3) + '***',
+          email: sanitizedEmail.substring(0, 3) + '***',
           existingUserId: existingUser.id
         },
         { ipAddress: clientIP },
@@ -152,8 +158,8 @@ export async function POST(request: NextRequest) {
     // Create user
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: sanitizedName,
+        email: sanitizedEmail,
         password: hashedPassword,
       },
       select: {

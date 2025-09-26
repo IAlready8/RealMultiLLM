@@ -12,6 +12,7 @@ export interface MetricData {
   timestamp: Date;
   tags?: Record<string, string>;
   unit?: 'count' | 'bytes' | 'milliseconds' | 'percentage' | 'rate';
+  type?: 'counter' | 'gauge' | 'histogram' | 'timer';
 }
 
 export interface HealthCheckResult {
@@ -40,12 +41,23 @@ export interface SystemMetrics {
 
 class EnterpriseMonitoring {
   private static instance: EnterpriseMonitoring;
+  private static readonly HISTORY_RETENTION_MS = 60 * 60 * 1000; // 1 hour
+
   private metrics: Map<string, MetricData[]> = new Map();
   private requestCount = 0;
   private errorCount = 0;
   private responseTimes: number[] = [];
   private startTime = Date.now();
   private healthChecks: Map<string, () => Promise<HealthCheckResult>> = new Map();
+  private timers = new Map<string, { startedAt: bigint; metadata?: Record<string, any> }>();
+  private requestHistory: Array<{
+    timestamp: number;
+    duration: number;
+    statusCode: number;
+    method: string;
+    endpoint: string;
+  }> = [];
+  private llmHistory: Array<{ timestamp: number; tokens: number; cost: number }> = [];
   
   private constructor() {
     this.initializeDefaultHealthChecks();
@@ -72,24 +84,38 @@ class EnterpriseMonitoring {
    * Record a metric value
    */
   public recordMetric(
-    name: string,
-    value: number,
+    metricOrName: MetricData | string,
+    value?: number,
     tags?: Record<string, string>,
     unit?: MetricData['unit']
   ): void {
-    const metric: MetricData = {
-      name,
-      value,
-      timestamp: new Date(),
-      tags,
-      unit
-    };
+    let metric: MetricData;
 
-    if (!this.metrics.has(name)) {
-      this.metrics.set(name, []);
+    if (typeof metricOrName === 'string') {
+      metric = {
+        name: metricOrName,
+        value: value ?? 0,
+        timestamp: new Date(),
+        tags,
+        unit
+      };
+    } else {
+      const incoming = metricOrName;
+      metric = {
+        name: incoming.name,
+        value: incoming.value,
+        timestamp: incoming.timestamp instanceof Date ? incoming.timestamp : new Date(incoming.timestamp),
+        tags: incoming.tags,
+        unit: incoming.unit,
+        type: incoming.type
+      };
     }
 
-    const metricHistory = this.metrics.get(name)!;
+    if (!this.metrics.has(metric.name)) {
+      this.metrics.set(metric.name, []);
+    }
+
+    const metricHistory = this.metrics.get(metric.name)!;
     metricHistory.push(metric);
 
     // Keep only last 1000 data points per metric
@@ -115,6 +141,15 @@ class EnterpriseMonitoring {
   ): void {
     this.requestCount++;
     this.responseTimes.push(responseTime);
+    const sanitizedPath = this.sanitizePath(path);
+    this.requestHistory.push({
+      timestamp: Date.now(),
+      duration: responseTime,
+      statusCode,
+      method,
+      endpoint: sanitizedPath,
+    });
+    this.trimHistory(this.requestHistory);
     
     // Keep only last 1000 response times
     if (this.responseTimes.length > 1000) {
@@ -129,13 +164,13 @@ class EnterpriseMonitoring {
     // Record detailed metrics
     this.recordMetric('http_requests_total', 1, {
       method,
-      path: this.sanitizePath(path),
+      path: sanitizedPath,
       status_code: statusCode.toString()
     }, 'count');
 
     this.recordMetric('http_request_duration', responseTime, {
       method,
-      path: this.sanitizePath(path)
+      path: sanitizedPath
     }, 'milliseconds');
 
     // Record user-specific metrics if available
@@ -168,6 +203,13 @@ class EnterpriseMonitoring {
     if (!success) {
       this.recordMetric('llm_errors_total', 1, tags, 'count');
     }
+
+    this.llmHistory.push({
+      timestamp: Date.now(),
+      tokens: tokenCount,
+      cost: cost ?? 0,
+    });
+    this.trimHistory(this.llmHistory);
   }
 
   /**
@@ -187,6 +229,172 @@ class EnterpriseMonitoring {
     if (!success) {
       this.recordMetric('db_errors_total', 1, tags, 'count');
     }
+  }
+
+  public startTimer(name: string, metadata?: Record<string, any>): void {
+    this.timers.set(name, {
+      startedAt: process.hrtime.bigint(),
+      metadata,
+    });
+  }
+
+  public endTimer(name: string): number {
+    const timer = this.timers.get(name);
+    if (!timer) {
+      return 0;
+    }
+
+    const durationMs = Number(process.hrtime.bigint() - timer.startedAt) / 1_000_000;
+    this.timers.delete(name);
+
+    const tags = timer.metadata
+      ? Object.fromEntries(
+          Object.entries(timer.metadata).map(([key, value]) => [key, String(value)])
+        )
+      : undefined;
+
+    this.recordMetric({
+      name: `timer.${name}`,
+      value: durationMs,
+      timestamp: new Date(),
+      type: 'timer',
+      tags,
+      unit: 'milliseconds',
+    });
+
+    return durationMs;
+  }
+
+  public recordApiRequest(
+    endpoint: string,
+    method: string,
+    statusCode: number,
+    duration: number,
+    userId?: string
+  ): void {
+    this.recordRequest(method, endpoint, statusCode, duration, userId);
+  }
+
+  public recordError(error: Error, context?: Record<string, any>): void {
+    this.errorCount++;
+    const tags: Record<string, string> = {
+      error_type: error.name,
+    };
+
+    if (context) {
+      for (const [key, value] of Object.entries(context)) {
+        tags[key] = String(value);
+      }
+    }
+
+    this.recordMetric({
+      name: 'application.error.count',
+      value: 1,
+      timestamp: new Date(),
+      type: 'counter',
+      tags,
+      unit: 'count',
+    });
+
+    auditLogger.logSecurityEvent(
+      'application_error',
+      'failure',
+      {
+        error: error.message,
+        stack: error.stack,
+        context,
+      },
+      {},
+      'high'
+    ).catch(() => {
+      // Swallow audit logger errors to avoid breaking primary flow
+    });
+  }
+
+  public getMetricsSummary(timeWindow: number = 300000): {
+    totalRequests: number;
+    errorRate: number;
+    avgResponseTime: number;
+    memoryUsageMB: number;
+    totalTokens: number;
+    totalCost: number;
+    timeWindow: number;
+    timestamp: number;
+  } {
+    const now = Date.now();
+    const hasFiniteWindow = Number.isFinite(timeWindow);
+    const effectiveWindow = hasFiniteWindow ? Number(timeWindow) : EnterpriseMonitoring.HISTORY_RETENTION_MS;
+    const cutoff = now - effectiveWindow;
+
+    const requests = hasFiniteWindow
+      ? this.requestHistory.filter(entry => entry.timestamp >= cutoff)
+      : [...this.requestHistory];
+    const totalRequests = requests.length;
+    const totalErrors = requests.filter(entry => entry.statusCode >= 400).length;
+    const totalDuration = requests.reduce((sum, entry) => sum + entry.duration, 0);
+
+    const llmMetrics = hasFiniteWindow
+      ? this.llmHistory.filter(entry => entry.timestamp >= cutoff)
+      : [...this.llmHistory];
+
+    const totalTokens = llmMetrics.reduce((sum, entry) => sum + entry.tokens, 0);
+    const totalCost = llmMetrics.reduce((sum, entry) => sum + entry.cost, 0);
+
+    const memoryUsage = process.memoryUsage();
+    const memoryUsageMB = memoryUsage.rss / (1024 * 1024);
+
+    return {
+      totalRequests,
+      errorRate: totalRequests > 0 ? totalErrors / totalRequests : 0,
+      avgResponseTime: totalRequests > 0 ? totalDuration / totalRequests : 0,
+      memoryUsageMB,
+      totalTokens,
+      totalCost,
+      timeWindow,
+      timestamp: now,
+    };
+  }
+
+  public exportMetrics(format: 'json' | 'prometheus' = 'json'): MetricData[] | string {
+    const allMetrics = Array.from(this.metrics.values()).flat();
+
+    if (format === 'prometheus') {
+      const lines = [
+        '# HELP realmultillm_metrics Application metrics',
+        '# TYPE realmultillm_metrics gauge',
+      ];
+
+      for (const metric of allMetrics) {
+        const metricName = `realmultillm_${metric.name.replace(/\./g, '_')}`;
+        const labels = metric.tags
+          ? '{' + Object.entries(metric.tags)
+              .map(([key, value]) => `${key}="${value}"`)
+              .join(',') + '}'
+          : '';
+        lines.push(`${metricName}${labels} ${metric.value}`);
+      }
+
+      return lines.join('\n');
+    }
+
+    return allMetrics.map(metric => ({
+      name: metric.name,
+      value: metric.value,
+      timestamp: metric.timestamp.getTime(),
+      tags: metric.tags,
+      unit: metric.unit,
+      type: metric.type,
+    }));
+  }
+
+  public resetMetrics(): void {
+    this.metrics.clear();
+    this.requestHistory = [];
+    this.llmHistory = [];
+    this.requestCount = 0;
+    this.errorCount = 0;
+    this.responseTimes = [];
+    this.timers.clear();
   }
 
   /**
@@ -443,6 +651,16 @@ class EnterpriseMonitoring {
     }
   }
 
+  private trimHistory<T extends { timestamp: number }>(
+    history: T[],
+    retentionMs: number = EnterpriseMonitoring.HISTORY_RETENTION_MS
+  ): void {
+    const cutoff = Date.now() - retentionMs;
+    while (history.length && history[0].timestamp < cutoff) {
+      history.shift();
+    }
+  }
+
   /**
    * Sanitize path for metrics to prevent high cardinality
    */
@@ -511,3 +729,10 @@ export const recordRequest = monitoring.recordRequest.bind(monitoring);
 export const recordLlmMetrics = monitoring.recordLlmMetrics.bind(monitoring);
 export const recordDatabaseMetrics = monitoring.recordDatabaseMetrics.bind(monitoring);
 export const createPerformanceMonitor = monitoring.createPerformanceMonitor.bind(monitoring);
+export const startTimer = monitoring.startTimer.bind(monitoring);
+export const endTimer = monitoring.endTimer.bind(monitoring);
+export const recordApiRequest = monitoring.recordApiRequest.bind(monitoring);
+export const recordError = monitoring.recordError.bind(monitoring);
+export const getMetricsSummary = monitoring.getMetricsSummary.bind(monitoring);
+export const exportMetrics = monitoring.exportMetrics.bind(monitoring);
+export const resetMetrics = monitoring.resetMetrics.bind(monitoring);

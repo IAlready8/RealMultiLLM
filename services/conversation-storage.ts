@@ -1,91 +1,316 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import type { Conversation, ConversationData } from '@/types/app';
-
-// Define the schema for our IndexedDB database using the centralized types
-interface ConversationDBSchema extends DBSchema {
-  conversations: {
-    key: string;
-    value: Conversation;
-    indexes: { 'by-type': string; 'by-timestamp': number };
-  };
+export interface ConversationRecord {
+  id: string
+  title: string
+  messages: Array<{ role: string; content: string }>
+  createdAt: Date
+  updatedAt: Date
+  provider?: string
+  model?: string
+  userId?: string
 }
 
-let dbPromise: Promise<IDBPDatabase<ConversationDBSchema>> | null = null;
+export interface ImportConversationData {
+  conversations: ConversationRecord[]
+  userId: string
+  conflictResolution?: 'skip' | 'replace' | 'merge'
+}
 
-function getDB(): Promise<IDBPDatabase<ConversationDBSchema>> {
-  if (!dbPromise) {
-    dbPromise = openDB<ConversationDBSchema>('multi-llm-conversations', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('conversations')) {
-          const conversationStore = db.createObjectStore('conversations', { keyPath: 'id' });
-          conversationStore.createIndex('by-type', 'type');
-          conversationStore.createIndex('by-timestamp', 'timestamp');
+export interface ImportResult {
+  imported: number
+  failed: number
+  skipped: number
+  errors: string[]
+}
+
+export interface ConversationStats {
+  totalConversations: number
+  totalMessages: number
+  providerBreakdown: Record<string, number>
+}
+
+export interface ExportData {
+  conversations: ConversationRecord[]
+  exportedAt: Date
+  version: string
+}
+
+export class ConversationStorage {
+  private dbName = 'conversation-db'
+  private dbVersion = 1
+  private storeName = 'conversations'
+  private db: IDBDatabase | null = null
+
+  private async handleRequest<T>(request: IDBRequest, getValue: () => T): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const onSuccess = () => {
+        cleanup()
+        resolve(getValue())
+      }
+
+      const onError = () => {
+        cleanup()
+        const error = (request as any).error
+        if (error instanceof Error) {
+          reject(error)
+        } else if (error) {
+          reject(new Error(String(error)))
+        } else {
+          reject(new Error('IndexedDB operation failed'))
         }
-      },
-    });
+      }
+
+      const cleanup = () => {
+        if (typeof request.removeEventListener === 'function') {
+          request.removeEventListener('success', onSuccess as EventListener)
+          request.removeEventListener('error', onError as EventListener)
+        }
+      }
+
+      if (typeof request.addEventListener === 'function') {
+        request.addEventListener('success', onSuccess as EventListener)
+        request.addEventListener('error', onError as EventListener)
+      }
+
+      request.onsuccess = onSuccess
+      request.onerror = onError
+
+      const readyState = (request as any).readyState
+      if (readyState === 'done') {
+        if ((request as any).error) {
+          onError()
+        } else {
+          onSuccess()
+        }
+      } else if ((request as any).error) {
+        onError()
+      }
+    })
   }
-  return dbPromise;
+
+  async init(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion)
+
+      request.onerror = () => {
+        reject(request.error)
+      }
+
+      request.onsuccess = () => {
+        this.db = request.result
+        resolve()
+      }
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result
+        const storeNames: any = db.objectStoreNames
+        const hasContains = typeof storeNames?.contains === 'function'
+        const hasStore = hasContains
+          ? storeNames.contains(this.storeName)
+          : Array.from(storeNames || []).includes(this.storeName)
+
+        if (!hasStore || !hasContains) {
+          const store = db.createObjectStore(this.storeName, { keyPath: 'id' })
+          store.createIndex('userId', 'userId')
+          store.createIndex('provider', 'provider')
+          store.createIndex('createdAt', 'createdAt')
+          store.createIndex('updatedAt', 'updatedAt')
+        }
+      }
+    })
+  }
+
+  private async getDB(): Promise<IDBDatabase> {
+    if (!this.db) {
+      await this.init()
+    }
+    return this.db!
+  }
+
+  private validateConversation(conversation: any): void {
+    if (!conversation.id || !conversation.title || !Array.isArray(conversation.messages)) {
+      throw new Error('Invalid conversation data')
+    }
+  }
+
+  async saveConversation(conversation: ConversationRecord): Promise<string> {
+    this.validateConversation(conversation)
+
+    const db = await this.getDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.storeName], 'readwrite')
+      const store = transaction.objectStore(this.storeName)
+
+      const request = store.put(conversation)
+
+      this.handleRequest(request, () => (request as any).result ?? conversation.id)
+        .then(resolve)
+        .catch(reject)
+    })
+  }
+
+  async getConversation(id: string): Promise<ConversationRecord | null> {
+    const db = await this.getDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.storeName], 'readonly')
+      const store = transaction.objectStore(this.storeName)
+      const request = store.get(id)
+
+      this.handleRequest(request, () => request.result || null)
+        .then(resolve)
+        .catch(reject)
+    })
+  }
+
+  async getAllConversations(): Promise<ConversationRecord[]> {
+    const db = await this.getDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.storeName], 'readonly')
+      const store = transaction.objectStore(this.storeName)
+      const request = store.getAll()
+
+      this.handleRequest(request, () => {
+        const conversations = request.result || []
+        conversations.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        return conversations
+      })
+        .then(resolve)
+        .catch(reject)
+    })
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    const db = await this.getDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.storeName], 'readwrite')
+      const store = transaction.objectStore(this.storeName)
+      const request = store.delete(id)
+
+      this.handleRequest(request, () => undefined)
+        .then(() => resolve())
+        .catch(reject)
+    })
+  }
+
+  async searchConversations(query: string): Promise<ConversationRecord[]> {
+    const conversations = await this.getAllConversations()
+    const lowerQuery = query.toLowerCase()
+
+    return conversations.filter(conv => {
+      if (conv.title.toLowerCase().includes(lowerQuery)) {
+        return true
+      }
+
+      return conv.messages.some(msg =>
+        msg.content && msg.content.toLowerCase().includes(lowerQuery)
+      )
+    })
+  }
+
+  async getConversationsByProvider(provider: string): Promise<ConversationRecord[]> {
+    const conversations = await this.getAllConversations()
+    return conversations.filter(conv => conv.provider === provider)
+  }
+
+  async getConversationStats(): Promise<ConversationStats> {
+    const conversations = await this.getAllConversations()
+
+    const totalMessages = conversations.reduce((sum, conv) => sum + conv.messages.length, 0)
+
+    const providerBreakdown: Record<string, number> = {}
+    conversations.forEach(conv => {
+      if (conv.provider) {
+        providerBreakdown[conv.provider] = (providerBreakdown[conv.provider] || 0) + 1
+      }
+    })
+
+    return {
+      totalConversations: conversations.length,
+      totalMessages,
+      providerBreakdown
+    }
+  }
+
+  async exportConversations(): Promise<ExportData> {
+    const conversations = await this.getAllConversations()
+
+    return {
+      conversations,
+      exportedAt: new Date(),
+      version: '1.0'
+    }
+  }
+
+  async importConversations(data: ImportConversationData): Promise<ImportResult> {
+    const result: ImportResult = {
+      imported: 0,
+      failed: 0,
+      skipped: 0,
+      errors: []
+    }
+
+    for (const conversation of data.conversations) {
+      try {
+        // Check for existing conversation
+        const existing = await this.getConversation(conversation.id)
+
+        if (existing && data.conflictResolution === 'skip') {
+          result.skipped++
+          result.errors.push('Conversation already exists')
+          continue
+        }
+
+        await this.saveConversation({
+          ...conversation,
+          userId: data.userId,
+          createdAt: conversation.createdAt || new Date(),
+          updatedAt: new Date()
+        })
+
+        result.imported++
+      } catch (error) {
+        result.failed++
+        result.errors.push(error instanceof Error ? error.message : 'Unknown error')
+      }
+    }
+
+    return result
+  }
+
+  async clearAllConversations(): Promise<void> {
+    const db = await this.getDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.storeName], 'readwrite')
+      const store = transaction.objectStore(this.storeName)
+      const request = store.clear()
+
+      this.handleRequest(request, () => undefined)
+        .then(() => resolve())
+        .catch(reject)
+    })
+  }
 }
 
-export async function saveConversation<T extends Conversation['type']>(
-  type: T,
-  title: string,
-  data: ConversationData<T>
-): Promise<string> {
-  const db = await getDB();
-  const id = `${type}_${Date.now()}`;
-  
-  // The object must conform to one of the types in the Conversation union
-  const conversationToSave: Conversation = {
-    id,
-    type,
+// Legacy functional exports for backward compatibility
+export async function saveConversation(type: string, title: string, data: any): Promise<string> {
+  const storage = new ConversationStorage()
+  const conversation: ConversationRecord = {
+    id: `${type}_${Date.now()}`,
     title,
-    timestamp: Date.now(),
-    data,
-  } as Conversation; // Cast is necessary because TypeScript can't infer the union type from the generic parameters alone
-
-  await db.put('conversations', conversationToSave);
-  
-  return id;
-}
-
-export async function getConversation(id: string): Promise<Conversation | undefined> {
-  const db = await getDB();
-  return db.get('conversations', id);
-}
-
-export async function getConversationsByType<T extends Conversation['type']>(type: T): Promise<Extract<Conversation, {type: T}>[]> {
-  const db = await getDB();
-  const results = await db.getAllFromIndex('conversations', 'by-type', type);
-  return results as Extract<Conversation, {type: T}>[];
-}
-
-export async function getAllConversations(): Promise<Conversation[]> {
-  const db = await getDB();
-  return db.getAll('conversations');
-}
-
-export async function deleteConversation(id: string): Promise<void> {
-  const db = await getDB();
-  return db.delete('conversations', id);
-}
-
-export async function updateConversation(
-  id: string, 
-  updates: Partial<Omit<Conversation, 'id'>>
-): Promise<void> {
-  const db = await getDB();
-  const conversation = await db.get('conversations', id);
-  
-  if (!conversation) {
-    throw new Error(`Conversation with ID ${id} not found`);
+    messages: data.messages || [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    provider: data.provider,
+    model: data.model
   }
-  
-  const updatedConversation: Conversation = {
-    ...conversation,
-    ...updates,
-    timestamp: updates.timestamp || Date.now(),
-  };
+  return storage.saveConversation(conversation)
+}
 
-  await db.put('conversations', updatedConversation);
+export async function getAllConversations(): Promise<ConversationRecord[]> {
+  const storage = new ConversationStorage()
+  return storage.getAllConversations()
 }

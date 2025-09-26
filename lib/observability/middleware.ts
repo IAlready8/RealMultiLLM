@@ -3,12 +3,7 @@
 import { NextRequest, NextFetchEvent } from 'next/server';
 import { logger } from '@/lib/observability/logger';
 import { globalTracer } from '@/lib/observability/tracing';
-import { 
-  httpRequestsTotal, 
-  httpRequestDuration,
-  activeConnections
-} from '@/lib/observability/metrics';
-import { performanceMonitor } from '@/lib/performance-monitor';
+import { monitoring } from '@/lib/monitoring';
 
 // Simple UUID generator for browsers
 function generateUUID(): string {
@@ -49,9 +44,6 @@ export async function observabilityMiddleware(
   // Create observability context
   const context = createObservabilityContext();
   
-  // Increment active connections
-  activeConnections.inc(1);
-  
   // Start span for the request
   const span = globalTracer.startSpan(`HTTP ${request.method} ${request.nextUrl.pathname}`);
   
@@ -71,27 +63,14 @@ export async function observabilityMiddleware(
       userAgent: request.headers.get('user-agent'),
     });
     
-    // Increment request counter
-    httpRequestsTotal.inc(1);
-    
     // Process the request
     const response = await next();
     
     // Calculate duration
-    const duration = (Date.now() - context.startTime) / 1000; // in seconds
+    const duration = Date.now() - context.startTime;
     
-    // Update metrics
-    (httpRequestsTotal as any).attributes = {
-      method: request.method || 'unknown',
-      status: response.status.toString()
-    };
-    
-    (httpRequestDuration as any).attributes = {
-      method: request.method || 'unknown',
-      status: response.status.toString()
-    };
-    
-    httpRequestDuration.observe(duration);
+    // Record request in monitoring
+    monitoring.recordRequest(request.method, request.nextUrl.pathname, response.status, duration);
     
     // Update span status
     span.setAttribute('http.status_code', response.status);
@@ -102,27 +81,17 @@ export async function observabilityMiddleware(
       method: request.method,
       url: request.nextUrl.pathname,
       status: response.status,
-      duration: `${duration.toFixed(3)}s`,
+      duration: `${(duration / 1000).toFixed(3)}s`,
       traceId: context.traceId,
     });
     
     return response;
   } catch (error: any) {
     // Calculate duration
-    const duration = (Date.now() - context.startTime) / 1000; // in seconds
+    const duration = Date.now() - context.startTime;
     
-    // Update metrics for error
-    (httpRequestsTotal as any).attributes = {
-      method: request.method || 'unknown',
-      status: '500'
-    };
-    
-    (httpRequestDuration as any).attributes = {
-      method: request.method || 'unknown',
-      status: '500'
-    };
-    
-    httpRequestDuration.observe(duration);
+    // Record request in monitoring
+    monitoring.recordRequest(request.method, request.nextUrl.pathname, 500, duration);
     
     // Update span status for error
     span.setAttribute('http.status_code', 500);
@@ -137,7 +106,7 @@ export async function observabilityMiddleware(
       url: request.nextUrl.pathname,
       error: error.message,
       stack: error.stack,
-      duration: `${duration.toFixed(3)}s`,
+      duration: `${(duration / 1000).toFixed(3)}s`,
       traceId: context.traceId,
     });
     
@@ -146,9 +115,6 @@ export async function observabilityMiddleware(
   } finally {
     // End the span
     span.end();
-    
-    // Decrement active connections
-    activeConnections.dec(1);
   }
 }
 
@@ -164,9 +130,6 @@ export function observabilityApiMiddleware(req: any, res: any, next: any): void 
     spanId,
     startTime
   };
-  
-  // Increment active connections
-  activeConnections.inc(1);
   
   // Start span for the request
   const span = globalTracer.startSpan(`HTTP ${req.method} ${req.url}`);
@@ -186,68 +149,31 @@ export function observabilityApiMiddleware(req: any, res: any, next: any): void 
     userAgent: req.get('User-Agent'),
   });
   
-  // Increment request counter
-  httpRequestsTotal.inc(1);
-  
   // Hook into response finish to collect metrics
-  const originalSend = res.send;
-  res.send = function(body: any) {
-    // Calculate duration
-    const duration = (Date.now() - startTime) / 1000; // in seconds
-    
-    // Update metrics
-    (httpRequestsTotal as any).attributes = {
-      method: req.method,
-      status: res.statusCode.toString()
-    };
-    
-    (httpRequestDuration as any).attributes = {
-      method: req.method,
-      status: res.statusCode.toString()
-    };
-    
-    httpRequestDuration.observe(duration);
-    
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    monitoring.recordRequest(req.method, req.url, res.statusCode, duration);
+
     // Update span status
     span.setAttribute('http.status_code', res.statusCode);
     span.setStatus({ code: 'OK' });
     span.end();
-    
+
     // Log the response
     logger.info('API request completed', {
       method: req.method,
       url: req.url,
       status: res.statusCode,
-      duration: `${duration.toFixed(3)}s`,
+      duration: `${(duration / 1000).toFixed(3)}s`,
       traceId,
     });
-    
-    // Decrement active connections
-    activeConnections.dec(1);
-    
-    // Call original send
-    return originalSend.call(this, body);
-  };
-  
+  });
+
   // Handle errors
-  const originalOnError = res.onError;
-  res.onError = function(error: any) {
-    // Calculate duration
-    const duration = (Date.now() - startTime) / 1000; // in seconds
-    
-    // Update metrics for error
-    (httpRequestsTotal as any).attributes = {
-      method: req.method,
-      status: '500'
-    };
-    
-    (httpRequestDuration as any).attributes = {
-      method: req.method,
-      status: '500'
-    };
-    
-    httpRequestDuration.observe(duration);
-    
+  res.on('error', (error: any) => {
+    const duration = Date.now() - startTime;
+    monitoring.recordRequest(req.method, req.url, 500, duration);
+
     // Update span status for error
     span.setAttribute('http.status_code', 500);
     span.setStatus({ 
@@ -255,25 +181,17 @@ export function observabilityApiMiddleware(req: any, res: any, next: any): void 
       message: error.message 
     });
     span.end();
-    
+
     // Log the error
     logger.error('API request failed', {
       method: req.method,
       url: req.url,
       error: error.message,
       stack: error.stack,
-      duration: `${duration.toFixed(3)}s`,
+      duration: `${(duration / 1000).toFixed(3)}s`,
       traceId,
     });
-    
-    // Decrement active connections
-    activeConnections.dec(1);
-    
-    // Call original onError if it exists
-    if (originalOnError) {
-      return originalOnError.call(this, error);
-    }
-  };
+  });
   
   // Continue to next middleware
   next();

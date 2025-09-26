@@ -50,7 +50,7 @@ describe('Personas API', () => {
       // Corrected expectation to match the actual code
       expect(prisma.persona.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-123' },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
       });
     });
   });

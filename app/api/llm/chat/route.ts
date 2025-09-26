@@ -10,7 +10,7 @@ import {
   executeWithCircuitBreaker,
   CircuitBreakerError
 } from '@/lib/api'
-import { processSecurityRequest } from '@/lib/security'
+import { processSecurityRequest, sanitizeInput } from '@/lib/security'
 import { logger } from '@/lib/observability/logger'
 import { 
   metricsRegistry 
@@ -86,23 +86,40 @@ export async function POST(request: Request) {
     const { messages, provider, options } = body;
     const log = logger.child({ userId });
 
-    // Execute with circuit breaker protection
-    const response = await executeWithCircuitBreaker(
-      provider, // Use provider name instead of endpoint
-      () => callLLMApi({
-        provider,
-        messages,
-        userId,
-        ...options
-      }),
-      {
-        failureThreshold: 3,
-        successThreshold: 2,
-        timeout: 30000, // 30 seconds
-        resetTimeout: 60000, // 1 minute
-        monitoringWindow: 300000, // 5 minutes
-        expectedFailureRate: 0.1
-      }
+    // Sanitize messages
+    const sanitizedMessages = messages.map((message: any) => ({
+      ...message,
+      content: sanitizeInput(message.content),
+    }));
+
+    // Generate request ID for tracking
+    const requestId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Apply request deduplication for identical requests
+    const { requestDeduplicator } = await import('@/lib/request-deduplication');
+    const response = await requestDeduplicator.deduplicate(
+      userId,
+      provider,
+      sanitizedMessages,
+      options,
+      () => executeWithCircuitBreaker(
+        provider, // Use provider name instead of endpoint
+        () => callLLMApi({
+          provider,
+          messages: sanitizedMessages,
+          userId,
+          ...options
+        }),
+        {
+          failureThreshold: 3,
+          successThreshold: 2,
+          timeout: 30000, // 30 seconds
+          resetTimeout: 60000, // 1 minute
+          monitoringWindow: 300000, // 5 minutes
+          expectedFailureRate: 0.1
+        }
+      ),
+      requestId
     );
 
     const ms = Date.now() - startTime;
@@ -123,6 +140,25 @@ export async function POST(request: Request) {
     );
 
     log.info('llm.chat.success', { ms });
+
+    // Track API key usage for lifecycle management (non-blocking)
+    import('@/lib/api-key-tracker').then(({ trackApiKeyUsage }) => {
+      trackApiKeyUsage({
+        userId,
+        provider,
+        success: true,
+        timestamp: new Date()
+      });
+    });
+
+    // Invalidate analytics cache for real-time data (non-blocking)
+    import('@/lib/smart-cache-invalidator').then(({ smartCacheInvalidator }) => {
+      smartCacheInvalidator.invalidateByEvent('llm_request', {
+        userId,
+        provider,
+        model: options?.model || 'default'
+      });
+    });
 
     // Record success metrics
     const successMetric = metricsRegistry.registerCounter(
@@ -183,6 +219,24 @@ export async function POST(request: Request) {
 
     if (!isTest) {
       logger.error('llm.chat.error', { error, ms });
+
+      // Queue error for async processing (non-blocking)
+      import('@/lib/async-error-processor').then(({ asyncErrorProcessor }) => {
+        const errorLevel = error?.statusCode >= 500 ? 'critical' : 'error';
+        asyncErrorProcessor.queueError(
+          error,
+          errorLevel,
+          'llm.chat.endpoint',
+          {
+            provider: provider || 'unknown',
+            model: options?.model || 'default',
+            responseTime: ms,
+            userId,
+            requestId
+          },
+          userId
+        );
+      });
     }
 
     // Record error metrics

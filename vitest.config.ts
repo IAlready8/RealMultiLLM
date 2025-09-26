@@ -17,6 +17,7 @@ export default defineConfig({
     },
     exclude: [
       'node_modules/**',
+      'node_modules.nosync/**',
       'dist/**',
       '.next/**',
       'coverage/**',
@@ -29,6 +30,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       exclude: [
         'node_modules/',
+        'node_modules.nosync/',
         'test/',
         '**/*.d.ts',
         '**/*.config.*',
@@ -40,6 +42,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@/api': path.resolve(__dirname, './app/api'),
       '@': path.resolve(__dirname, './'),
     },
   },

@@ -70,11 +70,6 @@ Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
 })
 
-// Mock ThemeProvider to avoid matchMedia errors in tests
-vi.mock('@/components/theme-provider', () => ({
-  ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
 // Mock the Slider component to avoid ResizeObserver errors
 vi.mock('@/components/ui/slider', () => ({
   Slider: ({ value, onValueChange, ...props }: { value: number[], onValueChange: (value: number[]) => void }) => (

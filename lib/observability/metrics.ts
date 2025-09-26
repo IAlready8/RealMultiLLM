@@ -1,7 +1,10 @@
 // Browser-compatible Metrics Collection System for Observability
 
-// Import only browser-compatible modules
-import { performanceMonitor } from '@/lib/performance-monitor';
+import { monitoring } from '@/lib/monitoring';
+
+/**
+ * @deprecated This module is deprecated. Use the `monitoring` singleton from '@/lib/monitoring' instead.
+ */
 
 export interface MetricAttributes {
   [key: string]: string | number | boolean;
@@ -42,9 +45,7 @@ export class Counter extends Metric {
 
   inc(value: number = 1): void {
     this.value += value;
-    // In a real implementation, we would send metrics to a backend service
-    // For now, we'll just record with performanceMonitor
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes as any);
+    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'count');
   }
 
   getValue(): number {
@@ -65,18 +66,17 @@ export class Gauge extends Metric {
 
   set(value: number): void {
     this.value = value;
-    // In a real implementation, we would send metrics to a backend service
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes as any);
+    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'gauge');
   }
 
   inc(value: number = 1): void {
     this.value += value;
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes as any);
+    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'gauge');
   }
 
   dec(value: number = 1): void {
     this.value -= value;
-    performanceMonitor.recordMetric(this.name, this.value, this.attributes);
+    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'gauge');
   }
 
   getValue(): number {
@@ -115,26 +115,7 @@ export class Histogram extends Metric {
       }
     }
 
-    // Record metrics for observability
-    performanceMonitor.recordMetric(`${this.name}_sum`, this.sum, this.attributes as any);
-    performanceMonitor.recordMetric(`${this.name}_count`, this.count, this.attributes as any);
-    
-    // Record individual bucket counts
-    for (const bucket of this.buckets) {
-      if (isFinite(bucket.le)) {
-        performanceMonitor.recordMetric(
-          `${this.name}_bucket_le_${bucket.le}`, 
-          bucket.count, 
-          this.attributes as any
-        );
-      } else {
-        performanceMonitor.recordMetric(
-          `${this.name}_bucket_le_inf`, 
-          bucket.count, 
-          this.attributes as any
-        );
-      }
-    }
+    monitoring.recordMetric(this.name, value, this.attributes as any, 'histogram');
   }
 
   getHistogramData(): HistogramData {
@@ -146,6 +127,9 @@ export class Histogram extends Metric {
   }
 }
 
+/**
+ * @deprecated This class is deprecated. Use the `monitoring` singleton from '@/lib/monitoring' instead.
+ */
 export class MetricsRegistry {
   private metrics: Map<string, Metric> = new Map();
 
@@ -210,16 +194,20 @@ export class MetricsRegistry {
   }
 }
 
-// Global metrics registry
+/**
+ * @deprecated This registry is deprecated. Use the `monitoring` singleton from '@/lib/monitoring' instead.
+ */
 export const metricsRegistry = new MetricsRegistry();
 
 // Predefined common metrics
+/** @deprecated */
 export const httpRequestsTotal = metricsRegistry.registerCounter(
   'http_requests_total',
   'Total number of HTTP requests',
   { method: 'unknown', status: 'unknown' }
 );
 
+/** @deprecated */
 export const httpRequestDuration = metricsRegistry.registerHistogram(
   'http_request_duration_seconds',
   'HTTP request duration in seconds',
@@ -227,12 +215,14 @@ export const httpRequestDuration = metricsRegistry.registerHistogram(
   { method: 'unknown', status: 'unknown' }
 );
 
+/** @deprecated */
 export const llmRequestsTotal = metricsRegistry.registerCounter(
   'llm_requests_total',
   'Total number of LLM requests',
   { provider: 'unknown', model: 'unknown' }
 );
 
+/** @deprecated */
 export const llmRequestDuration = metricsRegistry.registerHistogram(
   'llm_request_duration_seconds',
   'LLM request duration in seconds',
@@ -240,17 +230,20 @@ export const llmRequestDuration = metricsRegistry.registerHistogram(
   { provider: 'unknown', model: 'unknown' }
 );
 
+/** @deprecated */
 export const llmTokensTotal = metricsRegistry.registerCounter(
   'llm_tokens_total',
   'Total number of tokens used',
   { provider: 'unknown', model: 'unknown', type: 'unknown' }
 );
 
+/** @deprecated */
 export const activeConnections = metricsRegistry.registerGauge(
   'active_connections',
   'Number of active connections'
 );
 
+/** @deprecated */
 export const memoryUsage = metricsRegistry.registerGauge(
   'memory_usage_bytes',
   'Memory usage in bytes',
@@ -258,29 +251,8 @@ export const memoryUsage = metricsRegistry.registerGauge(
 );
 
 // Utility function to create HTTP middleware for metrics collection
+/** @deprecated */
 export function metricsMiddleware(req: any, res: any, next: any): void {
-  const startTime = Date.now();
-  
-  res.on('finish', () => {
-    const duration = (Date.now() - startTime) / 1000; // Convert to seconds
-    
-    // Record request count
-    httpRequestsTotal.inc(1);
-    
-    // Record request duration
-    httpRequestDuration.observe(duration);
-    
-    // Update attributes with actual values
-    (httpRequestsTotal as any).attributes = {
-      method: req.method,
-      status: res.statusCode.toString()
-    };
-    
-    (httpRequestDuration as any).attributes = {
-      method: req.method,
-      status: res.statusCode.toString()
-    };
-  });
-  
+  console.warn('metricsMiddleware is deprecated. Use observabilityMiddleware instead.');
   next();
 }

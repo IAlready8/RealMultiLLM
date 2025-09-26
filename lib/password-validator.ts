@@ -25,12 +25,12 @@ export interface PasswordStrength {
 const COMMON_PASSWORDS = new Set([
   'password', '123456', '123456789', 'qwerty', 'abc123', 'password123',
   'admin', 'root', 'user', 'test', 'guest', 'demo', '111111', '000000',
-  'welcome', 'login', 'passw0rd', 'p@ssword', 'pa$$word'
+  'welcome', 'login', 'passw0rd', 'p@ssword', 'pa$word'
 ]);
 
 // Common keyboard patterns
 const KEYBOARD_PATTERNS = [
-  'qwerty', 'asdf', 'zxcv', '1234', '!@#$', 'qaz', 'wsx', 'edc'
+  'qwerty', 'asdf', 'zxcv', '1234', '!@#, 'qaz', 'wsx', 'edc'
 ];
 
 // Sequential patterns
@@ -77,6 +77,7 @@ export function validatePasswordStrength(
   password: string,
   personalInfo?: { name?: string; email?: string; username?: string }
 ): PasswordStrength {
+  console.log(`Validating password: ${password}`);
   const requirements = {
     length: password.length >= (isProduction() ? 14 : 8),
     uppercase: /[A-Z]/.test(password),
@@ -144,6 +145,8 @@ export function validatePasswordStrength(
   } else if (score >= 60) {
     feedback.unshift("Good password, but could be stronger.");
   }
+
+  console.log(`Password: ${password}, Score: ${score}, Level: ${level}`);
 
   return {
     score: Math.min(100, score),

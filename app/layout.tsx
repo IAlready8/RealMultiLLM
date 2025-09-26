@@ -1,17 +1,12 @@
 
 import type { Metadata } from "next";
-import { Inter } from 'next/font/google';
 import "./globals.css";
 import Navbar from "@/components/navbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { AuthGuard } from "@/components/auth-guard";
 
-const inter = Inter({ 
-  subsets: ["latin"],
-  display: 'swap', // Optimize font loading
-  preload: true,
-});
+const inter = { className: 'font-sans' };
 
 export const metadata: Metadata = {
   title: "MultiLLM Chat Assistant",

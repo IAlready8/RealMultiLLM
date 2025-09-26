@@ -29,6 +29,10 @@ vi.mock('@/components/export-import-dialog', () => ({
 }))
 
 describe('Settings Page', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+  let configuredProvidersResponse: string[]
+  let openRouterModelsResponse: any[]
+
   beforeEach(() => {
     vi.clearAllMocks()
     // Reset localStorage
@@ -40,62 +44,110 @@ describe('Settings Page', () => {
         clear: vi.fn(),
       },
     })
-    
+
+    configuredProvidersResponse = []
+    openRouterModelsResponse = []
+    fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url
+
+      if (url.includes('/api/config') && (!init?.method || init.method === 'GET')) {
+        return {
+          ok: true,
+          json: async () => ({ configuredProviders: configuredProvidersResponse })
+        } as Response
+      }
+
+      if (url.includes('/api/config') && init?.method === 'POST') {
+        const body = typeof init.body === 'string' ? JSON.parse(init.body) : init.body ?? {}
+        const provider = (body as Record<string, string>)?.provider
+        if (provider && !configuredProvidersResponse.includes(provider)) {
+          configuredProvidersResponse = [...configuredProvidersResponse, provider]
+        }
+
+        return {
+          ok: true,
+          json: async () => ({ success: true })
+        } as Response
+      }
+
+      if (url.includes('/api/openrouter/models')) {
+        return {
+          ok: true,
+          json: async () => ({ data: openRouterModelsResponse })
+        } as Response
+      }
+
+      return {
+        ok: true,
+        json: async () => ({})
+      } as Response
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
     // Suppress console warnings for cleaner test output
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
   
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
-  it('renders all main sections', () => {
+  it('renders all main sections', async () => {
     render(<SettingsPage />)
-    
-    expect(screen.getByRole('heading', { name: /configuration & analytics/i })).toBeInTheDocument()
-    expect(screen.getByText(/manage your api keys, model settings, and view usage statistics/i)).toBeInTheDocument()
-    
+
+    expect(await screen.findByRole('heading', { name: /configuration & analytics/i })).toBeInTheDocument()
+    expect(await screen.findByText(/manage your api keys, model settings, and view usage statistics/i)).toBeInTheDocument()
+
     // Check for all tabs
-    expect(screen.getByRole('tab', { name: /api keys/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /model settings/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /analytics/i })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /export\/import/i })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /api keys/i })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /model settings/i })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /analytics/i })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: /export\/import/i })).toBeInTheDocument()
   })
 
-  it('displays all supported providers in API Keys tab', () => {
+  it('displays all supported providers in API Keys tab', async () => {
     render(<SettingsPage />)
-    
+
     const providers = ['OpenAI', 'OpenRouter', 'Claude', 'Google AI', 'Llama', 'GitHub', 'Grok']
-    
-    providers.forEach(provider => {
-      expect(screen.getByText(`${provider} API Key`)).toBeInTheDocument()
-    })
+
+    for (const provider of providers) {
+      expect(await screen.findByText(`${provider} API Key`)).toBeInTheDocument()
+    }
   })
 
   it('allows saving API keys', async () => {
     const user = userEvent.setup()
-    const mod = await import('@/lib/secure-storage')
-    vi.spyOn(mod, 'setStoredApiKey')
-    
+
     render(<SettingsPage />)
-    
-    const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg') as HTMLElement
+
+    const openAICard = screen.getByTestId('api-card-openai')
     const openaiInput = within(openAICard).getByPlaceholderText('Enter your OpenAI API key')
     const saveButton = within(openAICard).getByRole('button', { name: /save/i })
-    
+
     await user.type(openaiInput, 'sk-test123')
     await user.click(saveButton)
-    
+
     await waitFor(() => {
-      expect(mod.setStoredApiKey).toHaveBeenCalledWith('openai', 'sk-test123')
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('/api/config'),
+        expect.objectContaining({ method: 'POST' })
+      )
+      expect(within(openAICard).getByText(/api key is configured/i)).toBeInTheDocument()
     })
   })
 
-  it('shows API key status indicators', () => {
+  it('shows API key status indicators', async () => {
     render(<SettingsPage />)
-    
-    const statusMessages = screen.getAllByText(/no api key configured/i)
-    expect(statusMessages).toHaveLength(7) // 7 providers (includes OpenRouter)
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/no api key configured/i)).toHaveLength(7) // 7 providers (includes OpenRouter)
+    })
   })
 
   it('switches to model settings tab and shows provider configurations', async () => {
@@ -213,13 +265,12 @@ describe('Settings Page', () => {
   })
 
   it('displays success indicators when API keys are configured', async () => {
-    const mod = await import('@/lib/secure-storage')
-    vi.spyOn(mod, 'getStoredApiKey').mockResolvedValue('sk-test123' as any)
-    
+    configuredProvidersResponse = ['openai']
+
     render(<SettingsPage />)
-    
+
     await waitFor(() => {
-      const openAICard = screen.getByText('OpenAI API Key').closest('div.rounded-lg') as HTMLElement
+      const openAICard = screen.getByTestId('api-card-openai')
       expect(within(openAICard).getByText(/api key is configured/i)).toBeInTheDocument()
     })
   })

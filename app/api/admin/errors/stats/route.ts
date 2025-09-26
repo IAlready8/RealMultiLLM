@@ -7,15 +7,13 @@ import { unauthorized, internalError, badRequest } from '@/lib/http'
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions)
 
-  // Check if user is admin (implement your admin check logic)
   if (!session?.user?.id) {
     return unauthorized()
   }
 
-  // TODO: Add proper admin role checking
-  // if (!isAdmin(session.user)) {
-  //   return unauthorized()
-  // }
+  if (session.user.role !== 'ADMIN') {
+    return unauthorized('Forbidden');
+  }
 
   try {
     const { from, to } = await request.json()
