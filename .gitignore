@@ -4,9 +4,12 @@
 /node_modules
 /.pnp
 .pnp.js
+/node_modules.nosync
 
 # Testing
 /coverage
+/test.db
+/test.db-journal
 
 # Next.js
 /.next/
@@ -14,77 +17,75 @@
 
 # Production
 /build
+/dist
 
 # Misc
 .DS_Store
 *.pem
+*.swp
+*.swo
 
-# Local Environment Variables
+# Environment Variables (CRITICAL - Never commit these!)
 .env
 .env.local
 .env.development.local
 .env.test.local
+.env.production
 .env.production.local
+.env.secrets
+.env.*.local
 
-# Local Database
+# Database Files
 /prisma/dev.db
 /prisma/dev.db-journal
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/**/dev.db
+/prisma/**/dev.db-journal
+*.db
+*.db-journal
 
 # Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-tsconfig.tsbuildinfo
-
-# build
-tsconfig.tsbuildinfo
-# local db
-prisma/dev.db
-# env
-.env
-
-# build
-tsconfig.tsbuildinfo
-# local db
-prisma/dev.db
-# env
-.env
-
-
-
-
-
-# 1) Tighten .gitignore
-cat > .gitignore <<'EOF'
-# OS/editor
-.DS_Store
-*.swp
-
-*.swo
-# Next.js builds
-.next
-out
-
-# Env
-.env
-.env.*.local
-.env.local
-
-# Prisma local DBs
-prisma/*.db
-prisma/*.db-journal
-prisma/**/dev.db
-prisma/**/dev.db-journal
-
-# Logs and caches
 *.log
+/logs
+build.log
+
+# TypeScript
 *.tsbuildinfo
-EOF
+tsconfig.tsbuildinfo
+next-env.d.ts
 
-# 2) Untrack local-only files from git history index (keep local copies)
-git rm -r --cached -- .DS_Store "*.swp" "*.swo" || true
-git rm -r --cached -- prisma/*.db prisma/*.db-journal prisma/**/dev.db prisma/**/dev.db-journal || true
-git rm -r --cached -- build.log || true
+# IDE
+.vscode/
+.idea/
+*.iml
 
-git add .gitignore
-git commit -m "chore: ignore local DBs, OS/editor files, logs; untrack generated files"
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp
+*.tmp
+*.temp
+
+# Python (if used)
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+/venv
+/env
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Secrets and credentials (extra safety)
+secrets.json
+credentials.json
+serviceAccountKey.json
