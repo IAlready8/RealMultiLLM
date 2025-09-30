@@ -124,16 +124,16 @@ export function MobileMenu({
       handleOpenChange(false);
     };
 
-    const Content = (
-      <a className={classNames} onClick={handleClick} data-nav-item>
+    return (
+      <Link 
+        key={item.href} 
+        href={item.href} 
+        className={classNames} 
+        onClick={handleClick}
+        data-nav-item
+      >
         {IconComponent ? <IconComponent className="h-4 w-4" /> : null}
         <span>{item.label}</span>
-      </a>
-    );
-
-    return (
-      <Link key={item.href} href={item.href} legacyBehavior>
-        {Content}
       </Link>
     );
   };

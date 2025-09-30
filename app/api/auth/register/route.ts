@@ -14,9 +14,10 @@ export async function POST(request: NextRequest) {
   
   try {
     // Rate limiting for registration attempts
-    // Skip rate limiting in test runs to avoid flakiness in validation tests
+    // Skip rate limiting ONLY in legitimate test environments (both VITEST and NODE_ENV must be set)
     const rateLimitKey = `registration:ip:${clientIP}`;
-    const rateLimitResult = (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test') ?
+    const isLegitimateTest = process.env.VITEST === 'true' && process.env.NODE_ENV === 'test';
+    const rateLimitResult = isLegitimateTest ?
       { isBlocked: false, msBeforeNext: 0 } :
       await enterpriseRateLimiter.checkRateLimit(
       rateLimitKey,
