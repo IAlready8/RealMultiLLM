@@ -10,8 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlusCircle, Trash2, Play, Edit, Loader2, Terminal } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
-// import { sendChatMessage } from "@/services/api-service"; // Removed direct import
-import { useToast } from "@/components/ui/use-toast"; // Import useToast
+import { useToast } from "@/components/ui/use-toast";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface PipelineStep {
   id: string;
