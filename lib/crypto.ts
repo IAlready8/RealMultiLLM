@@ -259,3 +259,7 @@ export async function decryptApiKey(encryptedApiKey: string, provider: string = 
     return encryptedApiKey;
   }
 }
+
+// Aliases for test compatibility
+export const encryptData = encrypt;
+export const decryptData = decrypt;
