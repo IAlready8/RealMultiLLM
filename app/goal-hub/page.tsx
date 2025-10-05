@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, PlusCircle, Trash2, XCircle, Loader2, AlertTriangle, Target } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CardSkeleton } from "@/components/ui/skeleton";
 
 interface Goal {
   id: string;
@@ -214,9 +216,16 @@ export default function GoalHub() {
 
   if (status === "loading" || isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)]">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-        <p className="ml-2 text-gray-500">Loading goals...</p>
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Goal Hub</h1>
+          <p className="text-gray-400">Loading your goals...</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -315,10 +324,14 @@ export default function GoalHub() {
           </h2>
           <div className="space-y-4">
             {pendingGoals.length === 0 ? (
-              <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6 text-center">
-                <Target className="h-12 w-12 mx-auto text-gray-500 mb-3" />
-                <p className="text-gray-400">No pending goals. Time to set some!</p>
-              </div>
+              <EmptyState
+                icon={Target}
+                title="No pending goals"
+                description="Start your journey by creating your first goal. Break down big ambitions into achievable milestones."
+                actionLabel="Create Your First Goal"
+                onAction={() => setIsAddGoalDialogOpen(true)}
+                className="py-8"
+              />
             ) : (
               pendingGoals.map((goal) => (
                 <Card key={goal.id} className="bg-gray-900 border-gray-800 hover:border-gray-700 transition-colors">
@@ -355,8 +368,9 @@ export default function GoalHub() {
           <div className="space-y-4">
             {completedGoals.length === 0 ? (
               <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6 text-center">
-                <CheckCircle className="h-12 w-12 mx-auto text-gray-500 mb-3" />
-                <p className="text-gray-400">No completed goals yet. Keep going!</p>
+                <CheckCircle className="h-12 w-12 mx-auto text-green-500/30 mb-3" />
+                <p className="text-gray-400 font-medium mb-1">No completed goals yet</p>
+                <p className="text-sm text-gray-500">Keep working on your goals - you'll see them here when completed! 🎯</p>
               </div>
             ) : (
               completedGoals.map((goal) => (

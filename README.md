@@ -28,11 +28,15 @@ Multi‑LLM platform with chat, personas, analytics, model comparison, pipelines
 See `ARCHITECTURE.md` for full details.
 
 ## Documentation
-- Roadmap: `ROADMAP.md`
-- Design System: `DESIGN_SYSTEM.md`
-- API/Components Guide: `DOCUMENTATION.md`
-- Status: `STATUS_UPDATE.md`
-- Agents/Contrib Guide: `init/AGENTS.md`
+- **Setup Guide**: `SETUP.md` - Complete installation and configuration
+- **API Routes**: `docs/API_ROUTES.md` - Full API endpoint documentation  
+- **API Providers**: `docs/API_PROVIDERS.md` - LLM provider details
+- **Keyboard Shortcuts**: `docs/KEYBOARD_SHORTCUTS.md` - All keyboard shortcuts
+- Roadmap: `ROADMAP.md` - Project roadmap and phases
+- Design System: `DESIGN_SYSTEM.md` - UI/UX guidelines
+- API/Components Guide: `DOCUMENTATION.md` - Component documentation
+- Status: `STATUS_UPDATE.md` - Current project status
+- Agents/Contrib Guide: `init/AGENTS.md` - Contributing guidelines
 
 ## Database
 - Local: SQLite via Prisma (schema in `prisma/schema.prisma`)
