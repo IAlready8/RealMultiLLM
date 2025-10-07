@@ -3,29 +3,41 @@ import { GET, POST } from '@/api/analytics/route'
 import { NextRequest } from 'next/server'
 
 // Mock analytics service
-const mockAnalyticsService = {
-  trackEvent: vi.fn(),
-  getAnalytics: vi.fn(),
-  getUserAnalytics: vi.fn(),
-  getSystemMetrics: vi.fn(),
-}
-
 vi.mock('@/services/analytics-service', () => ({
-  AnalyticsService: vi.fn().mockImplementation(() => mockAnalyticsService),
+  AnalyticsService: vi.fn().mockImplementation(() => ({
+    trackEvent: vi.fn(),
+    getAnalytics: vi.fn(),
+    getUserAnalytics: vi.fn(),
+    getSystemMetrics: vi.fn(),
+  })),
 }))
 
 // Mock authentication
-const mockAuth = {
-  getServerSession: vi.fn(),
-}
-
 vi.mock('next-auth', () => ({
-  getServerSession: mockAuth.getServerSession,
+  getServerSession: vi.fn(),
 }))
 
+// Import mocked modules
+import { getServerSession } from 'next-auth'
+import { AnalyticsService } from '@/services/analytics-service'
+
 describe('/api/analytics', () => {
+  let mockAnalyticsService: {
+    trackEvent: ReturnType<typeof vi.fn>
+    getAnalytics: ReturnType<typeof vi.fn>
+    getUserAnalytics: ReturnType<typeof vi.fn>
+    getSystemMetrics: ReturnType<typeof vi.fn>
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
+    // Get the mock instance
+    mockAnalyticsService = (AnalyticsService as unknown as ReturnType<typeof vi.fn>).mock.results[0]?.value || {
+      trackEvent: vi.fn(),
+      getAnalytics: vi.fn(),
+      getUserAnalytics: vi.fn(),
+      getSystemMetrics: vi.fn(),
+    }
   })
 
   afterEach(() => {
@@ -52,7 +64,7 @@ describe('/api/analytics', () => {
         ]
       }
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
       mockAnalyticsService.getUserAnalytics.mockResolvedValue(mockAnalyticsData)
 
       const request = new NextRequest('http://localhost:3000/api/analytics')
@@ -84,7 +96,7 @@ describe('/api/analytics', () => {
       const url = new URL('http://localhost:3000/api/analytics?type=system')
       const request = new NextRequest(url)
 
-      mockAuth.getServerSession.mockResolvedValue(mockAdminSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockAdminSession)
       mockAnalyticsService.getSystemMetrics.mockResolvedValue(mockSystemAnalytics)
 
       const response = await GET(request)
@@ -109,7 +121,7 @@ describe('/api/analytics', () => {
         dateRange: { start: '2024-01-01', end: '2024-01-31' }
       }
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
       mockAnalyticsService.getUserAnalytics.mockResolvedValue(mockFilteredData)
 
       const response = await GET(request)
@@ -127,7 +139,7 @@ describe('/api/analytics', () => {
     })
 
     it('should return 401 for unauthenticated requests', async () => {
-      mockAuth.getServerSession.mockResolvedValue(null)
+      vi.mocked(getServerSession).mockResolvedValue(null)
 
       const request = new NextRequest('http://localhost:3000/api/analytics')
       const response = await GET(request)
@@ -145,7 +157,7 @@ describe('/api/analytics', () => {
       const url = new URL('http://localhost:3000/api/analytics?type=system')
       const request = new NextRequest(url)
 
-      mockAuth.getServerSession.mockResolvedValue(mockUserSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockUserSession)
 
       const response = await GET(request)
 
@@ -170,7 +182,7 @@ describe('/api/analytics', () => {
         }
       }
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
       mockAnalyticsService.trackEvent.mockResolvedValue({ success: true })
 
       const request = new NextRequest('http://localhost:3000/api/analytics', {
@@ -202,7 +214,7 @@ describe('/api/analytics', () => {
         { event: 'test', properties: 'invalid' }, // Invalid properties type
       ]
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
 
       for (const invalidEvent of invalidEvents) {
         const request = new NextRequest('http://localhost:3000/api/analytics', {
@@ -229,7 +241,7 @@ describe('/api/analytics', () => {
         properties: { test: 'data' }
       }
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
       mockAnalyticsService.trackEvent.mockRejectedValue(new Error('Analytics service error'))
 
       const request = new NextRequest('http://localhost:3000/api/analytics', {
@@ -259,7 +271,7 @@ describe('/api/analytics', () => {
         }
       }
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
       mockAnalyticsService.trackEvent.mockResolvedValue({ success: true })
 
       const request = new NextRequest('http://localhost:3000/api/analytics', {
@@ -291,7 +303,7 @@ describe('/api/analytics', () => {
         properties: { timestamp: Date.now() }
       }
 
-      mockAuth.getServerSession.mockResolvedValue(mockSession)
+      vi.mocked(getServerSession).mockResolvedValue(mockSession)
 
       // Simulate multiple rapid requests
       const requests = Array.from({ length: 10 }, () =>

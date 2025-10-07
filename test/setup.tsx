@@ -7,10 +7,36 @@ afterEach(() => {
   cleanup()
 })
 
-// Mock next-auth
+// Mock Next.js request storage for API route tests
 beforeAll(() => {
   // Mock next-auth/react
   global.fetch = global.fetch || fetch
+  
+  // Mock window.matchMedia for next-themes
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation(query => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+  
+  // Mock Next.js AsyncLocalStorage for headers/cookies in API routes
+  // This prevents "headers was called outside a request scope" errors
+  vi.mock('next/server', async () => {
+    const actual = await vi.importActual<typeof import('next/server')>('next/server')
+    return {
+      ...actual,
+      NextRequest: actual.NextRequest,
+      NextResponse: actual.NextResponse,
+    }
+  })
 })
 
 // Mock Next.js router
