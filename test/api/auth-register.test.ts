@@ -14,20 +14,25 @@ vi.mock('bcryptjs', () => ({
 }))
 
 // Mock Prisma client
-const mockPrismaUser = {
-  create: vi.fn(),
-  findUnique: vi.fn(),
-  findFirst: vi.fn(),
-}
-
 vi.mock('@/lib/prisma', () => ({
   default: {
-    user: mockPrismaUser,
+    user: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+    },
   },
   prisma: {
-    user: mockPrismaUser,
+    user: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+    },
   }
 }))
+
+// Import mocked modules
+import prisma from '@/lib/prisma'
 
 describe('/api/auth/register', () => {
   beforeEach(() => {
@@ -60,8 +65,8 @@ describe('/api/auth/register', () => {
       vi.mocked(bcrypt.hash).mockResolvedValue(hashedPassword)
 
       // Mock database operations
-      mockPrismaUser.findUnique.mockResolvedValue(null) // User doesn't exist
-      mockPrismaUser.create.mockResolvedValue(createdUser)
+      vi.mocked(prisma.user).findUnique.mockResolvedValue(null) // User doesn't exist
+      vi.mocked(prisma.user).create.mockResolvedValue(createdUser)
 
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -77,11 +82,11 @@ describe('/api/auth/register', () => {
       expect(data).toHaveProperty('user')
       expect(data.user).not.toHaveProperty('hashedPassword')
 
-      expect(mockPrismaUser.findUnique).toHaveBeenCalledWith({
+      expect(vi.mocked(prisma.user).findUnique).toHaveBeenCalledWith({
         where: { email: newUser.email }
       })
       expect(bcrypt.hash).toHaveBeenCalledWith(newUser.password, 12)
-      expect(mockPrismaUser.create).toHaveBeenCalledWith({
+      expect(vi.mocked(prisma.user).create).toHaveBeenCalledWith({
         data: {
           email: newUser.email,
           name: newUser.name,
@@ -104,7 +109,7 @@ describe('/api/auth/register', () => {
         hashedPassword: 'old_hash'
       }
 
-      mockPrismaUser.findUnique.mockResolvedValue(mockExistingUser)
+      vi.mocked(prisma.user).findUnique.mockResolvedValue(mockExistingUser)
 
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -117,7 +122,7 @@ describe('/api/auth/register', () => {
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data).toHaveProperty('error', 'User already exists')
-      expect(mockPrismaUser.create).not.toHaveBeenCalled()
+      expect(vi.mocked(prisma.user).create).not.toHaveBeenCalled()
     })
 
     it('should validate required fields', async () => {
@@ -214,7 +219,7 @@ describe('/api/auth/register', () => {
         name: 'Test User'
       }
 
-      mockPrismaUser.findUnique.mockRejectedValue(new Error('Database connection error'))
+      vi.mocked(prisma.user).findUnique.mockRejectedValue(new Error('Database connection error'))
 
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -261,8 +266,8 @@ describe('/api/auth/register', () => {
       }
 
       vi.mocked(bcrypt.hash).mockResolvedValue(hashedPassword)
-      mockPrismaUser.findUnique.mockResolvedValue(null)
-      mockPrismaUser.create.mockResolvedValue(createdUser)
+      vi.mocked(prisma.user).findUnique.mockResolvedValue(null)
+      vi.mocked(prisma.user).create.mockResolvedValue(createdUser)
 
       const request = new NextRequest('http://localhost:3000/api/auth/register', {
         method: 'POST',
@@ -273,10 +278,10 @@ describe('/api/auth/register', () => {
       const response = await POST(request)
 
       expect(response.status).toBe(201)
-      expect(mockPrismaUser.findUnique).toHaveBeenCalledWith({
+      expect(vi.mocked(prisma.user).findUnique).toHaveBeenCalledWith({
         where: { email: 'test@example.com' }
       })
-      expect(mockPrismaUser.create).toHaveBeenCalledWith({
+      expect(vi.mocked(prisma.user).create).toHaveBeenCalledWith({
         data: {
           email: 'test@example.com',
           name: 'Test User',
