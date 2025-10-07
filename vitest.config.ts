@@ -22,6 +22,7 @@ export default defineConfig({
       '.next/**',
       'coverage/**',
       'test/e2e/**',
+      'test/deployment/**', // Exclude deployment integration tests
     ],
     // Reduce flakiness in CI runners; can be overridden via CLI flags
     pool: process.env.CI ? 'forks' : 'threads',
