@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { PlusCircle, Edit, Trash2, Copy, User, Sparkles } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CardSkeleton } from "@/components/ui/skeleton";
 import { 
   type Persona,
   getDefaultPersonas,
@@ -156,8 +158,16 @@ export default function PersonasPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-lg">Loading personas...</div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">AI Personas</h1>
+          <p className="text-gray-400">Loading your personas...</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -173,12 +183,15 @@ export default function PersonasPage() {
       </div>
 
       {personas.length === 0 ? (
-        <div className="text-gray-400 text-center mt-2">
-          <div className="mx-auto max-w-md border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6">
-            <p className="text-sm">No personas yet</p>
-            <p className="text-xs text-gray-500">Create a persona to save a reusable system prompt.</p>
-          </div>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title="No personas yet"
+          description="Create a persona to save reusable AI system prompts. Personas help you quickly switch between different AI behaviors and specializations."
+          actionLabel="Create Your First Persona"
+          onAction={() => setIsCreateDialogOpen(true)}
+          secondaryActionLabel="Learn More"
+          onSecondaryAction={() => window.open('/docs', '_blank')}
+        />
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {personas.map((persona) => (
