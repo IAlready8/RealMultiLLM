@@ -20,10 +20,20 @@ vi.mock('@/components/analytics/model-comparison-chart', () => ({
 }))
 
 vi.mock('@/components/export-import-dialog', () => ({
-  ExportImportDialog: ({ onExport, onImport }: { onExport: Function; onImport: Function }) => (
+  ExportImportDialog: ({
+    onExport,
+    onImport
+  }: {
+    onExport: (password: string) => Promise<string>
+    onImport: (data: string, password: string) => Promise<void>
+  }) => (
     <div data-testid="export-import-dialog">
-      <button onClick={() => onExport()}>Export</button>
-      <button onClick={() => onImport()}>Import</button>
+      <button onClick={() => {
+        void onExport('test-password')
+      }}>Export</button>
+      <button onClick={() => {
+        void onImport('mock-data', 'test-password')
+      }}>Import</button>
     </div>
   ),
 }))

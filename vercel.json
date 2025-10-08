@@ -1,11 +1,128 @@
 {
+  "version": 2,
+  "name": "realmultillm",
+  "framework": "nextjs",
+  "settings": {
+    "createdAt": "2025-10-05T00:00:00.000Z",
+    "gitIntegration": {
+      "enabled": true
+    }
+  },
   "builds": [
     {
       "src": "package.json",
-      "use": "@vercel/next"
+      "use": "@vercel/next",
+      "config": {
+        "serverless": true,
+        "includeFiles": [
+          "services/llm-providers/**",
+          "lib/**",
+          "types/**",
+          "schemas/**",
+          "prisma/**"
+        ]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
     }
   ],
   "env": {
-    "DATABASE_URL": "file:./prisma/dev.db"
-  }
+    "NODE_ENV": "production",
+    "NEXTAUTH_URL": "https://your-project-name.vercel.app",
+    "DATABASE_URL": "postgresql://username:password@host:5432/database?schema=public",
+    "NEXTAUTH_SECRET": "your-nextauth-secret",
+    "ENCRYPTION_MASTER_KEY": "your-64-character-hex-key",
+    "OPENAI_API_KEY": "your-openai-api-key",
+    "ANTHROPIC_API_KEY": "your-anthropic-api-key",
+    "GOOGLE_AI_API_KEY": "your-google-ai-api-key",
+    "OPENROUTER_API_KEY": "your-openrouter-api-key",
+    "GROK_API_KEY": "your-grok-api-key"
+  },
+  "functions": {
+    "app/api/**/*": {
+      "maxDuration": 90,
+      "memory": 1024
+    },
+    "services/llm-providers/**/*": {
+      "maxDuration": 90,
+      "memory": 1024
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/cleanup",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/admin/retention",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self'; object-src 'none'"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-Requested-With, Content-Type, Authorization"
+        }
+      ]
+    }
+  ],
+  "regions": ["iad1", "sfo1", "cdg1", "hnd1", "sin1"],
+  "redirects": [
+    {
+      "source": "/app",
+      "destination": "/"
+    }
+  ]
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 import userEvent from '@testing-library/user-event'
 import { ThemeProvider, useTheme } from '@/components/theme-provider'
 
@@ -254,21 +255,23 @@ describe('ThemeProvider', () => {
   })
 
   it('should handle server-side rendering', () => {
-    // Mock SSR environment
     const originalWindow = global.window
-    // @ts-ignore
-    delete global.window
 
-    render(
-      <ThemeProvider>
-        <TestThemeConsumer />
-      </ThemeProvider>
-    )
+    // @ts-expect-error allow removing window for SSR simulation
+    delete (global as any).window
 
-    expect(screen.getByTestId('next-themes-provider')).toBeInTheDocument()
+    try {
+      const html = renderToString(
+        <ThemeProvider>
+          <div data-testid="child-content">Child Content</div>
+        </ThemeProvider>
+      )
 
-    // Restore window
-    global.window = originalWindow
+      expect(html).toContain('ssr-theme-provider')
+      expect(html).toContain('child-content')
+    } finally {
+      global.window = originalWindow
+    }
   })
 
   it('should support forced theme modes', () => {

@@ -1,13 +1,13 @@
 # Multi-stage Docker build for RealMultiLLM
-# Optimized for ARM64 (M2) architecture with memory constraints
-# This Dockerfile is OPTIONAL - project runs natively without Docker
+# Optimized for Vercel deployment and ARM64 (M2) architecture
+# This Dockerfile is OPTIONAL - Vercel deployment typically uses Next.js standalone output
 
 # Stage 1: Build dependencies
 FROM node:18-alpine AS deps
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache libc6-compat
+RUN apk add --no-cache libc6-compat python3 make g++
 
 # Copy package files
 COPY package.json package-lock.json ./
@@ -47,7 +47,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 
 # Copy built application
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/standalone ./\
 COPY --from=builder /app/.next/static ./.next/static
 
 # Copy Prisma files for runtime

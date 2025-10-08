@@ -1,0 +1,227 @@
+/**
+ * Provider Registry Test Suite
+ *
+ * Tests provider instantiation, metadata retrieval, and validation.
+ */
+
+import { describe, it, expect, beforeAll } from 'vitest'
+import {
+  getProvider,
+  getProviderIds,
+  getProviderMetadata,
+  getAllProviderMetadata,
+  hasProvider,
+  testProviderConnection
+} from '@/services/llm-providers/registry'
+
+describe('Provider Registry', () => {
+  describe('Provider Metadata', () => {
+    it('should return all provider IDs', () => {
+      const ids = getProviderIds()
+      expect(ids).toContain('openai')
+      expect(ids).toContain('anthropic')
+      expect(ids).toContain('google-ai')
+      expect(ids).toContain('grok')
+      expect(ids).toContain('openrouter')
+      expect(ids.length).toBeGreaterThanOrEqual(5)
+    })
+
+    it('should return metadata for valid provider', () => {
+      const metadata = getProviderMetadata('anthropic')
+      expect(metadata).toBeDefined()
+      expect(metadata?.id).toBe('anthropic')
+      expect(metadata?.name).toBe('Anthropic')
+      expect(metadata?.label).toBe('Claude')
+      expect(metadata?.supportsStreaming).toBe(true)
+      expect(metadata?.supportsSystemPrompt).toBe(true)
+      expect(metadata?.maxContextLength).toBe(200000)
+      expect(metadata?.models).toBeInstanceOf(Array)
+      expect(metadata?.models.length).toBeGreaterThan(0)
+    })
+
+    it('should return null for invalid provider', () => {
+      const metadata = getProviderMetadata('nonexistent')
+      expect(metadata).toBeNull()
+    })
+
+    it('should return all metadata', () => {
+      const allMetadata = getAllProviderMetadata()
+      expect(allMetadata).toBeInstanceOf(Array)
+      expect(allMetadata.length).toBeGreaterThanOrEqual(5)
+
+      const ids = allMetadata.map(m => m.id)
+      expect(ids).toContain('openai')
+      expect(ids).toContain('anthropic')
+    })
+
+    it('should check provider existence', () => {
+      expect(hasProvider('openai')).toBe(true)
+      expect(hasProvider('anthropic')).toBe(true)
+      expect(hasProvider('invalid')).toBe(false)
+    })
+  })
+
+  describe('Provider Instantiation', () => {
+    it('should instantiate OpenAI provider', async () => {
+      const provider = await getProvider('openai')
+      expect(provider).toBeDefined()
+
+      const metadata = provider?.getMetadata()
+      expect(metadata?.id).toBe('openai')
+      expect(metadata?.supportsStreaming).toBe(true)
+    })
+
+    it('should instantiate Anthropic provider', async () => {
+      const provider = await getProvider('anthropic')
+      expect(provider).toBeDefined()
+
+      const metadata = provider?.getMetadata()
+      expect(metadata?.id).toBe('anthropic')
+    })
+
+    it('should return null for invalid provider', async () => {
+      const provider = await getProvider('nonexistent')
+      expect(provider).toBeNull()
+    })
+
+    it('should lazy-load providers (singleton pattern)', async () => {
+      const provider1 = await getProvider('openai')
+      const provider2 = await getProvider('openai')
+
+      // Should be same instance (singleton)
+      expect(provider1).toBe(provider2)
+    })
+  })
+
+  describe('Model Information', () => {
+    it('should list OpenAI models', () => {
+      const metadata = getProviderMetadata('openai')
+      expect(metadata?.models).toBeDefined()
+
+      const modelIds = metadata?.models.map(m => m.id) || []
+      expect(modelIds).toContain('gpt-4o')
+      expect(modelIds).toContain('gpt-3.5-turbo')
+    })
+
+    it('should include model details', () => {
+      const metadata = getProviderMetadata('anthropic')
+      const model = metadata?.models.find(m => m.id === 'claude-3-5-sonnet-20241022')
+
+      expect(model).toBeDefined()
+      expect(model?.name).toBe('Claude 3.5 Sonnet')
+      expect(model?.maxTokens).toBeGreaterThan(0)
+      expect(model?.contextWindow).toBeGreaterThan(0)
+    })
+
+    it('should include pricing information', () => {
+      const metadata = getProviderMetadata('openai')
+      const model = metadata?.models.find(m => m.id === 'gpt-4o')
+
+      expect(model?.pricing).toBeDefined()
+      expect(model?.pricing?.input).toBeGreaterThan(0)
+      expect(model?.pricing?.output).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Provider Capabilities', () => {
+    it('should indicate streaming support correctly', () => {
+      const providers = getAllProviderMetadata()
+
+      // All current providers support streaming
+      providers.forEach(provider => {
+        expect(provider.supportsStreaming).toBe(true)
+      })
+    })
+
+    it('should indicate system prompt support', () => {
+      const openai = getProviderMetadata('openai')
+      const anthropic = getProviderMetadata('anthropic')
+      const googleAI = getProviderMetadata('google-ai')
+
+      expect(openai?.supportsSystemPrompt).toBe(true)
+      expect(anthropic?.supportsSystemPrompt).toBe(true)
+      expect(googleAI?.supportsSystemPrompt).toBe(false)  // Google uses instructions
+    })
+
+    it('should provide correct context lengths', () => {
+      const openai = getProviderMetadata('openai')
+      const anthropic = getProviderMetadata('anthropic')
+      const googleAI = getProviderMetadata('google-ai')
+
+      expect(openai?.maxContextLength).toBe(128000)
+      expect(anthropic?.maxContextLength).toBe(200000)
+      expect(googleAI?.maxContextLength).toBe(1048576)  // 1M tokens
+    })
+  })
+
+  describe('Connection Testing', () => {
+    it('should fail with invalid API key', async () => {
+      const result = await testProviderConnection('openai', 'invalid-key')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBeDefined()
+    })
+
+    it('should validate provider existence', async () => {
+      const result = await testProviderConnection('nonexistent', 'sk-test-key')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('not found')
+    })
+
+    // Note: Actual API testing requires valid keys and is skipped in CI
+    it.skip('should succeed with valid OpenAI key', async () => {
+      const apiKey = process.env.OPENAI_API_KEY
+      if (!apiKey) {
+        console.warn('Skipping test: OPENAI_API_KEY not set')
+        return
+      }
+
+      const result = await testProviderConnection('openai', apiKey)
+
+      expect(result.success).toBe(true)
+      expect(result.latencyMs).toBeGreaterThan(0)
+    })
+  })
+
+  describe('Error Handling', () => {
+    it('should handle provider instantiation errors gracefully', async () => {
+      // Force error by corrupting registry (not possible in current implementation)
+      const provider = await getProvider('___invalid___')
+      expect(provider).toBeNull()
+    })
+
+    it('should provide helpful error messages', async () => {
+      const result = await testProviderConnection('openai', '')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBeTruthy()
+    })
+  })
+
+  describe('Performance', () => {
+    it('should retrieve metadata without instantiation (fast)', () => {
+      const start = performance.now()
+
+      for (let i = 0; i < 1000; i++) {
+        getProviderMetadata('anthropic')
+      }
+
+      const duration = performance.now() - start
+      expect(duration).toBeLessThan(100)  // Should be < 100ms for 1000 calls
+    })
+
+    it('should cache provider instances', async () => {
+      const start1 = performance.now()
+      await getProvider('openai')
+      const duration1 = performance.now() - start1
+
+      const start2 = performance.now()
+      await getProvider('openai')
+      const duration2 = performance.now() - start2
+
+      // Second call should be significantly faster (cached)
+      expect(duration2).toBeLessThan(duration1 / 2)
+    })
+  })
+})

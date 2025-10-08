@@ -9,7 +9,7 @@ import { auditLogger } from './audit-logger';
 export interface MetricData {
   name: string;
   value: number;
-  timestamp: Date;
+  timestamp: Date | number;
   tags?: Record<string, string>;
   unit?: 'count' | 'bytes' | 'milliseconds' | 'percentage' | 'rate';
   type?: 'counter' | 'gauge' | 'histogram' | 'timer';
@@ -380,7 +380,7 @@ class EnterpriseMonitoring {
     return allMetrics.map(metric => ({
       name: metric.name,
       value: metric.value,
-      timestamp: metric.timestamp.getTime(),
+      timestamp: metric.timestamp,
       tags: metric.tags,
       unit: metric.unit,
       type: metric.type,

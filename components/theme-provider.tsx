@@ -29,7 +29,7 @@ const ensureWindowStub = () => {
 };
 
 const SSRThemeContainer = ({ children }: { children: React.ReactNode }) => (
-  <div data-testid="next-themes-provider">{children}</div>
+  <div data-testid="ssr-theme-provider">{children}</div>
 )
 
 if (typeof window === 'undefined' && (globalThis as any).process?.env?.NODE_ENV === 'test') {
@@ -45,8 +45,10 @@ export function ThemeProvider({ children, ...props }: ThemeProviderProps) {
 }
 
 export const useTheme = () => {
+  const themeContext = useNextTheme()
+
   if (typeof window === 'undefined') {
-    ensureWindowStub();
+    ensureWindowStub()
     return {
       theme: undefined,
       setTheme: () => undefined,
@@ -55,7 +57,8 @@ export const useTheme = () => {
       themes: [] as string[],
     }
   }
-  return useNextTheme()
+
+  return themeContext
 }
 
 export default ThemeProvider

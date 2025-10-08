@@ -79,31 +79,6 @@ export function MobileMenu({
     onToggle?.(next);
   };
 
-  useEffect(() => {
-    if (!open) return;
-
-    const handleDocumentClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (contentRef.current && target && !contentRef.current.contains(target)) {
-        handleOpenChange(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        handleOpenChange(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleDocumentClick);
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('mousedown', handleDocumentClick);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open]);
-
   const items = useMemo(() => navigationItems ?? DEFAULT_ITEMS, [navigationItems]);
 
   const renderNavItem = (item: NavigationItem) => {
@@ -124,16 +99,16 @@ export function MobileMenu({
       handleOpenChange(false);
     };
 
-    const Content = (
-      <a className={classNames} onClick={handleClick} data-nav-item>
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={classNames}
+        onClick={handleClick}
+        data-nav-item
+      >
         {IconComponent ? <IconComponent className="h-4 w-4" /> : null}
         <span>{item.label}</span>
-      </a>
-    );
-
-    return (
-      <Link key={item.href} href={item.href} legacyBehavior>
-        {Content}
       </Link>
     );
   };

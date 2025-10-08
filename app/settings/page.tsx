@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
-import { AlertTriangle, Check, Clock, FileDown, FileUp, Terminal, Trash2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Clock, Terminal, Trash2, RefreshCw } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +17,8 @@ import { ModelComparisonChart } from "@/components/analytics/model-comparison-ch
 import { ExportImportDialog } from "@/components/export-import-dialog";
 import { exportAllData, importAllData } from "@/services/export-import-service";
 import { useSession } from "next-auth/react";
+
+import { useToast } from "@/components/ui/use-toast"; // Import useToast
 
 const DEFAULT_BASE_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
@@ -54,6 +56,64 @@ interface LogEntry {
 
 export default function Settings() {
   const { data: session } = useSession();
+  const { toast } = useToast();
+
+  const handleExport = useCallback(async (password: string): Promise<string> => {
+    if (!session?.user?.id) {
+      const error = new Error("You must be logged in to export data.");
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    try {
+      const exported = await exportAllData(password, session.user.id);
+      toast({
+        title: "Success",
+        description: "Data exported successfully.",
+      });
+      return exported;
+    } catch (error: any) {
+      const message = error?.message ?? "Export failed.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw (error instanceof Error ? error : new Error(message));
+    }
+  }, [session?.user?.id, toast]);
+
+  const handleImport = useCallback(async (data: string, password: string): Promise<void> => {
+    if (!session?.user?.id) {
+      const error = new Error("You must be logged in to import data.");
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    try {
+      await importAllData(data, password, session.user.id, { conflictResolution: 'merge' });
+      toast({
+        title: "Success",
+        description: "Data imported successfully.",
+      });
+    } catch (error: any) {
+      const message = error?.message ?? "Import failed.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw (error instanceof Error ? error : new Error(message));
+    }
+  }, [session?.user?.id, toast]);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [configuredProviders, setConfiguredProviders] = useState<string[]>([]);
   const [modelSettings, setModelSettings] = useState<Record<string, any>>({});
@@ -350,6 +410,7 @@ export default function Settings() {
           <TabsTrigger value="model-settings">Model Settings</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="export-import">Export/Import</TabsTrigger>
+          <TabsTrigger value="advanced-settings">Advanced</TabsTrigger>
         </TabsList>
         
         <TabsContent value="api-keys">
@@ -637,8 +698,8 @@ export default function Settings() {
                   </p>
                   
                   <ExportImportDialog
-                    onExport={exportAllData}
-                    onImport={importAllData}
+                    onExport={handleExport}
+                    onImport={handleImport}
                     buttonVariant="default"
                   />
                 </div>
@@ -697,6 +758,115 @@ export default function Settings() {
                       <Terminal className="h-4 w-4 mr-2" />
                       Export Activity Logs
                     </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="advanced-settings">
+          <div className="space-y-6">
+            <Card className="bg-gray-900 border-gray-800">
+              <CardHeader>
+                <CardTitle>Advanced Settings</CardTitle>
+                <CardDescription>
+                  Customize your experience with advanced configuration options
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Appearance</h3>
+                    <p className="text-sm text-gray-400">
+                      Customize colors, fonts, and display options
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.location.href = "/advanced-settings"}
+                    >
+                      <Palette className="h-4 w-4 mr-2" />
+                      Appearance Settings
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Security</h3>
+                    <p className="text-sm text-gray-400">
+                      Configure security and privacy settings
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.location.href = "/advanced-settings#security"}
+                    >
+                      <Shield className="h-4 w-4 mr-2" />
+                      Security Settings
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Notifications</h3>
+                    <p className="text-sm text-gray-400">
+                      Manage notification preferences
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.location.href = "/advanced-settings#notifications"}
+                    >
+                      <Bell className="h-4 w-4 mr-2" />
+                      Notification Settings
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Performance</h3>
+                    <p className="text-sm text-gray-400">
+                      Optimize application performance
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.location.href = "/advanced-settings#advanced"}
+                    >
+                      <Zap className="h-4 w-4 mr-2" />
+                      Performance Settings
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="mt-8 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <h3 className="text-lg font-semibold mb-2">Quick Customization</h3>
+                  <p className="text-sm text-gray-400 mb-4">
+                    Adjust common settings without navigating to the full settings page
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Compact Mode</span>
+                      <Switch 
+                        checked={false}
+                        onCheckedChange={() => {}}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Dark Theme</span>
+                      <Switch 
+                        checked={true}
+                        onCheckedChange={() => {}}
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Animations</span>
+                      <Switch 
+                        checked={true}
+                        onCheckedChange={() => {}}
+                      />
+                    </div>
                   </div>
                 </div>
               </CardContent>

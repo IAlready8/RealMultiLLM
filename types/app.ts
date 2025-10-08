@@ -42,6 +42,8 @@ interface ConversationBase {
   id: string;
   title: string;
   timestamp: number;
+  updatedAt: number;
+  createdAt: number;
 }
 
 /**

@@ -30,7 +30,7 @@ const COMMON_PASSWORDS = new Set([
 
 // Common keyboard patterns
 const KEYBOARD_PATTERNS = [
-  'qwerty', 'asdf', 'zxcv', '1234', '!@#, 'qaz', 'wsx', 'edc'
+  'qwerty', 'asdf', 'zxcv', '1234', '!@#', 'qaz', 'wsx', 'edc'
 ];
 
 // Sequential patterns

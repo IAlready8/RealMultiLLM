@@ -1,6 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 declare global {
+  /* eslint-disable-next-line no-var */
   var prisma: PrismaClient | undefined;
 }
 
@@ -18,7 +19,7 @@ const prisma = global.prisma || new PrismaClient({
 });
 
 // Add query monitoring for performance optimization (non-breaking)
-if (process.env.NODE_ENV !== "test") {
+if (process.env.NODE_ENV !== "test" && typeof window === "undefined") {
   import('./prisma-pool-monitor').then(({ prismaPoolMonitor }) => {
     // Wrap critical query methods with monitoring
     const originalFindMany = prisma.$queryRaw.bind(prisma);
@@ -26,7 +27,7 @@ if (process.env.NODE_ENV !== "test") {
 
     // Monitor raw queries for performance insights
     prisma.$queryRaw = new Proxy(originalFindMany, {
-      apply: (target, thisArg, argArray) => {
+      apply: (target, thisArg, argArray: [Prisma.Sql, ...any[]]) => {
         return prismaPoolMonitor.monitorQuery('$queryRaw', () =>
           target.apply(thisArg, argArray)
         );
@@ -34,7 +35,7 @@ if (process.env.NODE_ENV !== "test") {
     });
 
     prisma.$executeRaw = new Proxy(originalFindUnique, {
-      apply: (target, thisArg, argArray) => {
+      apply: (target, thisArg, argArray: [Prisma.Sql, ...any[]]) => {
         return prismaPoolMonitor.monitorQuery('$executeRaw', () =>
           target.apply(thisArg, argArray)
         );

@@ -9,14 +9,14 @@ export default function Navbar() {
   const pathname = usePathname();
   
   const navItems = [
-    { name: "Home", path: "/" },
-    { name: "Multi-Chat", path: "/multi-chat" },
-    { name: "Goal Hub", path: "/goal-hub" },
-    { name: "Comparison", path: "/comparison" },
-    { name: "Pipeline", path: "/pipeline" },
-    { name: "Personas", path: "/personas" },
-    { name: "Analytics", path: "/analytics" },
-    { name: "Settings", path: "/settings" },
+    { label: "Home", href: "/" },
+    { label: "Multi-Chat", href: "/multi-chat" },
+    { label: "Goal Hub", href: "/goal-hub" },
+    { label: "Comparison", href: "/comparison" },
+    { label: "Pipeline", href: "/pipeline" },
+    { label: "Personas", href: "/personas" },
+    { label: "Analytics", href: "/analytics" },
+    { label: "Settings", href: "/settings" },
   ];
 
   return (
@@ -28,19 +28,19 @@ export default function Navbar() {
         <div className="hidden space-x-1 md:flex">
           {navItems.map((item) => (
             <Link
-              key={item.path}
-              href={item.path}
+              key={item.href}
+              href={item.href}
               className={`relative px-4 py-2 rounded-lg transition-all smooth-transition ${
-                pathname === item.path
+                pathname === item.href
                   ? "text-foreground font-medium bg-card border border-border shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-card/50"
               }`}
             >
-              {item.name}
+              {item.label}
             </Link>
           ))}
         </div>
-        <MobileMenu items={navItems} />
+        <MobileMenu navigationItems={navItems.map(item => ({ href: item.href, label: item.label }))} />
       </div>
     </nav>
   );

@@ -2,6 +2,29 @@
 // lib/crypto.ts
 import { isServer, b64encode, b64decode, utf8encode, utf8decode } from "./runtime";
 
+let nodeCryptoModule: Promise<typeof import("crypto")> | null = null;
+
+async function getNodeCrypto() {
+  if (!nodeCryptoModule) {
+    nodeCryptoModule = import("crypto");
+  }
+  return nodeCryptoModule;
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  if (
+    bytes.byteOffset === 0 &&
+    bytes.byteLength === bytes.buffer.byteLength &&
+    bytes.buffer instanceof ArrayBuffer
+  ) {
+    return bytes.buffer;
+  }
+
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+  return arrayBuffer;
+}
+
 // 32 bytes key from any string seed
 export async function deriveKey(seed: string): Promise<Uint8Array> {
   // SHA-256(seed) -> 32 bytes
@@ -10,26 +33,28 @@ export async function deriveKey(seed: string): Promise<Uint8Array> {
     const h = createHash("sha256").update(seed, "utf8").digest();
     return new Uint8Array(h);
   } else {
-    const buf = await crypto.subtle.digest("SHA-256", utf8encode(seed));
+    const buf = await crypto.subtle.digest("SHA-256", toArrayBuffer(utf8encode(seed)));
     return new Uint8Array(buf);
   }
 }
 
-export function randomBytes(n: number): Uint8Array {
+export async function randomBytes(n: number): Promise<Uint8Array> {
   if (isServer) {
-    const { randomBytes } = require("crypto") as typeof import("crypto");
-    return new Uint8Array(randomBytes(n));
-  } else {
+    const { randomBytes } = await getNodeCrypto();
+    const buffer = randomBytes(n);
     const out = new Uint8Array(n);
-    crypto.getRandomValues(out);
+    out.set(buffer);
     return out;
   }
+  const out = new Uint8Array(n);
+  crypto.getRandomValues(out);
+  return out;
 }
 
 export async function aesGcmEncrypt(keyRaw: Uint8Array, plaintext: string): Promise<string> {
-  const iv = randomBytes(12);
+  const iv = await randomBytes(12);
   if (isServer) {
-    const { createCipheriv } = await import("crypto");
+    const { createCipheriv } = await getNodeCrypto();
     const cipher = createCipheriv("aes-256-gcm", Buffer.from(keyRaw), Buffer.from(iv));
     const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -39,8 +64,12 @@ export async function aesGcmEncrypt(keyRaw: Uint8Array, plaintext: string): Prom
     payload.set(tag, iv.length + ct.length);
     return `v2:gcm:${b64encode(payload)}`;
   } else {
-    const key = await crypto.subtle.importKey("raw", keyRaw, "AES-GCM", false, ["encrypt"]);
-    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, utf8encode(plaintext));
+    const key = await crypto.subtle.importKey("raw", toArrayBuffer(keyRaw), "AES-GCM", false, ["encrypt"]);
+    const ct = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: toArrayBuffer(iv) },
+      key,
+      toArrayBuffer(utf8encode(plaintext))
+    );
     const tagAppended = new Uint8Array(ct); // WebCrypto includes tag
     const payload = new Uint8Array(iv.length + tagAppended.length);
     payload.set(iv, 0);
@@ -55,7 +84,7 @@ export async function aesGcmDecrypt(keyRaw: Uint8Array, token: string): Promise<
   const iv = payload.slice(0, 12);
   const data = payload.slice(12);
   if (isServer) {
-    const { createDecipheriv } = await import("crypto");
+    const { createDecipheriv } = await getNodeCrypto();
     // Node expects tag separated; last 16 bytes are GCM tag
     if (data.length < 17) throw new Error("cipher-too-short");
     const tag = data.slice(data.length - 16);
@@ -65,8 +94,12 @@ export async function aesGcmDecrypt(keyRaw: Uint8Array, token: string): Promise<
     const pt = Buffer.concat([decipher.update(ct), decipher.final()]);
     return pt.toString("utf8");
   } else {
-    const key = await crypto.subtle.importKey("raw", keyRaw, "AES-GCM", false, ["decrypt"]);
-    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, data);
+    const key = await crypto.subtle.importKey("raw", toArrayBuffer(keyRaw), "AES-GCM", false, ["decrypt"]);
+    const pt = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: toArrayBuffer(iv) },
+      key,
+      toArrayBuffer(data)
+    );
     return utf8decode(new Uint8Array(pt));
   }
 }
@@ -74,15 +107,12 @@ export async function aesGcmDecrypt(keyRaw: Uint8Array, token: string): Promise<
 // LEGACY FUNCTIONS FOR BACKWARD COMPATIBILITY
 
 // Generate a random encryption key
-export function generateEncryptionKey(): string {
-  const array = new Uint8Array(16);
+export async function generateEncryptionKey(): Promise<string> {
+  const bytes = await randomBytes(16);
   if (isServer) {
-    const { randomBytes } = require("crypto") as typeof import("crypto");
-    return randomBytes(16).toString('hex');
-  } else {
-    crypto.getRandomValues(array);
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    return Buffer.from(bytes).toString('hex');
   }
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 // Validate base64 string
@@ -108,9 +138,9 @@ export function isValidBase64(str: string): boolean {
 // Encrypt text with a key
 export async function encrypt(text: string, key: string): Promise<string> {
   if (isServer) {
-    const { createCipheriv, randomBytes } = await import("crypto");
     const keyData = Buffer.from(key.padEnd(32, '0').slice(0, 32), 'utf8');
-    const iv = randomBytes(12);
+    const { createCipheriv } = await getNodeCrypto();
+    const iv = Buffer.from(await randomBytes(12));
     const cipher = createCipheriv("aes-256-gcm", keyData, iv);
     const encrypted = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
     const tag = cipher.getAuthTag();
@@ -121,7 +151,7 @@ export async function encrypt(text: string, key: string): Promise<string> {
     const keyData = encoder.encode(key.padEnd(32, '0').slice(0, 32));
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      keyData,
+      toArrayBuffer(keyData),
       { name: 'AES-GCM', length: 256 },
       false,
       ['encrypt']
@@ -130,9 +160,9 @@ export async function encrypt(text: string, key: string): Promise<string> {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encodedText = encoder.encode(text);
     const encryptedData = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
+      { name: 'AES-GCM', iv: toArrayBuffer(iv) },
       cryptoKey,
-      encodedText
+      toArrayBuffer(encodedText)
     );
     
     const encryptedArray = new Uint8Array(iv.length + encryptedData.byteLength);
@@ -150,9 +180,9 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
     if (!isValidBase64(encryptedText)) {
       throw new Error('Invalid encrypted data format');
     }
-    
+
     if (isServer) {
-      const { createDecipheriv } = await import("crypto");
+      const { createDecipheriv } = await getNodeCrypto();
       const keyData = Buffer.from(key.padEnd(32, '0').slice(0, 32), 'utf8');
       const combined = Buffer.from(encryptedText, 'base64');
       const iv = combined.slice(0, 12);
@@ -169,7 +199,7 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
       const keyData = encoder.encode(key.padEnd(32, '0').slice(0, 32));
       const cryptoKey = await crypto.subtle.importKey(
         'raw',
-        keyData,
+        toArrayBuffer(keyData),
         { name: 'AES-GCM', length: 256 },
         false,
         ['decrypt']
@@ -182,9 +212,9 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
       const encryptedData = encryptedArray.slice(12);
       
       const decryptedData = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
+        { name: 'AES-GCM', iv: toArrayBuffer(iv) },
         cryptoKey,
-        encryptedData
+        toArrayBuffer(encryptedData)
       );
       
       return decoder.decode(decryptedData);

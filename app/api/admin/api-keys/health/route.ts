@@ -7,14 +7,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getStaleApiKeys, getApiKeyUsageStats } from '@/lib/api-key-tracker';
 import { getApiSecurityHeaders } from '@/lib/security-headers';
 import { logger } from '@/lib/observability/logger';
 
 export async function GET(request: NextRequest) {
+  let session: Session | null = null
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     // Only allow authenticated users to view their own API key health
     if (!session?.user?.id) {
@@ -27,23 +29,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const userId = session.user.id
+
     const { searchParams } = new URL(request.url);
     const includeStale = searchParams.get('includeStale') === 'true';
     const staleDays = parseInt(searchParams.get('staleDays') || '30');
 
     // Get user's API key usage statistics
-    const usageStats = await getApiKeyUsageStats(session.user.id);
+    const usageStats = await getApiKeyUsageStats(userId);
 
-    let staleKeys = [];
+    let staleKeys: Awaited<ReturnType<typeof getStaleApiKeys>> = [];
     if (includeStale) {
       // Only return stale keys for the current user (security)
       const allStaleKeys = await getStaleApiKeys(staleDays);
-      staleKeys = allStaleKeys.filter(key => key.userId === session.user.id);
+      staleKeys = allStaleKeys.filter(key => key.userId === userId);
     }
 
     const response = {
       timestamp: new Date().toISOString(),
-      userId: session.user.id,
+      userId,
       summary: {
         totalKeys: usageStats.length,
         activeKeys: usageStats.filter(key => !key.isStale).length,
@@ -69,7 +73,7 @@ export async function GET(request: NextRequest) {
     };
 
     logger.info('api_key_health_check', {
-      userId: session.user.id,
+      userId,
       totalKeys: response.summary.totalKeys,
       staleKeys: response.summary.staleKeys
     });
@@ -81,7 +85,6 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error('api_key_health_check_error', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      userId: session?.user?.id
     });
 
     return NextResponse.json({
@@ -101,8 +104,9 @@ export async function GET(request: NextRequest) {
  * Currently supports marking keys for rotation review
  */
 export async function POST(request: NextRequest) {
+  let session: Session | null = null
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -114,13 +118,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const userId = session.user.id
+
     const body = await request.json();
     const { action, provider } = body;
 
     if (action === 'mark_for_review' && provider) {
       // Log the review request for manual follow-up
       logger.info('api_key_review_requested', {
-        userId: session.user.id,
+        userId,
         provider,
         requestedAt: new Date().toISOString(),
         action: 'manual_review'
@@ -146,7 +152,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('api_key_health_action_error', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      userId: session?.user?.id
     });
 
     return NextResponse.json({

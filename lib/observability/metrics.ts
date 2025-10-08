@@ -66,17 +66,17 @@ export class Gauge extends Metric {
 
   set(value: number): void {
     this.value = value;
-    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'gauge');
+    monitoring.recordMetric(this.name, this.value, this.attributes as any);
   }
 
   inc(value: number = 1): void {
     this.value += value;
-    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'gauge');
+    monitoring.recordMetric(this.name, this.value, this.attributes as any);
   }
 
   dec(value: number = 1): void {
     this.value -= value;
-    monitoring.recordMetric(this.name, this.value, this.attributes as any, 'gauge');
+    monitoring.recordMetric(this.name, this.value, this.attributes as any);
   }
 
   getValue(): number {
@@ -115,7 +115,8 @@ export class Histogram extends Metric {
       }
     }
 
-    monitoring.recordMetric(this.name, value, this.attributes as any, 'histogram');
+    // Record histogram metric
+    monitoring.recordMetric(this.name, value, this.attributes as any);
   }
 
   getHistogramData(): HistogramData {

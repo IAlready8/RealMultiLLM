@@ -62,11 +62,11 @@ export function PersonaManager({ userId }: PersonaManagerProps) {
             {personas.map((persona) => (
               <Card key={persona.id}>
                 <CardHeader>
-                  <CardTitle>{persona.title}</CardTitle>
+                  <CardTitle>{persona.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-sm text-gray-500">{persona.description}</p>
-                  <pre className="text-xs bg-gray-800 p-2 rounded-md whitespace-pre-wrap">{persona.prompt}</pre>
+                  <pre className="text-xs bg-gray-800 p-2 rounded-md whitespace-pre-wrap">{persona.systemPrompt}</pre>
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm" onClick={() => { /* Implement edit functionality */ }}>Edit</Button>
                     <Button variant="destructive" size="sm" onClick={() => deletePersona(persona.id)}>Delete</Button>

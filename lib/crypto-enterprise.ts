@@ -32,12 +32,29 @@ const KEY_LENGTH = 32; // 256 bits for AES-256
  */
 export function secureRandomBytes(length: number): Uint8Array {
   if (isServer) {
-    return new Uint8Array(nodeRandomBytes(length));
+    const buffer = nodeRandomBytes(length);
+    const bytes = new Uint8Array(length);
+    bytes.set(buffer);
+    return bytes;
   } else {
     const bytes = new Uint8Array(length);
     crypto.getRandomValues(bytes);
     return bytes;
   }
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  if (
+    bytes.byteOffset === 0 &&
+    bytes.byteLength === bytes.buffer.byteLength &&
+    bytes.buffer instanceof ArrayBuffer
+  ) {
+    return bytes.buffer;
+  }
+
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+  return arrayBuffer;
 }
 
 /**
@@ -64,18 +81,20 @@ export async function deriveKeyMaterial(masterKey: string, salt?: Uint8Array, in
     const masterKeyBytes = new TextEncoder().encode(masterKey);
     const importedKey = await crypto.subtle.importKey(
       'raw',
-      masterKeyBytes,
+      toArrayBuffer(masterKeyBytes),
       'HKDF',
       false,
       ['deriveKey']
     );
     
+    const saltBuffer = toArrayBuffer(actualSalt);
+
     const derivedKey = await crypto.subtle.deriveKey(
       {
         name: 'HKDF',
         hash: 'SHA-256',
-        salt: actualSalt,
-        info: keyInfo
+        salt: saltBuffer,
+        info: toArrayBuffer(keyInfo)
       },
       importedKey,
       { name: 'AES-GCM', length: 256 },
@@ -139,7 +158,7 @@ export async function encryptSensitiveData(
   } else {
     const key = await crypto.subtle.importKey(
       'raw',
-      keyMaterial.key,
+      toArrayBuffer(keyMaterial.key),
       { name: 'AES-GCM' },
       false,
       ['encrypt']
@@ -148,11 +167,11 @@ export async function encryptSensitiveData(
     const encrypted = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv,
-        additionalData: additionalDataBytes.length > 0 ? additionalDataBytes : undefined
+        iv: toArrayBuffer(iv),
+        additionalData: additionalDataBytes.length > 0 ? toArrayBuffer(additionalDataBytes) : undefined
       },
       key,
-      plaintextBytes
+      toArrayBuffer(plaintextBytes)
     );
     
     // Format: salt(32) + iv(12) + encrypted_with_tag(variable)
@@ -251,10 +270,10 @@ export async function decryptSensitiveData(
     return decrypted.toString('utf8');
   } else {
     const encryptedWithTag = payload.slice(SALT_LENGTH + IV_LENGTH);
-    
+
     const key = await crypto.subtle.importKey(
       'raw',
-      keyMaterial.key,
+      toArrayBuffer(keyMaterial.key),
       { name: 'AES-GCM' },
       false,
       ['decrypt']
@@ -263,11 +282,11 @@ export async function decryptSensitiveData(
     const decrypted = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv,
-        additionalData: additionalDataBytes.length > 0 ? additionalDataBytes : undefined
+        iv: toArrayBuffer(iv),
+        additionalData: additionalDataBytes.length > 0 ? toArrayBuffer(additionalDataBytes) : undefined
       },
       key,
-      encryptedWithTag
+      toArrayBuffer(encryptedWithTag)
     );
     
     return new TextDecoder().decode(decrypted);

@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { getValidatedEnv, isDemoModeEnabled, getSessionMaxAge } from "@/lib/env";
 import { z } from "zod";
+import { OIDC_PROVIDERS, autoProvisionOIDCUser } from "@/lib/auth/oidc-provider";
 
 // Password validation schema
 const passwordSchema = z.string()
@@ -25,6 +26,39 @@ const DEMO_USERS = isDemoModeEnabled() ? [
   }
 ] : [];
 
+// Configure OIDC providers based on environment
+const configureOIDCProviders = () => {
+  const providers: any[] = [];
+  const env = getValidatedEnv();
+
+  // Okta
+  if (env.OKTA_DOMAIN && env.OKTA_CLIENT_ID && env.OKTA_CLIENT_SECRET) {
+    providers.push(
+      OIDC_PROVIDERS.okta(env.OKTA_DOMAIN, env.OKTA_CLIENT_ID, env.OKTA_CLIENT_SECRET)
+    );
+  }
+
+  // Auth0
+  if (env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET) {
+    providers.push(
+      OIDC_PROVIDERS.auth0(env.AUTH0_DOMAIN, env.AUTH0_CLIENT_ID, env.AUTH0_CLIENT_SECRET)
+    );
+  }
+
+  // Azure AD
+  if (env.AZURE_AD_TENANT_ID && env.AZURE_AD_CLIENT_ID && env.AZURE_AD_CLIENT_SECRET) {
+    providers.push(
+      OIDC_PROVIDERS.azureAd(
+        env.AZURE_AD_TENANT_ID,
+        env.AZURE_AD_CLIENT_ID,
+        env.AZURE_AD_CLIENT_SECRET
+      )
+    );
+  }
+
+  return providers;
+};
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -36,6 +70,7 @@ export const authOptions: NextAuthOptions = {
       clientId: getValidatedEnv().GITHUB_CLIENT_ID || "",
       clientSecret: getValidatedEnv().GITHUB_CLIENT_SECRET || "",
     }),
+    ...configureOIDCProviders(),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -109,12 +144,17 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (token && session.user) {
         session.user.id = token.sub!;
+        (session.user as any).role = token.role;
       }
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+        });
+        (token as any).role = dbUser?.role;
       }
       return token;
     }

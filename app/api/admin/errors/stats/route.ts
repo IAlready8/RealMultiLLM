@@ -11,7 +11,9 @@ export async function POST(request: Request) {
     return unauthorized()
   }
 
-  if (session.user.role !== 'ADMIN') {
+  const userRole = (session.user as typeof session.user & { role?: string }).role
+
+  if (userRole !== 'ADMIN') {
     return unauthorized('Forbidden');
   }
 

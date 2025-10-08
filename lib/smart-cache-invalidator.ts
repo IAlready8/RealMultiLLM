@@ -162,7 +162,7 @@ class SmartCacheInvalidator {
       // Attempt to clear from actual cache (if available)
       try {
         const { cache } = await import('@/lib/cache');
-        await cache.del(key);
+        await cache.delete(key);
       } catch (error) {
         // Cache module may not be available - that's fine
         logger.debug('cache_clear_unavailable', { key });
@@ -236,7 +236,7 @@ class SmartCacheInvalidator {
       // Set in actual cache
       try {
         const { cache } = await import('@/lib/cache');
-        await cache.set(key, value, ttl);
+        await cache.set(key, value, { ttl, prefix: 'smart-cache' });
       } catch (error) {
         // Cache module may not be available - continue anyway
         logger.warn('cache_set_unavailable', { key });

@@ -57,6 +57,59 @@ GITHUB_CLIENT_SECRET="..."
 
 ## 🚀 Deployment
 
+### Vercel Deployment (Recommended)
+
+1. **Setup Repository**
+   ```bash
+   # Push your changes
+   git add .
+   git commit -m "Setup for Vercel deployment"
+   git push
+   ```
+
+2. **Configure Vercel**
+   - Connect your GitHub repository
+   - Set build command: `npx prisma generate && npx prisma migrate deploy && npm run build`
+   - Set output directory: `.next`
+   - Set Node.js version: `18`
+
+3. **Environment Variables**
+   Set these in Vercel dashboard (do NOT put in code):
+   - `DATABASE_URL` - PostgreSQL connection string
+   - `NEXTAUTH_SECRET` - Generate with `openssl rand -base64 32`
+   - `NEXTAUTH_URL` - Your Vercel deployment URL
+   - `ENCRYPTION_MASTER_KEY` - Generate with `openssl rand -hex 64`
+   - All provider API keys (optional, can be set via UI)
+
+4. **Generate Required Keys**
+   ```bash
+   # Generate NEXTAUTH_SECRET
+   openssl rand -base64 32
+   
+   # Generate ENCRYPTION_MASTER_KEY
+   openssl rand -hex 64
+   ```
+
+5. **Configure via Vercel CLI**
+   ```bash
+   # Install Vercel CLI
+   npm install -g vercel
+   
+   # Login to Vercel
+   vercel login
+   
+   # Link project
+   vercel link
+   
+   # Add environment variables
+   vercel env add NEXTAUTH_SECRET production
+   vercel env add ENCRYPTION_MASTER_KEY production
+   vercel env add DATABASE_URL production
+   
+   # Deploy to production
+   vercel --prod
+   ```
+
 ### Netlify Deployment
 
 1. **Setup Repository**
@@ -111,10 +164,10 @@ npm run type-check
 ```bash
 npm run dev          # Start development server
 npm run build        # Build for production
-npm run start        # Start production server
+npm start            # Start production server
 npm run lint         # Run ESLint
 npm run lint:fix     # Fix ESLint errors
-npm run test         # Run tests
+npm test             # Run tests
 npm run type-check   # TypeScript checking
 ```
 
@@ -165,6 +218,7 @@ RealMultiLLM/
 - Set `DATABASE_URL` environment variable
 - Automatic connection pooling
 - Optimized for cloud deployment
+- Vercel Postgres recommended for Vercel deployments
 
 ## 🐛 Troubleshooting
 

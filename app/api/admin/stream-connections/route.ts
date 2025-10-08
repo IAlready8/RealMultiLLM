@@ -6,13 +6,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getApiSecurityHeaders } from '@/lib/security-headers';
 import { logger } from '@/lib/observability/logger';
 
 export async function GET(request: NextRequest) {
+  let session: Session | null = null;
   try {
-    const session = await getServerSession(authOptions);
+    session = await getServerSession(authOptions);
 
     if (!session?.user?.id || session.user.role !== 'ADMIN') {
       return NextResponse.json(

@@ -165,11 +165,11 @@ class AdvancedRequestRouter {
     strategy: string = 'weighted_round_robin'
   ): Promise<RoutingDecision> {
     const startTime = Date.now();
+    const providerEndpoints = this.endpoints.get(provider) || [];
 
     try {
       // Get available endpoints for provider
-      const endpoints = this.endpoints.get(provider) || [];
-      const healthyEndpoints = endpoints.filter(e => e.healthStatus !== 'unhealthy');
+      const healthyEndpoints = providerEndpoints.filter(e => e.healthStatus !== 'unhealthy');
 
       if (healthyEndpoints.length === 0) {
         throw new Error(`No healthy endpoints available for provider: ${provider}`);
@@ -239,7 +239,7 @@ class AdvancedRequestRouter {
         strategy,
         error: error instanceof Error ? error.message : 'Unknown error',
         routingTime,
-        availableEndpoints: endpoints.length
+        availableEndpoints: providerEndpoints.length
       });
 
       this.recordMetric('routing_failures_total', 1);

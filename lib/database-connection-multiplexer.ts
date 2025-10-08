@@ -46,7 +46,7 @@ interface MultiplexerStats {
 }
 
 class DatabaseConnectionMultiplexer {
-  private pool: ConnectionPool;
+  private pool!: ConnectionPool;
   private queryQueue: PendingQuery[] = [];
   private batchQueue: QueryBatch[] = [];
   private processing = false;

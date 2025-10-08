@@ -1,62 +1,72 @@
+import React from 'react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MobileMenu from '@/components/mobile-menu'
 
-// Mock Radix UI components
-vi.mock('@radix-ui/react-sheet', () => ({
-  Sheet: ({ children }: { children: React.ReactNode }) => <div data-testid="sheet">{children}</div>,
-  SheetTrigger: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) =>
-    <button data-testid="sheet-trigger" onClick={onClick}>{children}</button>,
-  SheetContent: ({ children }: { children: React.ReactNode }) =>
-    <div data-testid="sheet-content">{children}</div>,
-  SheetHeader: ({ children }: { children: React.ReactNode }) =>
-    <div data-testid="sheet-header">{children}</div>,
-  SheetTitle: ({ children }: { children: React.ReactNode }) =>
-    <h2 data-testid="sheet-title">{children}</h2>,
-}))
-
 // Mock next/link
-vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) =>
-    <a href={href} {...props}>{children}</a>
-}))
+vi.mock('next/link', () => {
+  const React = require('react')
+  return {
+    __esModule: true,
+    default: React.forwardRef<HTMLAnchorElement, React.ComponentProps<'a'>>(
+      ({ href, children, ...props }, ref) => (
+        <a ref={ref} href={href as string} {...props}>
+          {children}
+        </a>
+      )
+    ),
+  }
+})
+
+const {
+  mockPush,
+  usePathnameMock,
+  mockSignOut,
+  defaultSession,
+  useSessionMock,
+} = vi.hoisted(() => {
+  const session = {
+    data: {
+      user: { id: '1', email: 'test@example.com', name: 'Test User' },
+    },
+    status: 'authenticated' as const,
+  }
+
+  return {
+    mockPush: vi.fn(),
+    usePathnameMock: vi.fn(() => '/current-path'),
+    mockSignOut: vi.fn(),
+    defaultSession: session,
+    useSessionMock: vi.fn(() => session),
+  }
+})
 
 // Mock next/navigation
-const mockPush = vi.fn()
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockPush,
     replace: vi.fn(),
     prefetch: vi.fn(),
   }),
-  usePathname: () => '/current-path',
+  usePathname: usePathnameMock,
 }))
 
 // Mock next-auth
-const { mockSignOut } = vi.hoisted(() => ({
-  mockSignOut: vi.fn(),
-}));
-
 vi.mock('next-auth/react', () => ({
-  useSession: () => ({
-    data: {
-      user: { id: '1', email: 'test@example.com', name: 'Test User' }
-    },
-    status: 'authenticated'
-  }),
+  useSession: useSessionMock,
   signOut: (...args: unknown[]) => mockSignOut(...args),
-}));
+}))
 
 // Mock lucide-react icons
 vi.mock('lucide-react', () => ({
-  Menu: () => <div data-testid="menu-icon">Menu</div>,
-  X: () => <div data-testid="close-icon">Close</div>,
-  Home: () => <div data-testid="home-icon">Home</div>,
-  MessageSquare: () => <div data-testid="chat-icon">Chat</div>,
-  Settings: () => <div data-testid="settings-icon">Settings</div>,
-  LogOut: () => <div data-testid="logout-icon">Logout</div>,
-  User: () => <div data-testid="user-icon">User</div>,
+  Menu: () => <div data-testid="menu-icon" aria-hidden="true">Menu</div>,
+  X: () => <div data-testid="close-icon" aria-hidden="true">Close</div>,
+  Home: () => <div data-testid="home-icon" aria-hidden="true">Home</div>,
+  MessageSquare: () => <div data-testid="chat-icon" aria-hidden="true">Chat</div>,
+  Settings: () => <div data-testid="settings-icon" aria-hidden="true">Settings</div>,
+  LogOut: () => <div data-testid="logout-icon" aria-hidden="true">Logout</div>,
+  User: () => <div data-testid="user-icon" aria-hidden="true">User</div>,
 }))
 
 describe('MobileMenu', () => {
@@ -64,6 +74,8 @@ describe('MobileMenu', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    usePathnameMock.mockReturnValue('/current-path')
+    useSessionMock.mockReturnValue(defaultSession)
   })
 
   const defaultProps = {
@@ -79,7 +91,7 @@ describe('MobileMenu', () => {
   it('should render menu trigger button', () => {
     render(<MobileMenu {...defaultProps} />)
 
-    expect(screen.getByTestId('sheet-trigger')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /toggle menu/i })).toBeInTheDocument()
     expect(screen.getByTestId('menu-icon')).toBeInTheDocument()
   })
 
@@ -87,7 +99,7 @@ describe('MobileMenu', () => {
     const onToggle = vi.fn()
     render(<MobileMenu {...defaultProps} onToggle={onToggle} />)
 
-    const trigger = screen.getByTestId('sheet-trigger')
+    const trigger = screen.getByRole('button', { name: /toggle menu/i })
     await user.click(trigger)
 
     expect(onToggle).toHaveBeenCalledTimes(1)
@@ -96,9 +108,9 @@ describe('MobileMenu', () => {
   it('should render navigation items when menu is open', () => {
     render(<MobileMenu {...defaultProps} isOpen={true} />)
 
-    expect(screen.getByText('Home')).toBeInTheDocument()
-    expect(screen.getByText('Chat')).toBeInTheDocument()
-    expect(screen.getByText('Settings')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^Home$/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^Chat$/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^Settings$/ })).toBeInTheDocument()
   })
 
   it('should render navigation item icons', () => {
@@ -113,10 +125,10 @@ describe('MobileMenu', () => {
     const onToggle = vi.fn()
     render(<MobileMenu {...defaultProps} isOpen={true} onToggle={onToggle} />)
 
-    const homeLink = screen.getByText('Home').closest('a')
+    const homeLink = screen.getByRole('link', { name: /^Home$/ })
     expect(homeLink).toHaveAttribute('href', '/')
 
-    await user.click(homeLink!)
+    await user.click(homeLink)
 
     // Menu should close after navigation
     expect(onToggle).toHaveBeenCalledWith(false)
@@ -139,26 +151,26 @@ describe('MobileMenu', () => {
   })
 
   it('should highlight active navigation item', () => {
-    vi.mocked(require('next/navigation').usePathname).mockReturnValue('/chat')
+    usePathnameMock.mockReturnValue('/chat')
 
     render(<MobileMenu {...defaultProps} isOpen={true} />)
 
-    const chatLink = screen.getByText('Chat').closest('a')
+    const chatLink = screen.getByRole('link', { name: /^Chat$/ })
     expect(chatLink).toHaveClass('bg-primary')
   })
 
   it('should handle keyboard navigation', async () => {
     render(<MobileMenu {...defaultProps} isOpen={true} />)
 
-    const firstItem = screen.getByText('Home')
-    firstItem.focus()
+    const links = screen.getAllByRole('link')
+    links[0].focus()
 
     // Tab through items
     await user.keyboard('{Tab}')
-    expect(screen.getByText('Chat')).toHaveFocus()
+    expect(links[1]).toHaveFocus()
 
     await user.keyboard('{Tab}')
-    expect(screen.getByText('Settings')).toHaveFocus()
+    expect(links[2]).toHaveFocus()
   })
 
   it('should support custom menu items', () => {
@@ -174,7 +186,7 @@ describe('MobileMenu', () => {
   })
 
   it('should handle missing user session gracefully', () => {
-    vi.mocked(require('next-auth/react').useSession).mockReturnValue({
+    useSessionMock.mockReturnValue({
       data: null,
       status: 'unauthenticated'
     })
@@ -186,7 +198,7 @@ describe('MobileMenu', () => {
   })
 
   it('should handle loading session state', () => {
-    vi.mocked(require('next-auth/react').useSession).mockReturnValue({
+    useSessionMock.mockReturnValue({
       data: null,
       status: 'loading'
     })
@@ -200,8 +212,13 @@ describe('MobileMenu', () => {
     const onToggle = vi.fn()
     render(<MobileMenu {...defaultProps} isOpen={true} onToggle={onToggle} />)
 
+    await screen.findByRole('dialog')
+    const overlay = document.querySelector('[data-state="open"][data-aria-hidden="true"]') as HTMLElement | null
+    expect(overlay).not.toBeNull()
+
     // Simulate clicking outside
-    fireEvent.click(document.body)
+    fireEvent.pointerDown(overlay!)
+    fireEvent.pointerUp(overlay!)
 
     await waitFor(() => {
       expect(onToggle).toHaveBeenCalledWith(false)
@@ -226,10 +243,13 @@ describe('MobileMenu', () => {
     expect(screen.queryByTestId('menu-icon')).not.toBeInTheDocument()
   })
 
-  it('should apply custom className', () => {
-    render(<MobileMenu {...defaultProps} className="custom-menu-class" />)
+  it('should apply custom className', async () => {
+    render(<MobileMenu {...defaultProps} isOpen={undefined} className="custom-menu-class" />)
 
-    const menu = screen.getByTestId('sheet')
-    expect(menu).toHaveClass('custom-menu-class')
+    const trigger = screen.getByRole('button', { name: /toggle menu/i })
+    await user.click(trigger)
+
+    const menu = await screen.findByRole('dialog')
+    expect(menu.className).toContain('custom-menu-class')
   })
 })

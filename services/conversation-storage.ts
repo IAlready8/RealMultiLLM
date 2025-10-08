@@ -1,12 +1,18 @@
+import type { Conversation, ConversationData } from '@/types/app'
+
 export interface ConversationRecord {
   id: string
   title: string
   messages: Array<{ role: string; content: string }>
-  createdAt: Date
-  updatedAt: Date
+  createdAt: number | Date
+  updatedAt: number | Date
   provider?: string
   model?: string
   userId?: string
+  type?: string
+  data?: any
+  timestamp?: number
+  metadata?: Record<string, unknown>
 }
 
 export interface ImportConversationData {
@@ -266,8 +272,8 @@ export class ConversationStorage {
         await this.saveConversation({
           ...conversation,
           userId: data.userId,
-          createdAt: conversation.createdAt || new Date(),
-          updatedAt: new Date()
+          createdAt: conversation.createdAt || new Date().getTime(),
+          updatedAt: new Date().getTime()
         })
 
         result.imported++
@@ -294,23 +300,180 @@ export class ConversationStorage {
     })
   }
 }
+const memoryStore = new Map<string, ConversationRecord>()
 
-// Legacy functional exports for backward compatibility
-export async function saveConversation(type: string, title: string, data: any): Promise<string> {
-  const storage = new ConversationStorage()
-  const conversation: ConversationRecord = {
-    id: `${type}_${Date.now()}`,
-    title,
-    messages: data.messages || [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    provider: data.provider,
-    model: data.model
-  }
-  return storage.saveConversation(conversation)
+function isBrowserStorageAvailable(): boolean {
+  return typeof indexedDB !== 'undefined'
 }
 
-export async function getAllConversations(): Promise<ConversationRecord[]> {
+function deepClone<T>(value: T): T {
+  try {
+    return typeof structuredClone === 'function' ? structuredClone(value) : JSON.parse(JSON.stringify(value ?? null))
+  } catch {
+    return value
+  }
+}
+
+function cloneRecord(record: ConversationRecord): ConversationRecord {
+  return {
+    ...record,
+    createdAt: typeof record.createdAt === 'number' ? record.createdAt : record.createdAt.getTime(),
+    updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : record.updatedAt.getTime(),
+    messages: Array.isArray(record.messages)
+      ? record.messages.map(message => ({ role: message.role, content: message.content }))
+      : [],
+    data: deepClone(record.data),
+    metadata: record.metadata ? { ...record.metadata } : undefined
+  }
+}
+
+async function persistRecord(record: ConversationRecord): Promise<string> {
+  if (!isBrowserStorageAvailable()) {
+    memoryStore.set(record.id, cloneRecord(record))
+    return record.id
+  }
+  const storage = new ConversationStorage()
+  return storage.saveConversation(record)
+}
+
+async function fetchRecord(id: string): Promise<ConversationRecord | null> {
+  if (!isBrowserStorageAvailable()) {
+    const stored = memoryStore.get(id)
+    return stored ? cloneRecord(stored) : null
+  }
+  const storage = new ConversationStorage()
+  return storage.getConversation(id)
+}
+
+async function fetchAllRecords(): Promise<ConversationRecord[]> {
+  if (!isBrowserStorageAvailable()) {
+    return Array.from(memoryStore.values())
+      .map(cloneRecord)
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  }
   const storage = new ConversationStorage()
   return storage.getAllConversations()
 }
+
+export async function getAllConversations(): Promise<ConversationRecord[]> {
+  return fetchAllRecords()
+}
+
+export async function getConversationsByType<T extends Conversation['type']>(type: T): Promise<Array<Extract<Conversation, { type: T }>>> {
+  const records = await fetchAllRecords()
+  return records
+    .filter(record => record.type === type)
+    .map(record => recordToConversation<T>(record))
+    .filter((conversation): conversation is Extract<Conversation, { type: T }> => Boolean(conversation))
+    .sort((a, b) => b.timestamp - a.timestamp)
+}
+
+export async function saveConversation<T extends Conversation['type']>(type: T, title: string, data: ConversationData<T>): Promise<string> {
+  const timestamp = Date.now()
+  const now = new Date(timestamp)
+  const record: ConversationRecord = {
+    id: generateConversationId(type),
+    title: title?.trim() || 'Untitled Conversation',
+    messages: normalizeMessages(data),
+    createdAt: now,
+    updatedAt: now,
+    type,
+    timestamp,
+    data: deepClone(data)
+  }
+
+  await persistRecord(record)
+  return record.id
+}
+
+async function removeRecord(id: string): Promise<void> {
+  if (!isBrowserStorageAvailable()) {
+    memoryStore.delete(id)
+    return
+  }
+  const storage = new ConversationStorage()
+  await storage.deleteConversation(id)
+}
+
+function generateConversationId(type: Conversation['type']): string {
+  const random = Math.random().toString(36).slice(2, 10)
+  return `${type}-${Date.now()}-${random}`
+}
+
+function normalizeMessages(data: unknown): Array<{ role: string; content: string }> {
+  const draft: unknown = (data as any)?.messages
+  if (!Array.isArray(draft)) {
+    return []
+  }
+
+  return draft
+    .map(entry => {
+      const role = typeof entry?.role === 'string' ? entry.role : undefined
+      const content = typeof entry?.content === 'string' ? entry.content : undefined
+      if (!role || !content) {
+        return null
+      }
+      return { role, content }
+    })
+    .filter((entry): entry is { role: string; content: string } => Boolean(entry))
+}
+
+function recordToConversation<T extends Conversation['type']>(record: ConversationRecord): Extract<Conversation, { type: T }> | null {
+  if (!record.type) {
+    return null
+  }
+
+  const createdAtMs = typeof record.createdAt === 'number' ? record.createdAt : record.createdAt.getTime()
+  const updatedAtMs = typeof record.updatedAt === 'number' ? record.updatedAt : record.updatedAt.getTime()
+  const timestamp = typeof record.timestamp === 'number' ? record.timestamp : updatedAtMs ?? createdAtMs
+  return {
+    id: record.id,
+    type: record.type as T,
+    title: record.title,
+    timestamp,
+    createdAt: createdAtMs,
+    updatedAt: updatedAtMs,
+    data: (record.data ?? { messages: record.messages ?? [] }) as ConversationData<T>
+  }
+}
+
+
+
+export async function updateConversation<T extends Conversation['type']>(
+  id: string,
+  updates: Partial<Omit<Extract<Conversation, { type: T }>, 'id'>>
+): Promise<void> {
+  const existing = await fetchRecord(id)
+  if (!existing) {
+    throw new Error(`Conversation with id '${id}' not found`)
+  }
+
+  if (updates.title && typeof updates.title === 'string') {
+    existing.title = updates.title.trim() || existing.title
+  }
+
+  if (updates.type && typeof updates.type === 'string') {
+    existing.type = updates.type as Conversation['type']
+  }
+
+  if (typeof updates.timestamp === 'number' && Number.isFinite(updates.timestamp)) {
+    existing.timestamp = updates.timestamp
+  }
+
+  if (updates.data !== undefined) {
+    existing.data = deepClone(updates.data)
+    const maybeMessages = normalizeMessages(updates.data)
+    if (maybeMessages.length > 0) {
+      existing.messages = maybeMessages
+    }
+  }
+
+  existing.updatedAt = new Date()
+
+  await persistRecord(existing)
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  await removeRecord(id)
+}
+

@@ -1,0 +1,5 @@
+# .nvmrc
+# Node version specification for consistent development environment
+
+# Use the same Node.js version as specified in Vercel's Node.js 18 Alpine Docker image
+18.17.0

@@ -1,6 +1,8 @@
 import { ConversationStorage } from './conversation-storage'
 import { PersonaStorage } from './persona-storage'
 import { AnalyticsService } from './analytics-service'
+import { aesGcmDecrypt, aesGcmEncrypt, deriveKey, randomBytes } from '@/lib/crypto'
+import { b64encode } from '@/lib/runtime'
 
 export interface ExportData {
   version: string
@@ -362,4 +364,109 @@ export class ExportImportService {
       throw new Error('Security validation failed')
     }
   }
+}
+
+interface EncryptedExportPayload {
+  v: number
+  salt: string
+  cipher: string
+}
+
+const DEFAULT_USER_ID = 'local-user'
+
+function resolveUserId(explicit?: string): string {
+  if (explicit) {
+    return explicit
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = window.localStorage?.getItem('rmllm:userId')
+      if (stored) {
+        return stored
+      }
+    } catch {
+      // Ignore storage access issues and fall back to default
+    }
+  }
+
+  return DEFAULT_USER_ID
+}
+
+function validatePassword(password: string): void {
+  if (!password || password.trim().length === 0) {
+    throw new Error('A password is required to export or import data.')
+  }
+}
+
+async function buildEncryptionKey(password: string, salt: string): Promise<Uint8Array> {
+  return deriveKey(`${password}:${salt}`)
+}
+
+function encodePayload(payload: EncryptedExportPayload): string {
+  return JSON.stringify(payload)
+}
+
+function decodePayload(serialized: string): EncryptedExportPayload {
+  const parsed = JSON.parse(serialized) as Partial<EncryptedExportPayload>
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Invalid export payload format.')
+  }
+
+  if (parsed.v !== 1 || typeof parsed.salt !== 'string' || typeof parsed.cipher !== 'string') {
+    throw new Error('Unsupported export payload.')
+  }
+
+  return parsed as EncryptedExportPayload
+}
+
+export async function exportAllData(password: string, userId?: string, options?: ExportOptions): Promise<string> {
+  validatePassword(password)
+
+  const service = new ExportImportService()
+  const resolvedUserId = resolveUserId(userId)
+  const exportData = await service.exportData(resolvedUserId, options)
+
+  const saltBytes = await randomBytes(16)
+  const salt = b64encode(saltBytes)
+  const key = await buildEncryptionKey(password, salt)
+  const cipher = await aesGcmEncrypt(key, JSON.stringify(exportData))
+
+  const payload: EncryptedExportPayload = {
+    v: 1,
+    salt,
+    cipher
+  }
+
+  return encodePayload(payload)
+}
+
+export async function importAllData(serialized: string, password: string, userId?: string, options?: ImportOptions): Promise<void> {
+  validatePassword(password)
+
+  if (!serialized || serialized.trim().length === 0) {
+    throw new Error('No import data provided.')
+  }
+
+  const payload = decodePayload(serialized)
+  const key = await buildEncryptionKey(password, payload.salt)
+  const decrypted = await aesGcmDecrypt(key, payload.cipher)
+
+  const data = JSON.parse(decrypted)
+  if (!data || typeof data !== 'object') {
+    throw new Error('Decrypted data is invalid.')
+  }
+
+  const service = new ExportImportService()
+  const resolvedUserId = resolveUserId(userId)
+  await service.importData(data, resolvedUserId, options)
+}
+
+// Additional functional exports to resolve import issues
+export async function exportData(password: string, userId?: string, options?: ExportOptions): Promise<string> {
+  return exportAllData(password, userId, options)
+}
+
+export async function importData(serialized: string, password: string, userId?: string, options?: ImportOptions): Promise<void> {
+  return importAllData(serialized, password, userId, options)
 }

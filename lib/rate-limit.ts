@@ -1,13 +1,19 @@
 // Conditional import for Redis
-let createClient: any = null;
-let RedisClientType: any = null;
+let redisModule: typeof import('redis') | null = null;
 
-try {
-  const redis = require('redis');
-  createClient = redis.createClient;
-  RedisClientType = redis.RedisClientType;
-} catch (error) {
-  console.warn('Redis not available for rate limiting, using memory-only implementation');
+async function loadRedis() {
+  if (redisModule) {
+    return redisModule;
+  }
+
+  try {
+    redisModule = await import('redis');
+    return redisModule;
+  } catch (error) {
+    console.warn('Redis not available for rate limiting, using memory-only implementation');
+    redisModule = null;
+    return null;
+  }
 }
 
 type Key = string
@@ -26,10 +32,15 @@ let isRedisConnected = false;
 
 // Initialize Redis connection if REDIS_URL is provided
 async function initRedis() {
-  if (!process.env.REDIS_URL || redisClient || !createClient) return;
+  if (!process.env.REDIS_URL || redisClient) return;
   
   try {
-    redisClient = createClient({
+    const redis = await loadRedis();
+    if (!redis) {
+      return;
+    }
+
+    redisClient = redis.createClient({
       url: process.env.REDIS_URL
     });
     
@@ -127,4 +138,3 @@ export function resetAll() {
     redisClient.flushAll().catch(console.error);
   }
 }
-

@@ -2,7 +2,7 @@ export interface PersonaData {
   id: string
   name: string
   systemPrompt: string
-  description?: string
+  description?: string | null
   createdAt: Date
   updatedAt?: Date
   userId?: string
@@ -147,4 +147,19 @@ export async function getPersonasByUserId(userId: string): Promise<PersonaData[]
 export async function getPersona(id: string): Promise<PersonaData | null> {
   const storage = new PersonaStorage()
   return storage.getPersona(id)
+}
+
+// Additional functional exports to resolve import issues
+export async function updatePersona(id: string, updates: Partial<Omit<PersonaData, 'id' | 'userId' | 'createdAt'>>): Promise<void> {
+  const storage = new PersonaStorage()
+  const existing = await storage.getPersona(id)
+  if (existing) {
+    const updated = { ...existing, ...updates, updatedAt: new Date() }
+    await storage.savePersona(updated)
+  }
+}
+
+export async function deletePersona(id: string): Promise<void> {
+  const storage = new PersonaStorage()
+  await storage.deletePersona(id)
 }

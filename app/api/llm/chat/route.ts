@@ -23,6 +23,7 @@ import { logDataAccessEvent } from '@/lib/compliance'
 // Compliant with audit logging and data governance.
 
 export async function POST(request: Request) {
+  let requestId: string | null = null;
   // Apply security middleware
   const securityResult = await processSecurityRequest(request);
   if (!securityResult.success) {
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
     }));
 
     // Generate request ID for tracking
-    const requestId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    requestId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Apply request deduplication for identical requests
     const { requestDeduplicator } = await import('@/lib/request-deduplication');

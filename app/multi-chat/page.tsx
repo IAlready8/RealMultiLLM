@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,63 @@ export default function MultiChat() {
   const { toast } = useToast(); // Initialize toast
   const [streamingEnabled, setStreamingEnabled] = useState(true)
   const streamHandlesRef = useRef<Map<string, { abort: (r?: any) => void }>>(new Map())
+
+  const handleExport = useCallback(async (password: string): Promise<string> => {
+    if (!session?.user?.id) {
+      const error = new Error("You must be logged in to export data.");
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    try {
+      const exported = await exportAllData(password, session.user.id);
+      toast({
+        title: "Success",
+        description: "Data exported successfully.",
+      });
+      return exported;
+    } catch (error: any) {
+      const message = error?.message ?? "Export failed.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw (error instanceof Error ? error : new Error(message));
+    }
+  }, [session?.user?.id, toast]);
+
+  const handleImport = useCallback(async (data: string, password: string): Promise<void> => {
+    if (!session?.user?.id) {
+      const error = new Error("You must be logged in to import data.");
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+
+    try {
+      await importAllData(data, password, session.user.id, { conflictResolution: 'merge' });
+      toast({
+        title: "Success",
+        description: "Data imported successfully.",
+      });
+    } catch (error: any) {
+      const message = error?.message ?? "Import failed.";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+      throw (error instanceof Error ? error : new Error(message));
+    }
+  }, [session?.user?.id, toast]);
 
   // Derived state for overall loading status
   const isAnyLoading = Object.values(loading).some(Boolean); // Added this line
@@ -236,8 +293,8 @@ export default function MultiChat() {
           />
           
           <ExportImportDialog
-            onExport={exportAllData}
-            onImport={importAllData}
+            onExport={handleExport}
+            onImport={handleImport}
           />
           
           <Dialog>

@@ -41,7 +41,7 @@ export function usePersonas(userId: string) {
     }
   }, [userId, loadPersonas]);
   
-  const updateExistingPersona = useCallback(async (id: string, updates: { title?: string; description?: string | null; prompt?: string }) => {
+  const updateExistingPersona = useCallback(async (id: string, updates: { name?: string; description?: string | null; systemPrompt?: string }) => {
     try {
       await updatePersona(id, updates);
       await loadPersonas();

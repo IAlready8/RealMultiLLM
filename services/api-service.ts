@@ -1,5 +1,9 @@
 import { errorManager, LLMProviderError, createErrorContext, ValidationError } from '@/lib/error-system'
 import { OpenAIService } from './llm-providers/openai-service'
+import AnthropicProvider from './llm-providers/anthropic-service'
+import GoogleAIProvider from './llm-providers/google-ai-service'
+import OpenRouterProvider from './llm-providers/openrouter-service'
+import GrokProvider from './llm-providers/grok-service'
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -19,9 +23,10 @@ export interface StreamChatOptions {
 // Provider service registry
 const providerServices = {
   openai: () => OpenAIService.getInstance(),
-  // Add other providers here as they're implemented
-  // anthropic: () => AnthropicService.getInstance(),
-  // googleai: () => GoogleAIService.getInstance(),
+  anthropic: () => new AnthropicProvider(),
+  'google-ai': () => new GoogleAIProvider(),
+  openrouter: () => new OpenRouterProvider(),
+  grok: () => new GrokProvider(),
 }
 
 export async function sendChatMessage(
@@ -132,7 +137,7 @@ export async function streamChatMessage(
     }
 
     // Stream response
-    const stream = service.streamChat({
+    const streamResult = await service.streamChat({
       messages: providerMessages,
       model: options.model,
       temperature: options.temperature,
@@ -140,7 +145,18 @@ export async function streamChatMessage(
       userId: options.userId,
     })
 
-    for await (const chunk of stream) {
+    const asyncIterableCandidate =
+      typeof (streamResult as any)?.[Symbol.asyncIterator] === 'function'
+        ? (streamResult as AsyncIterable<string>)
+        : (streamResult as { stream?: AsyncIterable<string> }).stream
+
+    if (!asyncIterableCandidate || typeof asyncIterableCandidate[Symbol.asyncIterator] !== 'function') {
+      throw new LLMProviderError(provider, 'Provider did not return a valid async stream', context)
+    }
+
+    const asyncIterable = asyncIterableCandidate
+
+    for await (const chunk of asyncIterable) {
       // Check for abort signal during streaming
       if (options.abortSignal?.aborted) {
         throw new LLMProviderError(provider, 'Request was aborted during streaming', context)

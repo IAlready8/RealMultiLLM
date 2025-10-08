@@ -31,23 +31,10 @@ export function ConversationManager<T extends Conversation['type']>({
   const { 
     conversations, 
     isLoading, 
-    saveConversation, 
     deleteConversation 
   } = useConversation(type);
   
-  const handleSave = async () => {
-    if (!conversationTitle.trim()) return;
-    
-    try {
-      // `data` is now strongly typed, not `any`.
-      await saveConversation(conversationTitle, data);
-      setShowSaveDialog(false);
-      setConversationTitle("");
-    } catch (error) {
-      // TODO: Replace with a proper toast notification
-      console.error("Error saving conversation:", error);
-    }
-  };
+  
   
   const handleDelete = async (id: string) => {
     try {
@@ -61,34 +48,7 @@ export function ConversationManager<T extends Conversation['type']>({
   
   return (
     <div className="flex gap-2">
-      <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-        <DialogTrigger asChild>
-          <Button variant={buttonVariant} className="flex items-center gap-1">
-            <Save className="h-4 w-4" />
-            Save
-          </Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Save Conversation</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="conversation-title">Conversation Title</Label>
-              <Input
-                id="conversation-title"
-                placeholder="Enter a title for this conversation"
-                value={conversationTitle}
-                onChange={(e) => setConversationTitle(e.target.value)}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowSaveDialog(false)}>Cancel</Button>
-              <Button onClick={handleSave}>Save</Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
+      
       
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

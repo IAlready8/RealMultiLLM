@@ -171,6 +171,22 @@ export const SYSTEM_PERMISSIONS: Record<string, Permission> = {
     description: 'Configure compliance settings and policies',
     resource: 'compliance',
     action: 'manage'
+  },
+  
+  // Team Management
+  'team.read': {
+    id: 'team.read',
+    name: 'Read Team',
+    description: 'View team information and members',
+    resource: 'team',
+    action: 'read'
+  },
+  'team.write': {
+    id: 'team.write',
+    name: 'Write Team',
+    description: 'Manage team members, settings, and operations',
+    resource: 'team',
+    action: 'write'
   }
 };
 
@@ -713,6 +729,22 @@ export async function requirePermission(
 
 export async function requireRole(userId: string, roleId: string): Promise<boolean> {
   return rbac.hasRole(userId, roleId);
+}
+
+export async function hasPermission(
+  userId: string,
+  action: string,
+  context?: Partial<AuthorizationContext>
+): Promise<boolean> {
+  const authContext: AuthorizationContext = {
+    userId,
+    resource: context?.resource || 'default',
+    action,
+    ...context
+  };
+
+  const result = await rbac.authorize(authContext);
+  return result.allowed;
 }
 
 export function hasSystemRole(userId: string, role: keyof typeof SYSTEM_ROLES): Promise<boolean> {

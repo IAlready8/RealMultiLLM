@@ -1,0 +1,355 @@
+# Enterprise CI/CD Pipeline for RealMultiLLM
+# This workflow handles enterprise-specific testing, validation, and deployment
+
+name: Enterprise CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, enterprise ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main, master, enterprise ]
+
+permissions:
+  contents: read
+  security-events: write
+  actions: write
+  checks: write
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Security scan job - runs first to fail fast on security issues
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Security Audit
+        run: |
+          npm audit --audit-level high
+          npm audit --audit-level moderate || echo "Moderate vulnerabilities detected (not failing build)"
+
+      - name: Run Snyk Security Scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Run CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/security-scan"
+          languages: javascript
+
+  # Static analysis for enterprise code quality
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Type Check
+        run: npm run type-check
+
+      - name: Run Linting
+        run: npm run lint
+
+      - name: Run Style Check
+        run: npx prettier --check .
+
+  # Unit tests with coverage
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run Unit Tests
+        run: npm run test:run -- --coverage
+        env:
+          NODE_ENV: test
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # Integration tests for enterprise features
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Test Database
+        run: |
+          npm run db:push:test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+
+      - name: Run Integration Tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+          NODE_ENV: test
+          NEXTAUTH_SECRET: test-secret-do-not-use-in-production
+          NEXTAUTH_URL: http://localhost:3000
+
+  # Enterprise-specific tests
+  enterprise-tests:
+    name: Enterprise Feature Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Enterprise Configuration Tests
+        run: npm run test -- --testPathPattern="enterprise"
+        env:
+          NODE_ENV: test
+
+      - name: Run Performance Tests
+        run: npm run test:performance
+        env:
+          NODE_ENV: test
+
+      - name: Run Security Tests
+        run: npm run test:security
+        env:
+          NODE_ENV: test
+
+  # Build verification
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Build Project
+        run: npm run build
+        env:
+          NODE_ENV: production
+          NEXTAUTH_SECRET: dummy-secret-for-build
+          DATABASE_URL: file:./test.db
+
+      - name: Verify Build Artifacts
+        run: |
+          if [ ! -d ".next" ]; then
+            echo "Build directory not found!"
+            exit 1
+          fi
+          echo "Build verification passed"
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: .next/
+          retention-days: 5
+
+  # Enterprise deployment
+  deploy:
+    name: Deploy to Enterprise Environment
+    needs: [security-scan, static-analysis, unit-tests, integration-tests, enterprise-tests, build]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/enterprise' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: enterprise
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: .next/
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Setup Environment Variables
+        run: |
+          echo "NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}" >> .env.production
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env.production
+          echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env.production
+          echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env.production
+          echo "GITHUB_ID=${{ secrets.GITHUB_ID }}" >> .env.production
+          echo "GITHUB_SECRET=${{ secrets.GITHUB_SECRET }}" >> .env.production
+          echo "ENTERPRISE_AUDIT_LOGGING=true" >> .env.production
+          echo "ENTERPRISE_COMPLIANCE_MONITORING=true" >> .env.production
+          echo "ENTERPRISE_DATA_ENCRYPTION=true" >> .env.production
+          echo "ENTERPRISE_RBAC=true" >> .env.production
+          echo "ENTERPRISE_REQUEST_TRACING=true" >> .env.production
+          echo "ENTERPRISE_PERFORMANCE_MONITORING=true" >> .env.production
+          echo "TELEMETRY_ENABLED=true" >> .env.production
+          echo "COMPLIANCE_GDPR_ENABLED=${{ vars.COMPLIANCE_GDPR_ENABLED || 'false' }}" >> .env.production
+          echo "COMPLIANCE_HIPAA_ENABLED=${{ vars.COMPLIANCE_HIPAA_ENABLED || 'false' }}" >> .env.production
+          echo "COMPLIANCE_SOX_ENABLED=${{ vars.COMPLIANCE_SOX_ENABLED || 'false' }}" >> .env.production
+          echo "COMPLIANCE_PCI_ENABLED=${{ vars.COMPLIANCE_PCI_ENABLED || 'false' }}" >> .env.production
+
+      - name: Deploy to Production
+        run: |
+          # Deploy to Vercel
+          npx vercel --token=${{ secrets.VERCEL_TOKEN }} --prod
+          
+          # Deploy to Netlify as backup
+          # npm install -g netlify-cli
+          # netlify deploy --dir=.next --prod --auth=${{ secrets.NETLIFY_AUTH_TOKEN }} --site=${{ secrets.NETLIFY_SITE_ID }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Infrastructure
+        run: |
+          # Deploy to AWS ECS/Fargate if configured
+          # For now, this is a placeholder for actual infrastructure deployment
+          echo "Deploying enterprise infrastructure..."
+          # aws ecs update-service --cluster ${{ vars.ECS_CLUSTER_NAME }} --service ${{ vars.ECS_SERVICE_NAME }} --force-new-deployment
+          
+          # Update infrastructure with Terraform if configured
+          # cd infrastructure && terraform init && terraform apply -auto-approve
+        if: ${{ vars.DEPLOY_TO_AWS == 'true' }}
+
+      - name: Run Post-Deployment Tests
+        run: |
+          # Run smoke tests against the deployed application
+          curl -f ${{ vars.DEPLOYED_URL || secrets.NEXTAUTH_URL }} || exit 1
+          echo "Deployment smoke test passed"
+        env:
+          NEXTAUTH_URL: ${{ vars.DEPLOYED_URL || secrets.NEXTAUTH_URL }}
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  # Enterprise monitoring setup
+  monitoring:
+    name: Setup Monitoring
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/enterprise'
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Monitoring Configuration
+        run: |
+          echo "Setting up enterprise monitoring..."
+          # This would integrate with your monitoring solution (Datadog, New Relic, etc.)
+          # For now, we'll just log the deployment
+          echo "Deployment completed at $(date)" > monitoring/deployment.log

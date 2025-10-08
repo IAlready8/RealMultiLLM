@@ -43,21 +43,26 @@ services:
         reservations:
           memory: 512M
 
-  # Optional PostgreSQL service for development
-  # In production, use managed database services
+  # PostgreSQL service for development
+  # In production, use managed database services (Neon, Supabase, AWS RDS)
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     profiles: ["database"]
     environment:
       POSTGRES_DB: realmultillm
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_USER: ${POSTGRES_USER:-realmultillm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_in_production}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./prisma/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U realmultillm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
@@ -65,8 +70,33 @@ services:
         reservations:
           memory: 256M
 
+  # Redis service for rate limiting and caching
+  redis:
+    image: redis:7-alpine
+    profiles: ["database"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-dev_redis_password}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-dev_redis_password}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   default:

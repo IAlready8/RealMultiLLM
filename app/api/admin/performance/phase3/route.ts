@@ -12,6 +12,7 @@ import { getApiSecurityHeaders } from '@/lib/security-headers';
 import { logger } from '@/lib/observability/logger';
 
 export async function GET(request: NextRequest) {
+  let userId: string | undefined;
   try {
     const session = await getServerSession(authOptions);
 
@@ -24,6 +25,8 @@ export async function GET(request: NextRequest) {
         }
       );
     }
+
+    userId = session.user.id;
 
     const { searchParams } = new URL(request.url);
     const includeDetails = searchParams.get('details') === 'true';
@@ -179,7 +182,7 @@ export async function GET(request: NextRequest) {
     };
 
     logger.info('phase3_performance_check', {
-      userId: session.user.id,
+      userId,
       systemHealth: systemHealth.overall,
       duplicateRate: deduplicationStats.performance.duplicateRate,
       errorQueueDepth: errorProcessorStats.queueDepth,
@@ -199,7 +202,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error('phase3_performance_monitoring_error', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      userId: session?.user?.id
+      userId
     });
 
     return NextResponse.json({
@@ -223,6 +226,7 @@ export async function GET(request: NextRequest) {
  * POST endpoint for performance actions and optimizations
  */
 export async function POST(request: NextRequest) {
+  let userId: string | undefined;
   try {
     const session = await getServerSession(authOptions);
 
@@ -232,6 +236,8 @@ export async function POST(request: NextRequest) {
         { status: 401, headers: getApiSecurityHeaders() }
       );
     }
+
+    userId = session.user.id;
 
     const body = await request.json();
     const { action, component, parameters } = body;
@@ -314,7 +320,7 @@ export async function POST(request: NextRequest) {
     }
 
     logger.info('phase3_performance_action', {
-      userId: session.user.id,
+      userId,
       action,
       component,
       result: result.action || 'completed'
@@ -333,7 +339,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     logger.error('phase3_performance_action_error', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      userId: session?.user?.id
+      userId
     });
 
     return NextResponse.json({

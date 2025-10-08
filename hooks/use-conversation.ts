@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  saveConversation as save, 
-  getConversationsByType as getByType, 
-  deleteConversation as del, 
-  updateConversation as update
+import {
+  getConversationsByType,
+  deleteConversation as deleteConversationService,
+  updateConversation as updateConversationService
 } from '@/services/conversation-storage';
 import type { Conversation, ConversationData } from '@/types/app';
 
@@ -24,9 +23,13 @@ export function useConversation<T extends Conversation['type']>(type: T) {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await getByType(type);
-      // Sort by timestamp, newest first
-      data.sort((a, b) => b.timestamp - a.timestamp);
+      const data = await getConversationsByType(type);
+      // Sort by timestamp, newest first - using createdAt if timestamp not available
+      data.sort((a, b) => {
+        const bTime = b.timestamp || new Date(b.createdAt).getTime();
+        const aTime = a.timestamp || new Date(a.createdAt).getTime();
+        return bTime - aTime;
+      });
       setConversations(data);
     } catch (err) {
       console.error(`Error loading conversations of type '${type}':`, err);
@@ -36,21 +39,9 @@ export function useConversation<T extends Conversation['type']>(type: T) {
     }
   }, [type]);
   
-  const saveConversation = useCallback(async (title: string, data: ConversationData<T>) => {
-    try {
-      const id = await save(type, title, data);
-      await loadConversations(); // Refresh the list
-      return id;
-    } catch (err) {
-      console.error(`Error saving conversation of type '${type}':`, err);
-      setError('Failed to save conversation');
-      throw err;
-    }
-  }, [type, loadConversations]);
-  
   const updateConversation = useCallback(async (id: string, updates: ConversationUpdate<T>) => {
     try {
-      await update(id, updates);
+      await updateConversationService(id, updates);
       await loadConversations(); // Refresh the list
     } catch (err) {
       console.error(`Error updating conversation with id '${id}':`, err);
@@ -61,7 +52,7 @@ export function useConversation<T extends Conversation['type']>(type: T) {
   
   const deleteConversation = useCallback(async (id: string) => {
     try {
-      await del(id);
+      await deleteConversationService(id);
       await loadConversations(); // Refresh the list
     } catch (err) {
       console.error(`Error deleting conversation with id '${id}':`, err);
@@ -79,7 +70,6 @@ export function useConversation<T extends Conversation['type']>(type: T) {
     conversations,
     isLoading,
     error,
-    saveConversation,
     updateConversation,
     deleteConversation,
     refreshConversations: loadConversations

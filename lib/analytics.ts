@@ -1,10 +1,4 @@
-import { recordAnalyticsEvent, getAnalytics, getDailyUsage } from '@/services/analytics-service';
 
-// Re-export the types from the service
-export type { AnalyticsEvent, UsageData } from '@/services/analytics-service';
-
-// Re-export the functions
-export { recordAnalyticsEvent, getAnalytics, getDailyUsage };
 
 // Placeholder functions for the missing exports
 export function getGlobalAnalyticsEngine() {

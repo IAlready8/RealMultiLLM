@@ -81,7 +81,8 @@ export async function GET(request: Request) {
     // Return data in requested format
     if (format === 'prometheus') {
       const prometheusData = await monitoring.exportMetrics('prometheus');
-      return new NextResponse(prometheusData, {
+      const body = Array.isArray(prometheusData) ? JSON.stringify(prometheusData) : prometheusData;
+      return new NextResponse(body, {
         headers: {
           'Content-Type': 'text/plain; version=0.0.4',
         },

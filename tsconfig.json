@@ -26,6 +26,9 @@
     ],
     "baseUrl": ".",
     "paths": {
+      "@anthropic-ai/sdk": ["./stubs/anthropic-sdk.ts"],
+      "@google/generative-ai": ["./stubs/google-generative-ai.ts"],
+      "openai": ["./stubs/openai.ts"],
       "@/api/*": ["app/api/*"],
       "@/*": ["./*"]
     }

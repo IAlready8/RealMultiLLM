@@ -1,163 +1,220 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import { streamChatMessage } from '@/services/api-service'
-import { badRequest, internalError, tooManyRequests, unauthorized } from '@/lib/http'
-import { checkAndConsume } from '@/lib/rate-limit'
-import { validateChatRequest } from '@/schemas/llm'
-import { logger } from '@/lib/observability/logger'
-import { 
-  metricsRegistry 
-} from '@/lib/observability/metrics'
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { invokeLLM } from '@/lib/llm-manager-instance';
+import { enforceModelPolicy } from '@/lib/model-policy';
+import { trackCost } from '@/lib/cost-tracker';
+import {
+  checkApiRateLimit,
+  RateLimitError
+} from '@/lib/api';
+import { processSecurityRequest } from '@/lib/security';
+import { logger } from '@/lib/observability/logger';
+import { metricsRegistry } from '@/lib/observability/metrics';
+import { validateChatRequest } from '@/schemas/llm';
+import { logDataAccessEvent } from '@/lib/compliance';
+import prisma from '@/lib/prisma';
 
-export async function POST(request: Request) {
+/**
+ * Streaming LLM endpoint with full enterprise integration
+ * - LLM Manager orchestration
+ * - Model policy enforcement
+ * - Cost tracking
+ * - Rate limiting
+ * - RBAC authorization
+ */
+export async function POST(request: NextRequest) {
   const startTime = Date.now();
-  
-  try {
-    const session = await getServerSession(authOptions);
+  const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    if (!session || !session.user?.id) {
-      return unauthorized()
+  // Apply security middleware
+  const securityResult = await processSecurityRequest(request);
+  if (!securityResult.success) {
+    return NextResponse.json(
+      { error: { message: securityResult.error } },
+      { status: 400 }
+    );
+  }
+
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    return NextResponse.json(
+      { error: { message: 'Unauthorized' } },
+      { status: 401 }
+    );
+  }
+
+  const userId = session.user.id;
+  const endpoint = 'llm/stream';
+
+  try {
+    // Check rate limit
+    const rateLimitResult = await checkApiRateLimit(request, endpoint, userId);
+
+    if (!rateLimitResult.allowed) {
+      await logDataAccessEvent(
+        userId,
+        'llm_api',
+        'rate_limit_exceeded',
+        securityResult.context?.ip,
+        securityResult.context?.userAgent,
+        { endpoint, limit: rateLimitResult.limit }
+      );
+
+      throw new RateLimitError(
+        `Rate limit exceeded. Try again in ${Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)} seconds.`,
+        'RATE_LIMIT_EXCEEDED',
+        {
+          limit: rateLimitResult.limit,
+          remaining: rateLimitResult.remaining,
+          resetTime: rateLimitResult.resetTime
+        }
+      );
     }
 
-    try {
-      const json = await request.json()
-      const parsed = validateChatRequest(json)
-      if (!parsed.ok) {
-        return badRequest(parsed.error)
-      }
+    // Validate request
+    const validationResult = validateChatRequest(await request.json());
+    if (!validationResult.ok) {
+      return NextResponse.json({ error: { message: validationResult.error } }, { status: 400 });
+    }
 
-      const { provider, messages, options } = parsed.data
+    const { messages, provider, options } = validationResult.data;
+    const model = options?.model || 'default';
 
-      const perUserMax = parseInt(process.env.RATE_LIMIT_LLM_PER_USER_PER_MIN || '60', 10)
-      const globalMax = parseInt(process.env.RATE_LIMIT_LLM_GLOBAL_PER_MIN || '600', 10)
-      const windowMs = parseInt(process.env.RATE_LIMIT_LLM_WINDOW_MS || '60000', 10)
-      const perUser = await checkAndConsume(`llm:${session.user.id}`, { windowMs, max: perUserMax })
-      const global = await checkAndConsume(`llm:global`, { windowMs, max: globalMax })
+    // Enforce model policy
+    await enforceModelPolicy(userId, model, options?.maxTokens);
 
-      if (!perUser || !global) {
-        logger.error('rate_limiter_unavailable', { perUser, global })
-        return internalError('Rate limiter unavailable')
-      }
+    // Get API key for provider
+    const providerConfig = await prisma.providerConfig.findUnique({
+      where: { userId_provider: { userId, provider } }
+    });
 
-      if (!perUser.allowed || !global.allowed) {
-        const retryAfterMs = Math.max(perUser.retryAfterMs ?? 0, global.retryAfterMs ?? 0)
-        const remaining = Math.min(perUser.remaining ?? 0, global.remaining ?? 0)
-        return tooManyRequests('Rate limit exceeded', {
-          retryAfterMs,
-          remaining,
-        })
-      }
-
-      // Increment LLM request counter
-      const requestMetric = metricsRegistry.registerCounter(
-        'llm_requests_total',
-        'Total number of LLM requests',
-        { provider, model: options?.model || 'unknown' }
+    if (!providerConfig || !providerConfig.apiKey) {
+      return NextResponse.json(
+        { error: { message: `No API key configured for provider: ${provider}` } },
+        { status: 400 }
       );
-      requestMetric.inc(1);
-      
-      // Start timing
-      const startTime = Date.now();
-      
-      logger.info('llm.stream.start', { provider, userId: session.user.id, messageCount: messages.length })
+    }
 
-      const encoder = new TextEncoder()
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          const writeJson = (obj: any) => controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'))
+    logger.info('llm.stream.start', { provider, userId, model, requestId });
 
-          // Enhanced connection management with memory leak prevention
-          const { streamConnectionManager } = await import('@/lib/stream-connection-manager');
-          const connectionId = streamConnectionManager.registerConnection(
-            session.user.id,
-            provider,
-            controller,
-            300000 // 5 minute timeout
+    // Invoke LLM Manager with streaming
+    const result = await invokeLLM(provider, messages, {
+      userId,
+      apiKey: providerConfig.apiKey,
+      temperature: options?.temperature,
+      maxTokens: options?.maxTokens,
+      stream: true,
+    });
+
+    if (typeof result === 'string') {
+      throw new Error('Expected streaming response but got string');
+    }
+
+    // Create streaming response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let fullContent = '';
+        let tokenCount = 0;
+
+        try {
+          for await (const chunk of result) {
+            fullContent += chunk;
+            tokenCount += chunk.split(' ').length; // Rough estimate
+
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'chunk', content: chunk }) + '\n')
+            );
+          }
+
+          // Calculate approximate token usage
+          const promptTokens = messages.reduce((acc, m) =>
+            acc + m.content.split(' ').length, 0
+          );
+          const completionTokens = tokenCount;
+
+          // Track cost (non-blocking)
+          trackCost(userId, provider, model, promptTokens, completionTokens).catch(err =>
+            logger.error('cost_tracking_error', { error: err.message })
           );
 
-          // Enhanced abort handler with connection cleanup
-          const abortHandler = streamConnectionManager.createAbortHandler(connectionId, writeJson);
-          request.signal.addEventListener('abort', abortHandler)
-          try {
-            await streamChatMessage(
-              provider,
-              messages,
-              (chunk) => writeJson({ type: 'chunk', content: chunk }),
-              { ...options, abortSignal: request.signal } as any
-            )
-            writeJson({ type: 'done' })
-            controller.close()
+          controller.enqueue(
+            encoder.encode(JSON.stringify({
+              type: 'done',
+              usage: { promptTokens, completionTokens, totalTokens: promptTokens + completionTokens }
+            }) + '\n')
+          );
+          controller.close();
 
-            // Clean up connection tracking
-            streamConnectionManager.removeConnection(connectionId);
-            
-            // Calculate duration
-            const duration = (Date.now() - startTime) / 1000; // in seconds
-            
-            // Record request duration
-            const durationMetric = metricsRegistry.registerHistogram(
-              'llm_request_duration_seconds',
-              'LLM request duration in seconds',
-              [0.1, 0.5, 1, 2, 5, 10, 30, 60],
-              { provider, model: options?.model || 'unknown' }
-            );
-            durationMetric.observe(duration);
-            
-            logger.info('llm.stream.success', {
-              provider,
-              userId: session.user.id,
-              duration: `${duration.toFixed(3)}s`
-            });
+          const ms = Date.now() - startTime;
+          logger.info('llm.stream.success', { provider, userId, model, ms, requestId });
 
-            // Track API key usage for lifecycle management (non-blocking)
-            import('@/lib/api-key-tracker').then(({ trackApiKeyUsage }) => {
-              trackApiKeyUsage({
-                userId: session.user.id,
-                provider,
-                success: true,
-                timestamp: new Date()
-              });
-            });
-          } catch (error: any) {
-            logger.error('llm_stream_error', { provider, message: error?.message })
-            
-            // Record error metrics
-            const errorMetric = metricsRegistry.registerCounter(
-              'llm_requests_total',
-              'Total number of LLM requests',
-              { provider, model: options?.model || 'unknown', status: 'error' }
-            );
-            errorMetric.inc(1);
-            
-            writeJson({ type: 'error', error: error?.message || 'Internal Error' })
-            controller.error(error)
-          } finally {
-            // Ensure connection cleanup in all cases
-            streamConnectionManager.removeConnection(connectionId);
-            request.signal.removeEventListener('abort', abortHandler)
-          }
-        },
-      })
+          // Metrics
+          metricsRegistry.registerCounter(
+            'llm_requests_total',
+            'Total LLM requests',
+            { provider, model, status: 'success' }
+          ).inc(1);
 
-      return new NextResponse(stream, {
-        headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' },
-      })
-    } catch (error: any) {
-      logger.error('llm_stream_error_outer', { message: error?.message })
-      
-      // Record error metrics
-      const globalErrorMetric = metricsRegistry.registerCounter(
-        'llm_requests_total',
-        'Total number of LLM requests',
-        { provider: 'unknown', model: 'unknown', status: 'error' }
-      );
-      globalErrorMetric.inc(1);
-      
-      return internalError(error.message || 'Internal Server Error')
-    }
+          metricsRegistry.registerHistogram(
+            'llm_request_duration_seconds',
+            'LLM request duration',
+            [0.1, 0.5, 1, 2, 5, 10, 30, 60],
+            { provider, model }
+          ).observe(ms / 1000);
+
+          // Log data access
+          await logDataAccessEvent(
+            userId,
+            'llm_api',
+            'read',
+            securityResult.context?.ip,
+            securityResult.context?.userAgent,
+            { provider, model, responseTime: ms }
+          );
+
+        } catch (error: any) {
+          controller.enqueue(
+            encoder.encode(JSON.stringify({ type: 'error', error: error.message }) + '\n')
+          );
+          controller.error(error);
+
+          logger.error('llm.stream.error', { provider, userId, error: error.message, requestId });
+
+          metricsRegistry.registerCounter(
+            'llm_requests_total',
+            'Total LLM requests',
+            { provider, model, status: 'error' }
+          ).inc(1);
+        }
+      }
+    });
+
+    return new NextResponse(stream, {
+      headers: {
+        'Content-Type': 'application/x-ndjson; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+        'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+        ...securityResult.headers,
+      },
+    });
+
   } catch (error: any) {
-    logger.error('stream_route_error', { error: error.message });
-    return internalError('Internal Server Error');
+    const ms = Date.now() - startTime;
+    logger.error('llm.stream.error', { error: error.message, userId, ms, requestId });
+
+    metricsRegistry.registerCounter(
+      'llm_requests_total',
+      'Total LLM requests',
+      { provider: 'unknown', model: 'unknown', status: 'error' }
+    ).inc(1);
+
+    return NextResponse.json(
+      { error: { message: error.message || 'Internal server error' } },
+      { status: error.statusCode || 500, headers: securityResult.headers }
+    );
   }
 }
