@@ -13,6 +13,31 @@ beforeAll(() => {
   global.fetch = global.fetch || fetch
 })
 
+// Mock performance API for test environment
+Object.defineProperty(global, 'performance', {
+  writable: true,
+  value: {
+    now: vi.fn(() => Date.now()),
+    mark: vi.fn(),
+    measure: vi.fn(),
+    getEntriesByName: vi.fn(() => []),
+    getEntriesByType: vi.fn(() => []),
+  }
+})
+
+// Mock crypto for test environment
+Object.defineProperty(global, 'crypto', {
+  writable: true,
+  value: {
+    randomUUID: vi.fn(() => '123e4567-e89b-12d3-a456-426614174000'),
+    subtle: {
+      digest: vi.fn(),
+      encrypt: vi.fn(),
+      decrypt: vi.fn(),
+    }
+  }
+})
+
 // Mock Next.js router
 const mockRouter = {
   back: () => {},

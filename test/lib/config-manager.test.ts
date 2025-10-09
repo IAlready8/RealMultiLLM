@@ -12,8 +12,9 @@ vi.mock('@/lib/crypto', () => ({
 
 import { ConfigurationManager, ConfigurationError } from '@/lib/config-manager';
 import { mockProviderConfigs } from '../test-utils';
+import prisma from '@/lib/prisma';
 
-const mockPrisma = createMockPrisma();
+const mockPrisma = prisma as unknown as ReturnType<typeof createMockPrisma>;
 
 describe('ConfigurationManager', () => {
   let configManager: ConfigurationManager;
@@ -24,7 +25,7 @@ describe('ConfigurationManager', () => {
   });
 
   afterEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('getInstance', () => {
@@ -288,30 +289,36 @@ describe('ConfigurationManager', () => {
 
   describe('testProviderConnection', () => {
     it('should test OpenAI connection', async () => {
-      vi.doMock('@/services/llm-providers/openai-service', () => ({
-        OpenAIService: vi.fn().mockImplementation(() => ({
-          testConnection: vi.fn().mockResolvedValue(true),
-        })),
-      }));
-      
+      const { OpenAIService } = await import('@/services/llm-providers/openai-service');
+      const testConnectionMock = vi.fn().mockResolvedValue(true);
+      const getInstanceSpy = vi
+        .spyOn(OpenAIService, 'getInstance')
+        .mockReturnValue({ testConnection: testConnectionMock } as any);
+
       const result = await configManager.testProviderConnection('openai', mockProviderConfigs.openai);
       
       expect(result.success).toBe(true);
       expect(result.latency).toBeDefined();
       expect(typeof result.latency).toBe('number');
+      expect(testConnectionMock).toHaveBeenCalledWith(mockProviderConfigs.openai.apiKey);
+
+      getInstanceSpy.mockRestore();
     });
 
     it('should handle connection test failure', async () => {
-      vi.doMock('@/services/llm-providers/openai-service', () => ({
-        OpenAIService: vi.fn().mockImplementation(() => ({
-          testConnection: vi.fn().mockRejectedValue(new Error('Invalid API key')),
-        })),
-      }));
-      
+      const { OpenAIService } = await import('@/services/llm-providers/openai-service');
+      const testConnectionMock = vi.fn().mockRejectedValue(new Error('Invalid API key'));
+      const getInstanceSpy = vi
+        .spyOn(OpenAIService, 'getInstance')
+        .mockReturnValue({ testConnection: testConnectionMock } as any);
+
       const result = await configManager.testProviderConnection('openai', mockProviderConfigs.openai);
       
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid API key');
+      expect(testConnectionMock).toHaveBeenCalledWith(mockProviderConfigs.openai.apiKey);
+
+      getInstanceSpy.mockRestore();
     });
 
     it('should handle unknown provider', async () => {

@@ -1,670 +1,404 @@
 import { z } from 'zod';
-import { configManager, type SystemConfig } from '../config-manager';
-import { env } from '../env';
+import type { SystemConfig } from '../config-manager';
+import { getValidatedEnv, type Env } from '../env';
+import { Metric } from '../observability/metrics';
+import { Logger } from '../observability/logger';
+import { monitoring } from '../monitoring';
 
-// Enterprise Configuration Schema
-export const enterpriseConfigSchema = z.object({
-  // Feature flags for enterprise capabilities
-  features: z.object({
-    auditLogging: z.boolean().default(false),
-    complianceMonitoring: z.boolean().default(false),
-    dataEncryption: z.boolean().default(false),
-    userImpersonation: z.boolean().default(false),
-    rbac: z.boolean().default(false),
-    apiRateLimiting: z.boolean().default(true),
-    requestTracing: z.boolean().default(false),
-    performanceMonitoring: z.boolean().default(false),
-    securityScanning: z.boolean().default(false),
-  }),
+// Define configuration schema using Zod for validation
+const ConfigSchema = z.object({
+  // Application settings
+  appName: z.string().default('Multi-LLM Platform'),
+  environment: z.enum(['development', 'staging', 'production']).default('development'),
+  port: z.number().min(1).max(65535).default(3000),
+  host: z.string().default('localhost'),
   
-  // Security configurations
-  security: z.object({
-    // Authentication settings
-    authentication: z.object({
-      sso: z.object({
-        enabled: z.boolean().default(false),
-        provider: z.enum(['okta', 'auth0', 'azure-ad', 'custom']).optional(),
-        metadataUrl: z.string().url().optional(),
-        clientId: z.string().optional(),
-        clientSecret: z.string().optional(),
-      }),
-      mfa: z.object({
-        required: z.boolean().default(false),
-        methods: z.array(z.enum(['totp', 'sms', 'email', 'hardware'])).default(['totp']),
-      }),
-    }),
-    
-    // Encryption settings
-    encryption: z.object({
-      atRest: z.boolean().default(false),
-      inTransit: z.boolean().default(true),
-      keyRotationDays: z.number().min(1).default(90),
-      algorithm: z.enum(['AES-256-GCM', 'ChaCha20-Poly1305']).default('AES-256-GCM'),
-    }),
-    
-    // Network security
-    network: z.object({
-      ipWhitelist: z.array(z.string()).optional(),
-      cors: z.object({
-        allowedOrigins: z.array(z.string()).default(['*']),
-        allowedMethods: z.array(z.string()).default(['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']),
-        allowedHeaders: z.array(z.string()).default(['Content-Type', 'Authorization']),
-      }),
-      rateLimiting: z.object({
-        windowMs: z.number().default(15 * 60 * 1000), // 15 minutes
-        max: z.number().default(100),
-        message: z.string().default('Too many requests, please try again later.'),
-      }),
-    }),
-  }),
+  // Database settings
+  databaseUrl: z.string().url().optional(),
+  databasePoolSize: z.number().min(1).max(50).default(10),
+  databaseTimeout: z.number().min(1000).max(30000).default(5000),
   
-  // Compliance configurations
-  compliance: z.object({
-    logging: z.object({
-      retentionDays: z.number().min(1).default(365),
-      piiLogging: z.boolean().default(false),
-      logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-    }),
-    gdpr: z.object({
-      enabled: z.boolean().default(false),
-      dataPortability: z.boolean().default(false),
-      rightToErasure: z.boolean().default(false),
-    }),
-    hipaa: z.object({
-      enabled: z.boolean().default(false),
-      dataEncryption: z.boolean().default(false),
-      accessControls: z.boolean().default(false),
-    }),
-    sox: z.object({
-      enabled: z.boolean().default(false),
-      auditTrail: z.boolean().default(false),
-      financialControls: z.boolean().default(false),
-    }),
-    pci: z.object({
-      enabled: z.boolean().default(false),
-      dataProtection: z.boolean().default(false),
-      networkSecurity: z.boolean().default(false),
-    }),
-  }),
+  // Authentication settings
+  jwtSecret: z.string().min(32),
+  jwtExpiration: z.string().default('24h'),
+  sessionTimeout: z.number().min(300).max(86400).default(3600), // 1 hour default
   
-  // Performance configurations
-  performance: z.object({
-    caching: z.object({
-      enabled: z.boolean().default(true),
-      ttlSeconds: z.number().min(60).default(3600), // 1 hour
-      storage: z.enum(['memory', 'redis', 'vercel-kv']).default('memory'),
-      maxSize: z.number().min(1024).default(100 * 1024 * 1024), // 100MB in bytes
-    }),
-    monitoring: z.object({
-      enabled: z.boolean().default(false),
-      sampleRate: z.number().min(0).max(1).default(1.0), // Percentage of requests to sample
-      metricsEndpoint: z.string().optional(),
-      tracing: z.object({
-        enabled: z.boolean().default(false),
-        exporter: z.enum(['console', 'jaeger', 'zipkin', 'otlp']).default('console'),
-        endpoint: z.string().optional(),
-      }),
-    }),
-    resourceLimits: z.object({
-      maxConcurrentRequests: z.number().min(1).default(100),
-      requestTimeoutMs: z.number().min(1000).default(30000),
-      memoryLimitMB: z.number().min(128).default(1024),
-    }),
-  }),
+  // Rate limiting
+  rateLimitWindow: z.number().min(60).max(3600).default(60), // 1 minute window
+  rateLimitMax: z.number().min(1).max(10000).default(100), // 100 requests per window
   
-  // Integration configurations
-  integrations: z.object({
-    externalServices: z.object({
-      monitoring: z.object({
-        provider: z.enum(['datadog', 'newrelic', 'prometheus', 'custom']).optional(),
-        apiKey: z.string().optional(),
-        endpoint: z.string().url().optional(),
-      }),
-      logging: z.object({
-        provider: z.enum(['splunk', 'elk', 'datadog', 'loki', 'custom']).optional(),
-        apiKey: z.string().optional(),
-        endpoint: z.string().url().optional(),
-      }),
-      identity: z.object({
-        provider: z.enum(['okta', 'auth0', 'azure-ad', 'aws-cognito', 'custom']).optional(),
-        apiKey: z.string().optional(),
-        endpoint: z.string().url().optional(),
-      }),
-    }),
-    analytics: z.object({
-      enabled: z.boolean().default(false),
-      provider: z.enum(['mixpanel', 'amplitude', 'ga4', 'custom']).default('ga4'),
-      trackingId: z.string().optional(),
-      eventSamplingRate: z.number().min(0).max(1).default(1.0),
-    }),
-  }),
+  // External API settings
+  openaiApiKey: z.string().optional(),
+  anthropicApiKey: z.string().optional(),
+  googleApiKey: z.string().optional(),
+  groqApiKey: z.string().optional(),
+  githubToken: z.string().optional(),
   
-  // Operational configurations
-  operations: z.object({
-    maintenance: z.object({
-      enabled: z.boolean().default(false),
-      startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).default('02:00'), // HH:MM format
-      durationMinutes: z.number().min(15).default(30),
-      allowedIps: z.array(z.string()).optional(),
-    }),
-    backup: z.object({
-      enabled: z.boolean().default(true),
-      schedule: z.string().default('0 2 * * *'), // Every day at 2 AM (cron format)
-      retentionDays: z.number().min(1).default(30),
-      destination: z.enum(['s3', 'gcs', 'azure-blob', 'local']).default('s3'),
-    }),
-    disasterRecovery: z.object({
-      enabled: z.boolean().default(false),
-      backupFrequency: z.string().default('0 */6 * * *'), // Every 6 hours
-      failoverStrategy: z.enum(['hot', 'warm', 'cold']).default('warm'),
-    }),
-  }),
+  // Feature flags
+  enableAnalytics: z.boolean().default(true),
+  enableTelemetry: z.boolean().default(false),
+  enableAuditLogging: z.boolean().default(false),
+  enablePerformanceMonitoring: z.boolean().default(true),
+  
+  // Security settings
+  corsOrigin: z.union([z.string(), z.array(z.string())]).default('*'),
+  allowedOrigins: z.array(z.string()).default(['*']),
+  helmetEnabled: z.boolean().default(true),
+  hstsEnabled: z.boolean().default(true),
+  csrfEnabled: z.boolean().default(true),
+  
+  // Observability settings
+  logLevel: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  logFormat: z.enum(['json', 'text']).default('json'),
+  metricsEnabled: z.boolean().default(true),
+  tracingEnabled: z.boolean().default(false),
+  
+  // Performance settings
+  cacheEnabled: z.boolean().default(true),
+  cacheTtl: z.number().min(60).max(86400).default(3600), // 1 hour default
+  cacheMaxSize: z.number().min(1).max(1000000).default(10000),
+  
+  // File upload settings
+  maxFileSize: z.number().min(1024).max(104857600).default(10485760), // 10MB default
+  allowedFileTypes: z.array(z.string()).default(['text/*', 'application/json', 'image/*']),
+  
+  // Email settings
+  emailProvider: z.enum(['smtp', 'sendgrid', 'ses']).default('smtp').optional(),
+  smtpHost: z.string().optional(),
+  smtpPort: z.number().optional(),
+  smtpUser: z.string().optional(),
+  smtpPassword: z.string().optional(),
+  
+  // Monitoring settings
+  sentryDsn: z.string().url().optional(),
+  datadogApiKey: z.string().optional(),
+  prometheusEnabled: z.boolean().default(false),
+  
+  // Feature-specific settings
+  maxConcurrentChats: z.number().min(1).max(1000).default(100),
+  maxMessageLength: z.number().min(100).max(100000).default(4000),
+  maxTokensPerRequest: z.number().min(100).max(100000).default(4000),
+  
+  // Queue settings
+  queueConcurrency: z.number().min(1).max(50).default(5),
+  queueMaxRetries: z.number().min(1).max(10).default(3),
+  
+  // API Gateway settings
+  apiGatewayTimeout: z.number().min(1000).max(30000).default(10000),
+  apiGatewayRetryCount: z.number().min(1).max(5).default(3),
+  
+  // Third-party integrations
+  stripeApiKey: z.string().optional(),
+  openaiOrganization: z.string().optional(),
+  anthropicVersion: z.string().default('2023-06-01'),
 });
 
-export type EnterpriseConfig = z.infer<typeof enterpriseConfigSchema>;
+// Type inference from Zod schema
+export type Config = z.infer<typeof ConfigSchema>;
 
-// Default enterprise configuration
-export const DEFAULT_ENTERPRISE_CONFIG: EnterpriseConfig = {
-  features: {
-    auditLogging: false,
-    complianceMonitoring: false,
-    dataEncryption: false,
-    userImpersonation: false,
-    rbac: false,
-    apiRateLimiting: true,
-    requestTracing: false,
-    performanceMonitoring: false,
-    securityScanning: false,
-  },
-  security: {
-    authentication: {
-      sso: {
-        enabled: false,
-      },
-      mfa: {
-        required: false,
-        methods: ['totp'],
-      },
-    },
-    encryption: {
-      atRest: false,
-      inTransit: true,
-      keyRotationDays: 90,
-      algorithm: 'AES-256-GCM',
-    },
-    network: {
-      cors: {
-        allowedOrigins: ['*'],
-        allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-      },
-      rateLimiting: {
-        windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 100,
-        message: 'Too many requests, please try again later.',
-      },
-    },
-  },
-  compliance: {
-    logging: {
-      retentionDays: 365,
-      piiLogging: false,
-      logLevel: 'info',
-    },
-    gdpr: {
-      enabled: false,
-      dataPortability: false,
-      rightToErasure: false,
-    },
-    hipaa: {
-      enabled: false,
-      dataEncryption: false,
-      accessControls: false,
-    },
-    sox: {
-      enabled: false,
-      auditTrail: false,
-      financialControls: false,
-    },
-    pci: {
-      enabled: false,
-      dataProtection: false,
-      networkSecurity: false,
-    },
-  },
-  performance: {
-    caching: {
-      enabled: true,
-      ttlSeconds: 3600,
-      storage: 'memory',
-      maxSize: 100 * 1024 * 1024, // 100MB
-    },
-    monitoring: {
-      enabled: false,
-      sampleRate: 1.0,
-      tracing: {
-        enabled: false,
-        exporter: 'console',
-      },
-    },
-    resourceLimits: {
-      maxConcurrentRequests: 100,
-      requestTimeoutMs: 30000,
-      memoryLimitMB: 1024,
-    },
-  },
-  integrations: {
-    externalServices: {
-      monitoring: {},
-      logging: {},
-      identity: {},
-    },
-    analytics: {
-      enabled: false,
-      provider: 'ga4',
-      eventSamplingRate: 1.0,
-    },
-  },
-  operations: {
-    maintenance: {
-      enabled: false,
-      startTime: '02:00',
-      durationMinutes: 30,
-    },
-    backup: {
-      enabled: true,
-      schedule: '0 2 * * *',
-      retentionDays: 30,
-      destination: 's3',
-    },
-    disasterRecovery: {
-      enabled: false,
-      backupFrequency: '0 */6 * * *',
-      failoverStrategy: 'warm',
-    },
-  },
+// Default configuration values
+const defaultConfig: Partial<Config> = {
+  appName: process.env.APP_NAME || 'Multi-LLM Platform',
+  environment: (process.env.NODE_ENV as 'development' | 'staging' | 'production') || 'development',
+  jwtSecret: process.env.JWT_SECRET || 'fallback-jwt-secret-change-in-production',
+  logLevel: (process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug') || 'info',
+  port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
 };
 
-// Enterprise Configuration Manager
-export class EnterpriseConfigurationManager {
-  private static instance: EnterpriseConfigurationManager;
-  private config: EnterpriseConfig | null = null;
-  private lastFetch: Date | null = null;
-  private readonly cacheTimeout = 5 * 60 * 1000; // 5 minutes
+/**
+ * Configuration Manager Class
+ * Provides a centralized way to manage application configuration
+ * with validation, environment variable support, and runtime updates
+ */
+class ConfigManager {
+  private static instance: ConfigManager;
+  private config: Config;
+  private logger: Logger;
+  private listeners: Array<(config: Config) => void> = [];
 
-  private constructor() {}
-
-  public static getInstance(): EnterpriseConfigurationManager {
-    if (!EnterpriseConfigurationManager.instance) {
-      EnterpriseConfigurationManager.instance = new EnterpriseConfigurationManager();
-    }
-    return EnterpriseConfigurationManager.instance;
+  private constructor() {
+    this.logger = new Logger({ service: 'config-manager', level: 'info' });
+    this.config = this.loadConfiguration();
+    this.logConfigStatus();
   }
 
   /**
-   * Get the enterprise configuration, optionally forcing a refresh
+   * Singleton pattern to ensure single config instance
    */
-  public async getEnterpriseConfig(forceRefresh = false): Promise<EnterpriseConfig> {
-    if (
-      !forceRefresh &&
-      this.config &&
-      this.lastFetch &&
-      Date.now() - this.lastFetch.getTime() < this.cacheTimeout
-    ) {
-      return this.config;
+  public static getInstance(): ConfigManager {
+    if (!ConfigManager.instance) {
+      ConfigManager.instance = new ConfigManager();
     }
+    return ConfigManager.instance;
+  }
 
+  /**
+   * Load configuration from environment variables and validate
+   */
+  private loadConfiguration(): Config {
     try {
-      const config = await this.loadEnterpriseConfig();
-      this.config = config;
-      this.lastFetch = new Date();
-      return config;
+      // Collect environment variables for config
+      const envConfig: Partial<Config> = {
+        // Application settings
+        appName: process.env.APP_NAME,
+        environment: process.env.NODE_ENV as 'development' | 'staging' | 'production',
+        port: process.env.PORT ? parseInt(process.env.PORT, 10) : undefined,
+        host: process.env.HOST,
+        
+        // Database settings
+        databaseUrl: process.env.DATABASE_URL,
+        databasePoolSize: process.env.DATABASE_POOL_SIZE ? parseInt(process.env.DATABASE_POOL_SIZE, 10) : undefined,
+        databaseTimeout: process.env.DATABASE_TIMEOUT ? parseInt(process.env.DATABASE_TIMEOUT, 10) : undefined,
+        
+        // Authentication settings
+        jwtSecret: process.env.JWT_SECRET,
+        jwtExpiration: process.env.JWT_EXPIRATION,
+        sessionTimeout: process.env.SESSION_TIMEOUT ? parseInt(process.env.SESSION_TIMEOUT, 10) : undefined,
+        
+        // Rate limiting
+        rateLimitWindow: process.env.RATE_LIMIT_WINDOW ? parseInt(process.env.RATE_LIMIT_WINDOW, 10) : undefined,
+        rateLimitMax: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX, 10) : undefined,
+        
+        // External API settings
+        openaiApiKey: process.env.OPENAI_API_KEY,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+        googleApiKey: process.env.GOOGLE_API_KEY,
+        groqApiKey: process.env.GROQ_API_KEY,
+        githubToken: process.env.GITHUB_TOKEN,
+        
+        // Feature flags
+        enableAnalytics: process.env.ENABLE_ANALYTICS === 'true',
+        enableTelemetry: process.env.ENABLE_TELEMETRY === 'true',
+        enableAuditLogging: process.env.ENABLE_AUDIT_LOGGING === 'true',
+        enablePerformanceMonitoring: process.env.ENABLE_PERFORMANCE_MONITORING !== 'false',
+        
+        // Security settings
+        corsOrigin: process.env.CORS_ORIGIN || process.env.ALLOWED_ORIGINS,
+        allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()) || undefined,
+        helmetEnabled: process.env.HELMET_ENABLED !== 'false',
+        hstsEnabled: process.env.HSTS_ENABLED !== 'false',
+        csrfEnabled: process.env.CSRF_ENABLED !== 'false',
+        
+        // Observability settings
+        logLevel: process.env.LOG_LEVEL as 'error' | 'warn' | 'info' | 'debug',
+        logFormat: process.env.LOG_FORMAT as 'json' | 'text',
+        metricsEnabled: process.env.METRICS_ENABLED !== 'false',
+        tracingEnabled: process.env.TRACING_ENABLED === 'true',
+        
+        // Performance settings
+        cacheEnabled: process.env.CACHE_ENABLED !== 'false',
+        cacheTtl: process.env.CACHE_TTL ? parseInt(process.env.CACHE_TTL, 10) : undefined,
+        cacheMaxSize: process.env.CACHE_MAX_SIZE ? parseInt(process.env.CACHE_MAX_SIZE, 10) : undefined,
+        
+        // File upload settings
+        maxFileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE, 10) : undefined,
+        allowedFileTypes: process.env.ALLOWED_FILE_TYPES?.split(',').map(s => s.trim()) || undefined,
+        
+        // Email settings
+        emailProvider: process.env.EMAIL_PROVIDER as 'smtp' | 'sendgrid' | 'ses',
+        smtpHost: process.env.SMTP_HOST,
+        smtpPort: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : undefined,
+        smtpUser: process.env.SMTP_USER,
+        smtpPassword: process.env.SMTP_PASSWORD,
+        
+        // Monitoring settings
+        sentryDsn: process.env.SENTRY_DSN,
+        datadogApiKey: process.env.DATADOG_API_KEY,
+        prometheusEnabled: process.env.PROMETHEUS_ENABLED === 'true',
+        
+        // Feature-specific settings
+        maxConcurrentChats: process.env.MAX_CONCURRENT_CHATS ? parseInt(process.env.MAX_CONCURRENT_CHATS, 10) : undefined,
+        maxMessageLength: process.env.MAX_MESSAGE_LENGTH ? parseInt(process.env.MAX_MESSAGE_LENGTH, 10) : undefined,
+        maxTokensPerRequest: process.env.MAX_TOKENS_PER_REQUEST ? parseInt(process.env.MAX_TOKENS_PER_REQUEST, 10) : undefined,
+        
+        // Queue settings
+        queueConcurrency: process.env.QUEUE_CONCURRENCY ? parseInt(process.env.QUEUE_CONCURRENCY, 10) : undefined,
+        queueMaxRetries: process.env.QUEUE_MAX_RETRIES ? parseInt(process.env.QUEUE_MAX_RETRIES, 10) : undefined,
+        
+        // API Gateway settings
+        apiGatewayTimeout: process.env.API_GATEWAY_TIMEOUT ? parseInt(process.env.API_GATEWAY_TIMEOUT, 10) : undefined,
+        apiGatewayRetryCount: process.env.API_GATEWAY_RETRY_COUNT ? parseInt(process.env.API_GATEWAY_RETRY_COUNT, 10) : undefined,
+        
+        // Third-party integrations
+        stripeApiKey: process.env.STRIPE_API_KEY,
+        openaiOrganization: process.env.OPENAI_ORGANIZATION,
+        anthropicVersion: process.env.ANTHROPIC_VERSION,
+      };
+
+      // Merge with defaults
+      const mergedConfig = { ...defaultConfig, ...envConfig };
+      
+      // Validate configuration
+      const validatedConfig = ConfigSchema.safeParse(mergedConfig);
+      
+      if (!validatedConfig.success) {
+        // Log validation errors
+        const errors = validatedConfig.error.issues.map(err => 
+          `${err.path.join('.')}: ${err.message}`
+        ).join(', ');
+        
+        this.logger.error('Configuration validation failed', { errors });
+        
+        // If we're in production, we must fail on validation errors
+        if (mergedConfig.environment === 'production') {
+          throw new Error(`Configuration validation failed: ${errors}`);
+        }
+        
+        // For non-production environments, we can proceed with defaults
+        this.logger.warn('Using default configuration values due to validation errors');
+        return ConfigSchema.parse(defaultConfig);
+      }
+      
+      return validatedConfig.data;
     } catch (error) {
-      console.error('Failed to load enterprise configuration:', error);
-      // Return default config as fallback
-      return DEFAULT_ENTERPRISE_CONFIG;
+      this.logger.error('Failed to load configuration', { error: (error as Error).message });
+      throw error;
     }
   }
 
   /**
-   * Load enterprise configuration from environment variables and database
+   * Get the current configuration
    */
-  private async loadEnterpriseConfig(): Promise<EnterpriseConfig> {
-    // Start with default config
-    let config: EnterpriseConfig = { ...DEFAULT_ENTERPRISE_CONFIG };
-
-    // Override with environment variables
-    config = this.applyEnvironmentOverrides(config);
-
-    // Validate the configuration
-    const validation = enterpriseConfigSchema.safeParse(config);
-    if (!validation.success) {
-      console.error('Enterprise configuration validation error:', validation.error);
-      // Return default config as fallback
-      return DEFAULT_ENTERPRISE_CONFIG;
-    }
-
-    return validation.data;
+  public getConfig(): Config {
+    return this.config;
   }
 
   /**
-   * Apply environment variable overrides to the configuration
+   * Get a specific configuration value
    */
-  private applyEnvironmentOverrides(config: EnterpriseConfig): EnterpriseConfig {
-    // Check if env is available
-    if (typeof env === 'undefined') {
-      return config;
-    }
-    
-    // Feature flags
-    if (env.ENTERPRISE_AUDIT_LOGGING !== undefined) {
-      config.features.auditLogging = env.ENTERPRISE_AUDIT_LOGGING;
-    }
-    if (env.ENTERPRISE_COMPLIANCE_MONITORING !== undefined) {
-      config.features.complianceMonitoring = env.ENTERPRISE_COMPLIANCE_MONITORING;
-    }
-    if (env.ENTERPRISE_DATA_ENCRYPTION !== undefined) {
-      config.features.dataEncryption = env.ENTERPRISE_DATA_ENCRYPTION;
-    }
-    if (env.ENTERPRISE_USER_IMPERSONATION !== undefined) {
-      config.features.userImpersonation = env.ENTERPRISE_USER_IMPERSONATION;
-    }
-    if (env.ENTERPRISE_RBAC !== undefined) {
-      config.features.rbac = env.ENTERPRISE_RBAC;
-    }
-    if (env.ENTERPRISE_REQUEST_TRACING !== undefined) {
-      config.features.requestTracing = env.ENTERPRISE_REQUEST_TRACING;
-    }
-    if (env.ENTERPRISE_PERFORMANCE_MONITORING !== undefined) {
-      config.features.performanceMonitoring = env.ENTERPRISE_PERFORMANCE_MONITORING;
-    }
-    if (env.ENTERPRISE_SECURITY_SCANNING !== undefined) {
-      config.features.securityScanning = env.ENTERPRISE_SECURITY_SCANNING;
-    }
-
-    // Security settings
-    if (env.SSO_ENABLED !== undefined) {
-      config.security.authentication.sso.enabled = env.SSO_ENABLED;
-    }
-    if (env.SSO_PROVIDER) {
-      config.security.authentication.sso.provider = env.SSO_PROVIDER as any;
-    }
-    if (env.SSO_METADATA_URL) {
-      config.security.authentication.sso.metadataUrl = env.SSO_METADATA_URL;
-    }
-    if (env.SSO_CLIENT_ID) {
-      config.security.authentication.sso.clientId = env.SSO_CLIENT_ID;
-    }
-    if (env.SSO_CLIENT_SECRET) {
-      config.security.authentication.sso.clientSecret = env.SSO_CLIENT_SECRET;
-    }
-    if (env.MFA_REQUIRED !== undefined) {
-      config.security.authentication.mfa.required = env.MFA_REQUIRED;
-    }
-    if (env.MFA_METHODS) {
-      try {
-        const methods = JSON.parse(env.MFA_METHODS) as string[];
-        config.security.authentication.mfa.methods = methods.map(m => 
-          m.toLowerCase() as any
-        ).filter(m => 
-          ['totp', 'sms', 'email', 'hardware'].includes(m)
-        );
-      } catch (e) {
-        console.warn('Invalid MFA_METHODS environment variable:', env.MFA_METHODS);
-      }
-    }
-
-    // Encryption settings
-    if (env.ENCRYPTION_AT_REST !== undefined) {
-      config.security.encryption.atRest = env.ENCRYPTION_AT_REST;
-    }
-    if (env.ENCRYPTION_IN_TRANSIT !== undefined) {
-      config.security.encryption.inTransit = env.ENCRYPTION_IN_TRANSIT;
-    }
-    if (env.ENCRYPTION_KEY_ROTATION_DAYS) {
-      config.security.encryption.keyRotationDays = parseInt(env.ENCRYPTION_KEY_ROTATION_DAYS, 10);
-    }
-    if (env.ENCRYPTION_ALGORITHM) {
-      config.security.encryption.algorithm = env.ENCRYPTION_ALGORITHM as any;
-    }
-
-    // Compliance settings
-    if (env.COMPLIANCE_GDPR_ENABLED !== undefined) {
-      config.compliance.gdpr.enabled = env.COMPLIANCE_GDPR_ENABLED;
-    }
-    if (env.COMPLIANCE_HIPAA_ENABLED !== undefined) {
-      config.compliance.hipaa.enabled = env.COMPLIANCE_HIPAA_ENABLED;
-    }
-    if (env.COMPLIANCE_SOX_ENABLED !== undefined) {
-      config.compliance.sox.enabled = env.COMPLIANCE_SOX_ENABLED;
-    }
-    if (env.COMPLIANCE_PCI_ENABLED !== undefined) {
-      config.compliance.pci.enabled = env.COMPLIANCE_PCI_ENABLED;
-    }
-
-    // Performance settings
-    if (env.PERFORMANCE_MONITORING_ENABLED !== undefined) {
-      config.performance.monitoring.enabled = env.PERFORMANCE_MONITORING_ENABLED;
-    }
-    if (env.PERFORMANCE_TRACING_ENABLED !== undefined) {
-      config.performance.monitoring.tracing.enabled = env.PERFORMANCE_TRACING_ENABLED;
-    }
-    if (env.PERFORMANCE_CACHING_ENABLED !== undefined) {
-      config.performance.caching.enabled = env.PERFORMANCE_CACHING_ENABLED;
-    }
-
-    // Integration settings
-    if (env.ANALYTICS_ENABLED !== undefined) {
-      config.integrations.analytics.enabled = env.ANALYTICS_ENABLED;
-    }
-    if (env.ANALYTICS_PROVIDER) {
-      config.integrations.analytics.provider = env.ANALYTICS_PROVIDER as any;
-    }
-    if (env.ANALYTICS_TRACKING_ID) {
-      config.integrations.analytics.trackingId = env.ANALYTICS_TRACKING_ID;
-    }
-
-    // Operational settings
-    if (env.MAINTENANCE_MODE !== undefined) {
-      config.operations.maintenance.enabled = env.MAINTENANCE_MODE;
-    }
-    if (env.BACKUP_ENABLED !== undefined) {
-      config.operations.backup.enabled = env.BACKUP_ENABLED;
-    }
-
-    return config;
+  public get<T extends keyof Config>(key: T): Config[T] {
+    return this.config[key];
   }
 
   /**
-   * Update the enterprise configuration
+   * Update configuration at runtime
+   * Note: This should be used carefully in production
    */
-  public async updateEnterpriseConfig(config: Partial<EnterpriseConfig>): Promise<EnterpriseConfig> {
-    // Validate the config
-    const validation = enterpriseConfigSchema.safeParse(config);
-    if (!validation.success) {
-      throw new Error(`Invalid enterprise configuration: ${validation.error.message}`);
-    }
-
-    // Merge with existing config
-    const updatedConfig = this.mergeConfig(this.config || DEFAULT_ENTERPRISE_CONFIG, validation.data);
-
-    // Store the updated config (in a real implementation, this would save to a database)
-    this.config = updatedConfig;
-    this.lastFetch = new Date();
-
-    return updatedConfig;
-  }
-
-  /**
-   * Merge two configuration objects
-   */
-  private mergeConfig(base: EnterpriseConfig, updates: Partial<EnterpriseConfig>): EnterpriseConfig {
-    // Deep merge the configurations
-    const merged: EnterpriseConfig = JSON.parse(JSON.stringify(base));
-    
-    // Update top-level properties
-    if (updates.features) {
-      Object.assign(merged.features, updates.features);
-    }
-    
-    if (updates.security) {
-      if (updates.security.authentication) {
-        if (updates.security.authentication.sso) {
-          Object.assign(merged.security.authentication.sso, updates.security.authentication.sso);
-        }
-        if (updates.security.authentication.mfa) {
-          Object.assign(merged.security.authentication.mfa, updates.security.authentication.mfa);
-        }
+  public updateConfig(updates: Partial<Config>): Config {
+    try {
+      // Validate updates
+      const updatedConfig = { ...this.config, ...updates };
+      const validatedConfig = ConfigSchema.safeParse(updatedConfig);
+      
+      if (!validatedConfig.success) {
+        const errors = validatedConfig.error.issues.map(err => 
+          `${err.path.join('.')}: ${err.message}`
+        ).join(', ');
+        
+        this.logger.error('Configuration update validation failed', { errors });
+        throw new Error(`Configuration update validation failed: ${errors}`);
       }
       
-      if (updates.security.encryption) {
-        Object.assign(merged.security.encryption, updates.security.encryption);
-      }
+      this.config = validatedConfig.data;
+      this.logger.info('Configuration updated successfully');
       
-      if (updates.security.network) {
-        Object.assign(merged.security.network, updates.security.network);
+      // Notify listeners
+      this.notifyListeners(this.config);
+      
+      // Record metrics
+      monitoring.recordMetric('config_update_count', 1, { action: 'update' }, 'count');
+      
+      return this.config;
+    } catch (error) {
+      this.logger.error('Failed to update configuration', { error: (error as Error).message });
+      throw error;
+    }
+  }
+
+  /**
+   * Add listener for configuration changes
+   */
+  public onConfigChange(listener: (config: Config) => void): () => void {
+    this.listeners.push(listener);
+    
+    // Return unsubscribe function
+    return () => {
+      const index = this.listeners.indexOf(listener);
+      if (index !== -1) {
+        this.listeners.splice(index, 1);
       }
-    }
-    
-    if (updates.compliance) {
-      Object.assign(merged.compliance, updates.compliance);
-    }
-    
-    if (updates.performance) {
-      Object.assign(merged.performance, updates.performance);
-    }
-    
-    if (updates.integrations) {
-      Object.assign(merged.integrations, updates.integrations);
-    }
-    
-    if (updates.operations) {
-      Object.assign(merged.operations, updates.operations);
-    }
-
-    return merged;
-  }
-
-  /**
-   * Get a specific configuration value by path
-   */
-  public async getConfigValue<T>(path: string): Promise<T | undefined> {
-    const config = await this.getEnterpriseConfig();
-    
-    // Navigate the object using the path
-    const pathParts = path.split('.');
-    let value: any = config;
-    
-    for (const part of pathParts) {
-      if (value === null || value === undefined) {
-        return undefined;
-      }
-      value = value[part];
-    }
-    
-    return value as T;
-  }
-
-  /**
-   * Check if a feature is enabled
-   */
-  public async isFeatureEnabled(feature: keyof EnterpriseConfig['features']): Promise<boolean> {
-    const config = await this.getEnterpriseConfig();
-    return config.features[feature] ?? false;
-  }
-
-  /**
-   * Validate the entire configuration
-   */
-  public validateConfig(config: EnterpriseConfig): { valid: boolean; errors?: string[] } {
-    const result = enterpriseConfigSchema.safeParse(config);
-    
-    if (result.success) {
-      return { valid: true };
-    } else {
-      const errors = result.error.errors.map(e => e.message);
-      return { valid: false, errors };
-    }
-  }
-
-  /**
-   * Get configuration summary for monitoring/logging
-   */
-  public async getConfigSummary(): Promise<Record<string, any>> {
-    const config = await this.getEnterpriseConfig();
-    
-    return {
-      features: Object.entries(config.features).reduce((acc, [key, value]) => {
-        acc[key] = value;
-        return acc;
-      }, {} as Record<string, boolean>),
-      security_enabled: Object.values(config.security).some(
-        section => typeof section === 'object' && 
-        Object.values(section).some(val => 
-          typeof val === 'boolean' && val
-        )
-      ),
-      compliance_enabled: Object.values(config.compliance)
-        .filter(item => typeof item === 'object' && 'enabled' in item)
-        .some(item => (item as any).enabled),
-      performance_enabled: config.performance.monitoring.enabled || config.performance.caching.enabled,
-      lastUpdated: this.lastFetch?.toISOString(),
     };
   }
 
   /**
-   * Invalidate the configuration cache
+   * Notify all listeners of configuration changes
    */
-  public invalidateCache(): void {
-    this.config = null;
-    this.lastFetch = null;
+  private notifyListeners(config: Config): void {
+    for (const listener of this.listeners) {
+      try {
+        listener(config);
+      } catch (error) {
+        this.logger.error('Error in config change listener', { error: (error as Error).message });
+      }
+    }
   }
 
   /**
-   * Health check for configuration system
+   * Log configuration status for debugging
    */
-  public async healthCheck(): Promise<{
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    details: Record<string, any>;
-  }> {
-    try {
-      const config = await this.getEnterpriseConfig();
-      const validation = this.validateConfig(config);
-      
-      const details: Record<string, any> = {
-        configuration: validation.valid ? 'healthy' : 'unhealthy',
-        lastFetch: this.lastFetch?.toISOString(),
-        cache: this.config ? 'valid' : 'invalid',
-      };
-
-      if (!validation.valid && validation.errors) {
-        details.errors = validation.errors;
+  private logConfigStatus(): void {
+    this.logger.info('Configuration loaded', {
+      environment: this.config.environment,
+      appName: this.config.appName,
+      port: this.config.port,
+      databaseConfigured: !!this.config.databaseUrl,
+      features: {
+        analytics: this.config.enableAnalytics,
+        telemetry: this.config.enableTelemetry,
+        auditLogging: this.config.enableAuditLogging,
+        performanceMonitoring: this.config.enablePerformanceMonitoring
       }
+    });
+  }
 
-      const status: 'healthy' | 'degraded' | 'unhealthy' = validation.valid ? 'healthy' : 'unhealthy';
+  /**
+   * Get sensitive configuration keys that should be masked
+   */
+  public getSensitiveKeys(): string[] {
+    return [
+      'jwtSecret',
+      'openaiApiKey',
+      'anthropicApiKey',
+      'googleApiKey',
+      'groqApiKey',
+      'githubToken',
+      'smtpPassword',
+      'stripeApiKey',
+      'sentryDsn',
+      'datadogApiKey'
+    ];
+  }
 
-      return { status, details };
-    } catch (error: any) {
-      return {
-        status: 'unhealthy',
-        details: {
-          configuration: 'unhealthy',
-          error: error.message,
-        },
-      };
+  /**
+   * Get a safe representation of the config with sensitive keys masked
+   */
+  public getSafeConfig(): Record<string, any> {
+    const safeConfig: Record<string, any> = {};
+    const sensitiveKeys = new Set(this.getSensitiveKeys());
+    
+    for (const [key, value] of Object.entries(this.config)) {
+      if (sensitiveKeys.has(key)) {
+        safeConfig[key] = value ? '[REDACTED]' : value;
+      } else {
+        safeConfig[key] = value;
+      }
     }
+    
+    return safeConfig;
   }
 }
 
-// Export singleton instance
-export const enterpriseConfigManager = EnterpriseConfigurationManager.getInstance();
+// Create singleton instance
+const configManager = ConfigManager.getInstance();
 
-// Helper function to check if enterprise features are enabled
-export async function isEnterpriseFeatureEnabled(feature: keyof EnterpriseConfig['features']): Promise<boolean> {
-  return enterpriseConfigManager.isFeatureEnabled(feature);
-}
+// Export the singleton instance and type
+export { configManager, ConfigManager };
 
-// Type guard to check if a configuration is an enterprise configuration
-export function isEnterpriseConfig(config: any): config is EnterpriseConfig {
-  return enterpriseConfigSchema.safeParse(config).success;
+// Export convenience functions
+export const getConfig = (): Config => configManager.getConfig();
+export const getEnv = <T extends keyof Config>(key: T): Config[T] => configManager.get(key);
+
+// Initialize metrics for config module
+if (getConfig().metricsEnabled) {
+  monitoring.recordMetric('app_start_count', 1, { module: 'config', action: 'start' }, 'count');
 }

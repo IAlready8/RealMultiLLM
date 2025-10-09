@@ -36,3 +36,6 @@ prisma/*.db-journal
 .DS_Store
 *.swp
 *.swo
+
+# Local Netlify folder
+.netlify

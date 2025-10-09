@@ -13,7 +13,7 @@
       "src": "package.json",
       "use": "@vercel/next",
       "config": {
-        "serverless": true,
+        "serverless": false,
         "includeFiles": [
           "services/llm-providers/**",
           "lib/**",
@@ -44,7 +44,24 @@
     "ANTHROPIC_API_KEY": "your-anthropic-api-key",
     "GOOGLE_AI_API_KEY": "your-google-ai-api-key",
     "OPENROUTER_API_KEY": "your-openrouter-api-key",
-    "GROK_API_KEY": "your-grok-api-key"
+    "GROK_API_KEY": "your-grok-api-key",
+    "JWT_SECRET": "your-jwt-secret",
+    "ENABLE_ANALYTICS": "true",
+    "ENABLE_TELEMETRY": "true",
+    "ENABLE_AUDIT_LOGGING": "true",
+    "CACHE_ENABLED": "true",
+    "CACHE_TTL": "3600",
+    "CACHE_MAX_SIZE": "10000",
+    "COMPRESSION_ENABLED": "true",
+    "COMPRESSION_THRESHOLD": "1024",
+    "RATE_LIMIT_WINDOW_MS": "900000",
+    "RATE_LIMIT_MAX": "100",
+    "BLOCK_SUSPICIOUS_IPS": "true",
+    "TELEMETRY_SAMPLE_RATE": "0.1",
+    "TELEMETRY_FLUSH_INTERVAL": "30000",
+    "TELEMETRY_MAX_QUEUE_SIZE": "100",
+    "LOG_LEVEL": "info",
+    "LOG_FORMAT": "json"
   },
   "functions": {
     "app/api/**/*": {
@@ -54,6 +71,10 @@
     "services/llm-providers/**/*": {
       "maxDuration": 90,
       "memory": 1024
+    },
+    "app/observability/**/*": {
+      "maxDuration": 60,
+      "memory": 512
     }
   },
   "crons": [
@@ -123,6 +144,15 @@
     {
       "source": "/app",
       "destination": "/"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/health"
     }
-  ]
+  ],
+  "overrides": {
+    "_static/*": {
+      "contentType": "text/css; charset=utf-8"
+    }
+  }
 }

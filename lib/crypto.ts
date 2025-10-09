@@ -1,6 +1,7 @@
 
 // lib/crypto.ts
 import { isServer, b64encode, b64decode, utf8encode, utf8decode } from "./runtime";
+import { getValidatedEnv } from "./env";
 
 let nodeCryptoModule: Promise<typeof import("crypto")> | null = null;
 
@@ -225,12 +226,35 @@ export async function decrypt(encryptedText: string, key: string): Promise<strin
   }
 }
 
+const DEFAULT_KEY = 'default-encryption-key-12345678901234567890123456789012';
+
+function resolveEncryptionKey(secret?: string): string {
+  if (secret && secret.length > 0) {
+    return secret;
+  }
+
+  try {
+    return getValidatedEnv().ENCRYPTION_MASTER_KEY;
+  } catch (error) {
+    console.warn('Falling back to default encryption key. Ensure ENCRYPTION_MASTER_KEY is set.');
+    return DEFAULT_KEY;
+  }
+}
+
+export async function encryptData(data: string, secret?: string): Promise<string> {
+  const key = resolveEncryptionKey(secret);
+  return encrypt(data, key);
+}
+
+export async function decryptData(encrypted: string, secret?: string): Promise<string> {
+  const key = resolveEncryptionKey(secret);
+  return decrypt(encrypted, key);
+}
+
 // DEPRECATED: These functions are kept for backward compatibility only
 // Use crypto-enterprise.ts for new implementations
 
 import { encryptApiKey as secureEncryptApiKey, decryptApiKey as secureDecryptApiKey } from './crypto-enterprise';
-
-const DEFAULT_KEY = 'default-encryption-key-12345678901234567890123456789012';
 
 /**
  * @deprecated Use encryptApiKey from crypto-enterprise.ts instead

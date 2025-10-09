@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { Prisma, TeamMemberRole } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ValidationError, AuthenticationError } from '@/lib/error-system';
 import { hasPermission } from '@/lib/rbac';
 
@@ -12,17 +12,17 @@ type UpdateTeamInput = Partial<CreateTeamInput>;
 
 type MemberInput = {
   userId: string;
-  role?: TeamMemberRole | 'MEMBER' | 'ADMIN' | 'member' | 'admin';
+  role?: 'MEMBER' | 'ADMIN' | 'member' | 'admin';
 };
 
-function normalizeRole(role?: MemberInput['role']): TeamMemberRole {
-  if (!role) return TeamMemberRole.MEMBER;
+function normalizeRole(role?: MemberInput['role']): string {
+  if (!role) return 'MEMBER';
   if (typeof role === 'string') {
     const upper = role.toUpperCase();
-    if (upper === 'ADMIN') return TeamMemberRole.ADMIN;
-    return TeamMemberRole.MEMBER;
+    if (upper === 'ADMIN') return 'ADMIN';
+    return 'MEMBER';
   }
-  return role;
+  return 'MEMBER';
 }
 
 function teamInclude() {
@@ -73,7 +73,7 @@ export async function createTeam(ownerId: string, data: CreateTeamInput) {
   }
 
   // Use RBAC to check if the user has permission to create a team
-  const hasTeamWritePermission = await hasPermission(ownerId, 'team:write', { teamId: null as string | null, resource: 'team' });
+  const hasTeamWritePermission = await hasPermission(ownerId, 'team:write', { resource: 'team' });
   if (!hasTeamWritePermission) {
     throw new AuthenticationError('Not authorized to create team', {
       endpoint: 'team.create',
@@ -92,7 +92,7 @@ export async function createTeam(ownerId: string, data: CreateTeamInput) {
         members: {
           create: {
             userId: ownerId,
-            role: TeamMemberRole.ADMIN,
+            role: 'ADMIN',
           },
         },
       },
@@ -149,7 +149,7 @@ export async function getAllTeams() {
 
 export async function getTeamById(teamId: string, userId: string) {
   // Check if user has read permission for this team
-  const hasReadPermission = await hasPermission(userId, 'team:read', { teamId, resource: 'team' });
+  const hasReadPermission = await hasPermission(userId, 'team:read', { resource: 'team' });
   if (!hasReadPermission) {
     throw new AuthenticationError('Not authorized to view team', {
       endpoint: 'team.get',
@@ -175,7 +175,7 @@ export async function getTeamById(teamId: string, userId: string) {
 
 export async function updateTeam(teamId: string, userId: string, data: UpdateTeamInput) {
   // Check if user has write permission for this team
-  const hasWritePermission = await hasPermission(userId, 'team:write', { teamId, resource: 'team' });
+  const hasWritePermission = await hasPermission(userId, 'team:write', { resource: 'team' });
   if (!hasWritePermission) {
     throw new AuthenticationError('Not authorized to update team', {
       endpoint: 'team.update',
@@ -204,10 +204,10 @@ export async function updateTeam(teamId: string, userId: string, data: UpdateTea
 
   const actor =
     team.ownerId === userId
-      ? { role: TeamMemberRole.ADMIN }
+      ? { role: 'ADMIN' }
       : team.members.find((member) => member.userId === userId);
 
-  if (!actor || actor.role !== TeamMemberRole.ADMIN) {
+  if (!actor || actor.role !== 'ADMIN') {
     throw new AuthenticationError('Insufficient permissions to update team', {
       endpoint: 'team.update',
       timestamp: new Date(),
@@ -245,7 +245,7 @@ export async function updateTeam(teamId: string, userId: string, data: UpdateTea
 
 export async function deleteTeam(teamId: string, userId: string) {
   // Check if user has write permission for this team
-  const hasWritePermission = await hasPermission(userId, 'team:write', { teamId, resource: 'team' });
+  const hasWritePermission = await hasPermission(userId, 'team:write', { resource: 'team' });
   if (!hasWritePermission) {
     throw new AuthenticationError('Not authorized to delete team', {
       endpoint: 'team.delete',
@@ -297,7 +297,7 @@ export async function deleteTeam(teamId: string, userId: string) {
 
 export async function addTeamMember(teamId: string, actorId: string, member: MemberInput) {
   // Check if user has write permission for this team
-  const hasWritePermission = await hasPermission(actorId, 'team:write', { teamId, resource: 'team' });
+  const hasWritePermission = await hasPermission(actorId, 'team:write', { resource: 'team' });
   if (!hasWritePermission) {
     throw new AuthenticationError('Not authorized to add members', {
       endpoint: 'team.addMember',
@@ -323,10 +323,10 @@ export async function addTeamMember(teamId: string, actorId: string, member: Mem
 
   const actor =
     team.ownerId === actorId
-      ? { role: TeamMemberRole.ADMIN }
+      ? { role: 'ADMIN' }
       : team.members.find((m) => m.userId === actorId);
 
-  if (!actor || actor.role !== TeamMemberRole.ADMIN) {
+  if (!actor || actor.role !== 'ADMIN') {
     throw new AuthenticationError('Insufficient permissions to add team members', {
       endpoint: 'team.addMember',
       timestamp: new Date(),
@@ -344,7 +344,7 @@ export async function addTeamMember(teamId: string, actorId: string, member: Mem
     });
   }
 
-  const created = await prisma.teamMember.create({
+  const created = await prisma.teamMembership.create({
     data: {
       teamId,
       userId: member.userId,
@@ -380,7 +380,7 @@ export async function addTeamMember(teamId: string, actorId: string, member: Mem
 
 export async function removeTeamMember(teamId: string, actorId: string, memberUserId: string) {
   // Check if user has write permission for this team
-  const hasWritePermission = await hasPermission(actorId, 'team:write', { teamId, resource: 'team' });
+  const hasWritePermission = await hasPermission(actorId, 'team:write', { resource: 'team' });
   if (!hasWritePermission) {
     throw new AuthenticationError('Not authorized to remove members', {
       endpoint: 'team.removeMember',
@@ -406,10 +406,10 @@ export async function removeTeamMember(teamId: string, actorId: string, memberUs
 
   const actor =
     team.ownerId === actorId
-      ? { role: TeamMemberRole.ADMIN }
+      ? { role: 'ADMIN' }
       : team.members.find((m) => m.userId === actorId);
 
-  if (!actor || actor.role !== TeamMemberRole.ADMIN) {
+  if (!actor || actor.role !== 'ADMIN') {
     throw new AuthenticationError('Insufficient permissions to remove team members', {
       endpoint: 'team.removeMember',
       timestamp: new Date(),
@@ -427,7 +427,7 @@ export async function removeTeamMember(teamId: string, actorId: string, memberUs
     });
   }
 
-  await prisma.teamMember.delete({
+  await prisma.teamMembership.delete({
     where: {
       teamId_userId: {
         teamId,
@@ -458,7 +458,7 @@ export async function updateTeamMemberRole(
   role: MemberInput['role'],
 ) {
   // Check if user has write permission for this team
-  const hasWritePermission = await hasPermission(actorId, 'team:write', { teamId, resource: 'team' });
+  const hasWritePermission = await hasPermission(actorId, 'team:write', { resource: 'team' });
   if (!hasWritePermission) {
     throw new AuthenticationError('Not authorized to update members', {
       endpoint: 'team.updateMemberRole',
@@ -484,10 +484,10 @@ export async function updateTeamMemberRole(
 
   const actor =
     team.ownerId === actorId
-      ? { role: TeamMemberRole.ADMIN }
+      ? { role: 'ADMIN' }
       : team.members.find((m) => m.userId === actorId);
 
-  if (!actor || actor.role !== TeamMemberRole.ADMIN) {
+  if (!actor || actor.role !== 'ADMIN') {
     throw new AuthenticationError('Insufficient permissions to update roles', {
       endpoint: 'team.updateMemberRole',
       timestamp: new Date(),
@@ -505,7 +505,7 @@ export async function updateTeamMemberRole(
     });
   }
 
-  const updated = await prisma.teamMember.update({
+  const updated = await prisma.teamMembership.update({
     where: {
       teamId_userId: {
         teamId,
@@ -546,7 +546,7 @@ export async function updateTeamMemberRole(
 // New function to get team members
 export async function getTeamMembers(teamId: string, userId: string) {
   // Check if user has read permission for this team
-  const hasReadPermission = await hasPermission(userId, 'team:read', { teamId, resource: 'team' });
+  const hasReadPermission = await hasPermission(userId, 'team:read', { resource: 'team' });
   if (!hasReadPermission) {
     throw new AuthenticationError('Not authorized to view team members', {
       endpoint: 'team.getMembers',
@@ -603,7 +603,7 @@ export async function getTeamMembers(teamId: string, userId: string) {
     {
       id: team.owner.id,
       userId: team.owner.id,
-      role: TeamMemberRole.ADMIN,
+      role: 'ADMIN',
       joinedAt: team.createdAt,
       user: team.owner,
     },

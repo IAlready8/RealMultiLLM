@@ -16,8 +16,9 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const conversation = await createSharedConversation(session.user.id, payload);
     return NextResponse.json(conversation, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to create shared conversation' }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create shared conversation';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
@@ -30,7 +31,8 @@ export async function GET() {
 
     const conversations = await getUserSharedConversations(session.user.id);
     return NextResponse.json(conversations);
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to fetch shared conversations' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch shared conversations';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

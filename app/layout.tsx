@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { AuthGuard } from "@/components/auth-guard";
 import { SettingsProvider } from "@/components/settings-provider";
+import ConsentBanner from "@/components/consent-banner";
 
 const inter = { className: 'font-sans' };
 
@@ -36,6 +37,7 @@ export default function RootLayout({
                   <main className="flex-1">
                     {children}
                   </main>
+                  <ConsentBanner />
                 </div>
               </AuthGuard>
             </ThemeProvider>

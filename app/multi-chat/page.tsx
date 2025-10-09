@@ -16,6 +16,8 @@ import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
 import { MessageSquare, XCircle } from 'lucide-react'; // Added XCircle
 import { streamChat, type StreamEvent } from '@/services/stream-client'
+import { ChatMessageSchema, ExtendedChatMessageSchema } from '@/schemas/llm';
+import { MultiChatData } from '@/types/app';
 
 // LLM providers we'll support
 const providers = [
@@ -31,11 +33,11 @@ const providers = [
 export default function MultiChat() {
   const { data: session } = useSession();
   const [prompt, setPrompt] = useState("");
-  const [messages, setMessages] = useState<Record<string, any[]>>({});
+  const [messages, setMessages] = useState<Record<string, ExtendedChatMessageSchema[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const { toast } = useToast(); // Initialize toast
   const [streamingEnabled, setStreamingEnabled] = useState(true)
-  const streamHandlesRef = useRef<Map<string, { abort: (r?: any) => void }>>(new Map())
+  const streamHandlesRef = useRef<Map<string, { abort: (r?: unknown) => void }>>(new Map())
 
   const handleExport = useCallback(async (password: string): Promise<string> => {
     if (!session?.user?.id) {
@@ -55,8 +57,8 @@ export default function MultiChat() {
         description: "Data exported successfully.",
       });
       return exported;
-    } catch (error: any) {
-      const message = error?.message ?? "Export failed.";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Export failed.";
       toast({
         title: "Error",
         description: message,
@@ -83,8 +85,8 @@ export default function MultiChat() {
         title: "Success",
         description: "Data imported successfully.",
       });
-    } catch (error: any) {
-      const message = error?.message ?? "Import failed.";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Import failed.";
       toast({
         title: "Error",
         description: message,
@@ -99,7 +101,7 @@ export default function MultiChat() {
 
   // Initialize messages and loading state for each provider
   useEffect(() => {
-    const initialMessages: Record<string, any[]> = {};
+    const initialMessages: Record<string, ChatMessageSchema[]> = {};
     const initialLoading: Record<string, boolean> = {};
     
     providers.forEach(provider => {
@@ -130,7 +132,7 @@ export default function MultiChat() {
     providers.forEach(provider => {
       updatedMessages[provider.id] = [
         ...updatedMessages[provider.id],
-        { role: "user", content: prompt, timestamp: Date.now() }
+        { role: "user", content: prompt }
       ];
     });
     setMessages(updatedMessages);
@@ -248,9 +250,9 @@ export default function MultiChat() {
             ],
           }));
         }
-      } catch (error: any) {
+      } catch (error) {
         // Handle error and display toast
-        const errorMessage = error.message || "Could not get response";
+        const errorMessage = error instanceof Error ? error.message : "Could not get response";
         setMessages(prev => ({
           ...prev,
           [provider.id]: [
@@ -289,7 +291,7 @@ export default function MultiChat() {
           <ConversationManager 
             type="multi-chat"
             data={{ messages }}
-            onLoad={(data) => setMessages((data as any).messages as Record<string, any[]>)}
+            onLoad={(data: MultiChatData) => setMessages(data.messages as Record<string, ChatMessageSchema[]>)}
           />
           
           <ExportImportDialog
@@ -408,7 +410,7 @@ function ChatBox({
   fullHeight = false
 }: { 
   provider: { id: string; name: string }; 
-  messages: any[];
+  messages: ExtendedChatMessageSchema[];
   loading: boolean;
   fullHeight?: boolean;
 }) {
@@ -436,23 +438,23 @@ function ChatBox({
                 className={`p-3 rounded-lg ${
                   message.role === "user"
                     ? "bg-blue-900 ml-6"
-                    : message.metadata?.error 
+                    : (message as any).metadata?.error 
                       ? "bg-red-900/30 border border-red-800 mr-6 flex items-center gap-2"
                       : "bg-gray-800 mr-6"
                 }`}
               >
-                {message.metadata?.error && <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />}
+                {(message as any).metadata?.error && <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />}
                 {message.content}
-                {message.metadata && !message.metadata.error && (
+                {(message as any).metadata && !(message as any).metadata.error && (
                   <div className="mt-2 text-xs text-gray-400 flex flex-wrap gap-2">
-                    {message.metadata.promptTokens && (
-                      <span>Prompt tokens: {message.metadata.promptTokens}</span>
+                    {(message as any).metadata.promptTokens && (
+                      <span>Prompt tokens: {(message as any).metadata.promptTokens}</span>
                     )}
-                    {message.metadata.completionTokens && (
-                      <span>Completion tokens: {message.metadata.completionTokens}</span>
+                    {(message as any).metadata.completionTokens && (
+                      <span>Completion tokens: {(message as any).metadata.completionTokens}</span>
                     )}
-                    {message.metadata.totalTokens && (
-                      <span>Total tokens: {message.metadata.totalTokens}</span>
+                    {(message as any).metadata.totalTokens && (
+                      <span>Total tokens: {(message as any).metadata.totalTokens}</span>
                     )}
                   </div>
                 )}
@@ -473,3 +475,4 @@ function ChatBox({
     </Card>
   );
 }
+

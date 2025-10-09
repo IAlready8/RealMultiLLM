@@ -11,7 +11,7 @@ import { authOptions } from '@/lib/auth';
 import { getApiSecurityHeaders } from '@/lib/security-headers';
 import { logger } from '@/lib/observability/logger';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   let session: Session | null = null;
   try {
     session = await getServerSession(authOptions);

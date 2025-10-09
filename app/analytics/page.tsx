@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { UsageChart } from "@/components/analytics/usage-chart";
 import { ModelComparisonChart } from "@/components/analytics/model-comparison-chart";
 import { BarChart3, TrendingUp, Users, Activity, Download, RefreshCw } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
 
 interface AnalyticsData {
@@ -44,7 +43,6 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
-  const { data: session } = useSession();
   const { toast } = useToast();
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);

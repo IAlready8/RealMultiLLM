@@ -17,7 +17,7 @@ const updatePersonaSchema = personaSchema.extend({
   id: z.string().cuid("Invalid ID"),
 });
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {

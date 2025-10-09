@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,16 +12,7 @@ import { PlusCircle, XCircle, Loader2, MessageSquare } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast"; // Import useToast
 import { streamChat, type StreamEvent } from '@/services/stream-client'
 
-// LLM providers (should ideally come from a centralized config or API)
-const providers = [
-  { id: "openai", name: "OpenAI" },
-  { id: "openrouter", name: "OpenRouter" },
-  { id: "claude", name: "Claude" },
-  { id: "google", name: "Google AI" },
-  { id: "llama", name: "Llama" },
-  { id: "github", name: "GitHub" },
-  { id: "grok", name: "Grok" },
-];
+
 
 interface LLMResponse {
   id: string;
@@ -189,8 +180,8 @@ export default function Comparison() {
             )
           );
         }
-      } catch (error: any) {
-        const errorMessage = error.message || "Failed to get response.";
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to get response.";
         setComparisonPanels((prev) =>
           prev.map((p, i) =>
             i === index

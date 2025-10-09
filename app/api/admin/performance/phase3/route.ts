@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const includeDetails = searchParams.get('details') === 'true';
-    const timeRange = searchParams.get('timeRange') || '1h';
+    
 
     // Import all Phase 3 systems
     const [
@@ -91,7 +91,7 @@ export async function GET(request: NextRequest) {
         totalDecisions: routingStats.routing.totalDecisions,
         averageRoutingTime: `${routingStats.routing.averageRoutingTime.toFixed(2)}ms`,
         healthyEndpoints: Object.values(routingStats.endpoints).flat().filter(
-          (e: any) => e.healthStatus === 'healthy'
+          (e: { healthStatus: string }) => e.healthStatus === 'healthy'
         ).length,
         loadBalancing: true
       },
@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
           totalIssues: systemHealth.issues.length,
           errorProcessingBacklog: errorProcessorStats.queueDepth,
           healthyEndpoints: Object.values(routingStats.endpoints).flat().filter(
-            (e: any) => e.healthStatus === 'healthy'
+            (e: { healthStatus: string }) => e.healthStatus === 'healthy'
           ).length
         },
         scalability: {
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, component, parameters } = body;
 
-    let result: any = {};
+    let result: Record<string, unknown> = {};
 
     switch (action) {
       case 'clear_deduplication_cache':
@@ -282,12 +282,10 @@ export async function POST(request: NextRequest) {
         const [
           { requestDeduplicator },
           { asyncErrorProcessor: asyncErrorProcessorForReport },
-          { requestRouter },
           { dbMultiplexer }
         ] = await Promise.all([
           import('@/lib/request-deduplication'),
           import('@/lib/async-error-processor'),
-          import('@/lib/advanced-request-router'),
           import('@/lib/database-connection-multiplexer')
         ]);
 

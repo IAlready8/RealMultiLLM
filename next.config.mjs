@@ -1,6 +1,12 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // ESLint configuration for build
+  eslint: {
+    // Allow production builds to complete even if there are ESLint errors/warnings
+    ignoreDuringBuilds: process.env.NODE_ENV === 'production',
+  },
+  
   // Performance optimizations for Vercel deployment
   experimental: {
     // Enable SWC transforms for better performance

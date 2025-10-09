@@ -40,7 +40,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ error: 'Invalid request parameters' }, { status: 400 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to process request' }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to process request';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

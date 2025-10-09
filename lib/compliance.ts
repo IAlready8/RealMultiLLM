@@ -31,7 +31,7 @@ export class ComplianceService {
     }
     const [user, providers, teams, conversations, messages, auditLogs] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId } }),
-      this.prisma.providerConfig.findMany({ where: { userId }, select: { id: true, name: true, createdAt: true, updatedAt: true } }),
+      this.prisma.providerConfig.findMany({ where: { userId }, select: { id: true, provider: true, createdAt: true, updatedAt: true } }),
       this.prisma.teamMembership.findMany({ where: { userId }, include: { team: true } }),
       this.prisma.conversation.findMany({ where: { userId }, include: { messages: true } }),
       this.prisma.message.findMany({ where: { userId } }),

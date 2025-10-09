@@ -107,7 +107,7 @@ export async function middleware(request: NextRequest) {
 
   // Get client identifier for rate limiting (IP or session)
   const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : request.ip || 'unknown';
+  const ip = forwarded ? forwarded.split(',')[0] : 'unknown';
 
   // Check if this is an API route
   const isApiRoute = request.nextUrl.pathname.startsWith('/api');

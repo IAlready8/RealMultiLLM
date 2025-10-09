@@ -209,6 +209,61 @@
   height: 300px;
 }
 
+/* Ensure smooth animations */
+* {
+  will-change: auto;
+  contain: layout style paint;
+}
+
+/* Force enable backdrop-filter support for glass effects */
+.glass-card, .glass-button {
+  -webkit-backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Fix for potential UI issues on deployment */
+/* Ensure consistent font loading */
+@layer base {
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+}
+
+/* Ensure proper rendering of SVG icons */
+svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Fix for potential flexbox issues on deployment */
+.container {
+  min-width: 0;
+}
+
+/* Ensure proper rendering of gradient backgrounds */
+[data-theme="custom"] {
+  --primary: var(--primary-custom);
+  --secondary: var(--secondary-custom);
+  --accent: var(--accent-custom);
+}
+
+/* Address potential issues with Tailwind JIT compiler */
+.glass-card, .glass-button, .rainbow-outline-hover, .gradient-text, .hover-lift {
+  contain: none;
+}
+
+/* Additional fix for UI rendering issues */
+#root, #__next {
+  isolation: isolate;
+}
+
+/* Ensure content is properly sized */
+.content-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 @layer base {
   :root {
     --background: 0 0% 2.5%;

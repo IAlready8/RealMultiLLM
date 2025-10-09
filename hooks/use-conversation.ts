@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getConversationsByType,
   deleteConversation as deleteConversationService,
-  updateConversation as updateConversationService
+  updateConversation as updateConversationService,
+  saveConversation as saveConversationService
 } from '@/services/conversation-storage';
 import type { Conversation, ConversationData } from '@/types/app';
 
@@ -61,6 +62,18 @@ export function useConversation<T extends Conversation['type']>(type: T) {
     }
   }, [loadConversations]);
   
+  const saveConversation = useCallback(async (title: string, data: ConversationData<T>) => {
+    try {
+      const id = await saveConversationService(type, title, data);
+      await loadConversations(); // Refresh the list
+      return id;
+    } catch (err) {
+      console.error(`Error saving conversation of type '${type}':`, err);
+      setError('Failed to save conversation');
+      throw err;
+    }
+  }, [type, loadConversations]);
+  
   // Load conversations on initial mount
   useEffect(() => {
     loadConversations();
@@ -70,6 +83,7 @@ export function useConversation<T extends Conversation['type']>(type: T) {
     conversations,
     isLoading,
     error,
+    saveConversation,
     updateConversation,
     deleteConversation,
     refreshConversations: loadConversations

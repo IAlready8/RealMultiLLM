@@ -7,6 +7,6 @@ export async function getAnalytics() {
   return await get();
 }
 
-export async function recordAnalyticsEvent(event: any) {
+export async function recordAnalyticsEvent(event: { event: string; payload?: Record<string, unknown>; userId: string }) {
   return await record(event);
 }

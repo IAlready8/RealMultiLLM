@@ -59,10 +59,21 @@ export function validateApiKey(apiKey: string): boolean {
  * @returns Sanitized input
  */
 export function sanitizeInput(input: string): string {
-  // Basic sanitization - remove potentially dangerous characters
-  return input
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
+  if (typeof input !== 'string') {
+    return '';
+  }
+
+  // Strip script tags entirely
+  let sanitized = input.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+
+  // Remove event handler attributes (e.g., onerror, onclick)
+  sanitized = sanitized.replace(/\s+on\w+\s*=\s*("[^"]*"|'[^']*')/gi, '');
+
+  // Remove javascript: protocol usages
+  sanitized = sanitized.replace(/javascript:/gi, '');
+
+  // Remove potentially dangerous inline tags like iframe and svg
+  sanitized = sanitized.replace(/<\/?(iframe|svg)[^>]*>/gi, '');
+
+  return sanitized;
 }

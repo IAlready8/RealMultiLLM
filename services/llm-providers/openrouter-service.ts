@@ -1,7 +1,7 @@
 // OpenRouter Provider Service
 // This service handles communication with OpenRouter's various models
 
-import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types';
+import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types/llm';
 import { fetchWithRetry } from '@/lib/http';
 
 class OpenRouterProvider implements LLMProvider {

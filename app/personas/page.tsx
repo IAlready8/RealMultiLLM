@@ -9,13 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { PlusCircle, Edit, Trash2, Copy, User, Sparkles } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CardSkeleton } from "@/components/ui/skeleton";
 import { 
   type Persona,
-  getDefaultPersonas,
-  applyPersonaPrompt
+  getDefaultPersonas
 } from "@/services/persona-service";
 
 export default function PersonasPage() {
@@ -26,8 +25,8 @@ export default function PersonasPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [formData, setFormData] = useState({
-    name: "",
-    systemPrompt: ""
+    title: "",
+    prompt: ""
   });
   const { toast } = useToast();
 
@@ -36,12 +35,22 @@ export default function PersonasPage() {
       setIsLoading(true);
       // For now, we'll just use the default personas
       // In a real implementation, you would fetch from localStorage or an API
-      const data = getDefaultPersonas();
-      setPersonas(data);
-    } catch (error: any) {
+      const defaultPersonas = getDefaultPersonas();
+      const fullPersonas: Persona[] = defaultPersonas.map((p, index) => ({
+        id: `default-${index}`,
+        title: p.title || '',
+        prompt: p.prompt || '',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userId: 'default'
+      }));
+      setPersonas(fullPersonas);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fetch personas";
       toast({
         title: "Error",
-        description: error.message || "Failed to fetch personas",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -58,22 +67,28 @@ export default function PersonasPage() {
       // For now, we'll just add to the local state
       // In a real implementation, you would save to localStorage or an API
       const newPersona: Persona = {
-        name: formData.name,
-        systemPrompt: formData.systemPrompt
+        id: `persona-${Date.now()}`,
+        title: formData.title,
+        prompt: formData.prompt,
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        userId: 'user-1' // Placeholder user ID
       };
       
       setPersonas([...personas, newPersona]);
       setIsCreateDialogOpen(false);
-      setFormData({ name: "", systemPrompt: "" });
+      setFormData({ title: "", prompt: "" });
       
       toast({
         title: "Success",
         description: "Persona created successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create persona";
       toast({
         title: "Error",
-        description: error.message || "Failed to create persona",
+        description: message,
         variant: "destructive",
       });
     }
@@ -86,24 +101,25 @@ export default function PersonasPage() {
       // For now, we'll just update the local state
       // In a real implementation, you would save to localStorage or an API
       const updatedPersonas = personas.map(p => 
-        p.name === selectedPersona.name ? 
-        { ...p, name: formData.name, systemPrompt: formData.systemPrompt } : 
+        p.title === selectedPersona.title ? 
+        {...p, title: formData.title, prompt: formData.prompt, updatedAt: new Date()} : 
         p
       );
       
       setPersonas(updatedPersonas);
       setIsEditDialogOpen(false);
       setSelectedPersona(null);
-      setFormData({ name: "", systemPrompt: "" });
+      setFormData({ title: "", prompt: "" });
       
       toast({
         title: "Success",
         description: "Persona updated successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update persona";
       toast({
         title: "Error",
-        description: error.message || "Failed to update persona",
+        description: message,
         variant: "destructive",
       });
     }
@@ -115,7 +131,7 @@ export default function PersonasPage() {
       
       // For now, we'll just remove from the local state
       // In a real implementation, you would delete from localStorage or an API
-      const updatedPersonas = personas.filter(p => p.name !== selectedPersona.name);
+      const updatedPersonas = personas.filter(p => p.title !== selectedPersona.title);
       setPersonas(updatedPersonas);
       setIsDeleteDialogOpen(false);
       setSelectedPersona(null);
@@ -124,10 +140,11 @@ export default function PersonasPage() {
         title: "Success",
         description: "Persona deleted successfully",
       });
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete persona";
       toast({
         title: "Error",
-        description: error.message || "Failed to delete persona",
+        description: message,
         variant: "destructive",
       });
     }
@@ -136,8 +153,8 @@ export default function PersonasPage() {
   const openEditDialog = (persona: Persona) => {
     setSelectedPersona(persona);
     setFormData({
-      name: persona.name,
-      systemPrompt: persona.systemPrompt
+      title: persona.title,
+      prompt: persona.prompt
     });
     setIsEditDialogOpen(true);
   };
@@ -152,7 +169,7 @@ export default function PersonasPage() {
     // For now, we'll just show a toast
     toast({
       title: "Persona Applied",
-      description: `Applied persona: ${persona.name}`,
+      description: `Applied persona: ${persona.title}`,
     });
   };
 
@@ -195,15 +212,10 @@ export default function PersonasPage() {
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {personas.map((persona) => (
-          <Card key={persona.name} className="flex flex-col">
+          <Card key={persona.title} className="flex flex-col">
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <User className="mr-2 h-4 w-4" />
-                {persona.name}
-              </CardTitle>
-              <CardDescription className="line-clamp-2">
-                {persona.systemPrompt}
-              </CardDescription>
+              <CardTitle className="text-lg">{persona.title}</CardTitle>
+              <CardDescription className="text-sm text-gray-500">{persona.prompt}</CardDescription>
             </CardHeader>
             <CardContent className="flex-grow flex flex-col justify-end gap-2">
               <Button 
@@ -247,20 +259,20 @@ export default function PersonasPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Title</Label>
               <Input
                 id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                placeholder="Enter persona name"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                placeholder="Enter persona title"
               />
             </div>
             <div>
               <Label htmlFor="systemPrompt">System Prompt</Label>
               <Textarea
                 id="systemPrompt"
-                value={formData.systemPrompt}
-                onChange={(e) => setFormData({...formData, systemPrompt: e.target.value})}
+                value={formData.prompt}
+                onChange={(e) => setFormData({...formData, prompt: e.target.value})}
                 placeholder="Enter system prompt"
                 rows={4}
               />
@@ -281,20 +293,20 @@ export default function PersonasPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="edit-name">Name</Label>
+              <Label htmlFor="edit-name">Title</Label>
               <Input
                 id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                placeholder="Enter persona name"
+                value={formData.title}
+                onChange={(e) => setFormData({...formData, title: e.target.value})}
+                placeholder="Enter persona title"
               />
             </div>
             <div>
               <Label htmlFor="edit-systemPrompt">System Prompt</Label>
               <Textarea
                 id="edit-systemPrompt"
-                value={formData.systemPrompt}
-                onChange={(e) => setFormData({...formData, systemPrompt: e.target.value})}
+                value={formData.prompt}
+                onChange={(e) => setFormData({...formData, prompt: e.target.value})}
                 placeholder="Enter system prompt"
                 rows={4}
               />

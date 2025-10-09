@@ -1,93 +1,80 @@
 import { NextResponse } from 'next/server';
-import { metricsRegistry } from '@/lib/observability/metrics';
+import os from 'os';
+import { monitoring, type MetricData } from '@/lib/monitoring';
 
-/**
- * Prometheus Metrics Endpoint
- * Exposes application metrics in Prometheus text format
- *
- * Scrape configuration:
- * ```yaml
- * scrape_configs:
- *   - job_name: 'realmultillm'
- *     static_configs:
- *       - targets: ['localhost:3000']
- *     metrics_path: '/api/metrics/prometheus'
- *     scrape_interval: 15s
- * ```
- */
+function serializeMetric(metric: MetricData): string {
+  const metricName = `realmultillm_${metric.name.replace(/[^a-zA-Z0-9:_]/g, '_')}`;
+  const labels = metric.tags
+    ? '{' + Object.entries(metric.tags).map(([key, value]) => `${key}="${value}"`).join(',') + '}'
+    : '';
+  return `${metricName}${labels} ${metric.value}`;
+}
+
+function buildProcessMetrics(): string {
+  const mem = process.memoryUsage();
+  const cpu = process.cpuUsage();
+  const lines: string[] = [];
+
+  lines.push('# HELP process_resident_memory_bytes Resident memory size in bytes');
+  lines.push('# TYPE process_resident_memory_bytes gauge');
+  lines.push(`process_resident_memory_bytes ${mem.rss}`);
+
+  lines.push('# HELP process_heap_used_bytes Process heap used in bytes');
+  lines.push('# TYPE process_heap_used_bytes gauge');
+  lines.push(`process_heap_used_bytes ${mem.heapUsed}`);
+
+  lines.push('# HELP process_cpu_user_seconds_total Total user CPU time spent in seconds');
+  lines.push('# TYPE process_cpu_user_seconds_total counter');
+  lines.push(`process_cpu_user_seconds_total ${(cpu.user / 1_000_000).toFixed(6)}`);
+
+  lines.push('# HELP process_cpu_system_seconds_total Total system CPU time spent in seconds');
+  lines.push('# TYPE process_cpu_system_seconds_total counter');
+  lines.push(`process_cpu_system_seconds_total ${(cpu.system / 1_000_000).toFixed(6)}`);
+
+  lines.push('# HELP process_uptime_seconds Number of seconds the process has been running');
+  lines.push('# TYPE process_uptime_seconds gauge');
+  lines.push(`process_uptime_seconds ${process.uptime().toFixed(3)}`);
+
+  return lines.join('\n');
+}
+
+function buildSystemMetrics(): string {
+  const lines: string[] = [];
+
+  lines.push('# HELP nodejs_version_info Node.js version info');
+  lines.push('# TYPE nodejs_version_info gauge');
+  lines.push(`nodejs_version_info{version="${process.version}"} 1`);
+
+  const load = os.loadavg();
+  lines.push('# HELP nodejs_load_average Load average over 1, 5, 15 minutes');
+  lines.push('# TYPE nodejs_load_average gauge');
+  lines.push(`nodejs_load_average{interval="1"} ${load[0].toFixed(3)}`);
+  lines.push(`nodejs_load_average{interval="5"} ${load[1].toFixed(3)}`);
+  lines.push(`nodejs_load_average{interval="15"} ${load[2].toFixed(3)}`);
+
+  lines.push('# HELP nodejs_total_memory_bytes Total system memory in bytes');
+  lines.push('# TYPE nodejs_total_memory_bytes gauge');
+  lines.push(`nodejs_total_memory_bytes ${os.totalmem()}`);
+
+  lines.push('# HELP nodejs_free_memory_bytes Free system memory in bytes');
+  lines.push('# TYPE nodejs_free_memory_bytes gauge');
+  lines.push(`nodejs_free_memory_bytes ${os.freemem()}`);
+
+  return lines.join('\n');
+}
+
 export async function GET() {
   try {
-    const metrics = metricsRegistry.getAll();
+    const exported = monitoring.exportMetrics('prometheus');
+    const baseMetrics = Array.isArray(exported)
+      ? exported.map(serializeMetric).join('\n')
+      : exported;
 
-    // Format metrics in Prometheus exposition format
-    let output = '';
+    const sections = [baseMetrics, buildProcessMetrics(), buildSystemMetrics()]
+      .filter(Boolean)
+      .join('\n\n');
 
-    for (const [name, metric] of Object.entries(metrics)) {
-      // Add HELP line
-      output += `# HELP ${name} ${metric.description || 'No description'}\n`;
-
-      // Add TYPE line
-      output += `# TYPE ${name} ${metric.type}\n`;
-
-      // Add metric values
-      if (metric.type === 'counter') {
-        for (const [labels, value] of Object.entries(metric.values || {})) {
-          const labelStr = formatLabels(labels);
-          output += `${name}${labelStr} ${value}\n`;
-        }
-      } else if (metric.type === 'gauge') {
-        for (const [labels, value] of Object.entries(metric.values || {})) {
-          const labelStr = formatLabels(labels);
-          output += `${name}${labelStr} ${value}\n`;
-        }
-      } else if (metric.type === 'histogram') {
-        for (const [labels, histogram] of Object.entries(metric.values || {})) {
-          const baseLabels = parseLabels(labels);
-
-          // Histogram buckets
-          for (const bucket of histogram.buckets || []) {
-            const bucketLabels = { ...baseLabels, le: bucket.le.toString() };
-            const labelStr = formatLabels(JSON.stringify(bucketLabels));
-            output += `${name}_bucket${labelStr} ${bucket.count}\n`;
-          }
-
-          // Count
-          const countLabels = formatLabels(labels);
-          output += `${name}_count${countLabels} ${histogram.count || 0}\n`;
-
-          // Sum
-          output += `${name}_sum${countLabels} ${histogram.sum || 0}\n`;
-        }
-      } else if (metric.type === 'summary') {
-        for (const [labels, summary] of Object.entries(metric.values || {})) {
-          const baseLabels = parseLabels(labels);
-
-          // Quantiles
-          for (const quantile of summary.quantiles || []) {
-            const quantileLabels = { ...baseLabels, quantile: quantile.quantile.toString() };
-            const labelStr = formatLabels(JSON.stringify(quantileLabels));
-            output += `${name}${labelStr} ${quantile.value}\n`;
-          }
-
-          // Count
-          const countLabels = formatLabels(labels);
-          output += `${name}_count${countLabels} ${summary.count || 0}\n`;
-
-          // Sum
-          output += `${name}_sum${countLabels} ${summary.sum || 0}\n`;
-        }
-      }
-
-      output += '\n';
-    }
-
-    // Add process metrics
-    output += addProcessMetrics();
-
-    // Add system metrics
-    output += addSystemMetrics();
-
-    return new NextResponse(output, {
+    return new NextResponse(sections, {
       headers: {
         'Content-Type': 'text/plain; version=0.0.4; charset=utf-8',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -97,93 +84,4 @@ export async function GET() {
     console.error('Prometheus metrics error:', error);
     return NextResponse.json({ error: 'Failed to generate metrics' }, { status: 500 });
   }
-}
-
-/**
- * Format labels object to Prometheus label syntax
- */
-function formatLabels(labelsStr: string): string {
-  try {
-    const labels = typeof labelsStr === 'string' ? JSON.parse(labelsStr) : labelsStr;
-
-    if (!labels || Object.keys(labels).length === 0) {
-      return '';
-    }
-
-    const pairs = Object.entries(labels)
-      .map(([key, value]) => `${key}="${value}"`)
-      .join(',');
-
-    return `{${pairs}}`;
-  } catch {
-    return '';
-  }
-}
-
-/**
- * Parse label string to object
- */
-function parseLabels(labelsStr: string): Record<string, any> {
-  try {
-    return typeof labelsStr === 'string' ? JSON.parse(labelsStr) : labelsStr;
-  } catch {
-    return {};
-  }
-}
-
-/**
- * Add Node.js process metrics
- */
-function addProcessMetrics(): string {
-  let output = '';
-
-  // Memory usage
-  const mem = process.memoryUsage();
-  output += `# HELP process_resident_memory_bytes Resident memory size in bytes\n`;
-  output += `# TYPE process_resident_memory_bytes gauge\n`;
-  output += `process_resident_memory_bytes ${mem.rss}\n\n`;
-
-  output += `# HELP process_heap_bytes Process heap size in bytes\n`;
-  output += `# TYPE process_heap_bytes gauge\n`;
-  output += `process_heap_bytes ${mem.heapUsed}\n\n`;
-
-  // CPU usage
-  const cpuUsage = process.cpuUsage();
-  output += `# HELP process_cpu_user_seconds_total Total user CPU time spent in seconds\n`;
-  output += `# TYPE process_cpu_user_seconds_total counter\n`;
-  output += `process_cpu_user_seconds_total ${cpuUsage.user / 1000000}\n\n`;
-
-  output += `# HELP process_cpu_system_seconds_total Total system CPU time spent in seconds\n`;
-  output += `# TYPE process_cpu_system_seconds_total counter\n`;
-  output += `process_cpu_system_seconds_total ${cpuUsage.system / 1000000}\n\n`;
-
-  // Uptime
-  output += `# HELP process_uptime_seconds Number of seconds the process has been running\n`;
-  output += `# TYPE process_uptime_seconds gauge\n`;
-  output += `process_uptime_seconds ${process.uptime()}\n\n`;
-
-  return output;
-}
-
-/**
- * Add system metrics
- */
-function addSystemMetrics(): string {
-  let output = '';
-
-  // Node.js version
-  output += `# HELP nodejs_version_info Node.js version info\n`;
-  output += `# TYPE nodejs_version_info gauge\n`;
-  output += `nodejs_version_info{version="${process.version}"} 1\n\n`;
-
-  // Event loop lag (approximation)
-  const start = Date.now();
-  setImmediate(() => {
-    const lag = Date.now() - start;
-    output += `# HELP nodejs_eventloop_lag_seconds Event loop lag in seconds\n`;
-    output += `# TYPE nodejs_eventloop_lag_seconds gauge\n`;
-    output += `nodejs_eventloop_lag_seconds ${lag / 1000}\n\n`;
-  });
-
-  return output;
 }

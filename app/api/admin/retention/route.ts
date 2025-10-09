@@ -33,9 +33,10 @@ export async function GET(request: NextRequest) {
       cutoffDays: days,
       cutoffDate: new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString(),
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to get retention stats';
     return NextResponse.json(
-      { error: error.message || 'Failed to get retention stats' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -69,9 +70,10 @@ export async function POST(request: NextRequest) {
       success: true,
       result,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to enforce retention policy';
     return NextResponse.json(
-      { error: error.message || 'Failed to enforce retention policy' },
+      { error: message },
       { status: 500 }
     );
   }

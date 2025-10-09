@@ -36,8 +36,9 @@ export async function POST(request: Request) {
     if (validation.data?.apiKey) {
       try {
         connectionTest = await configManager.testProviderConnection(provider, validation.data)
-      } catch (error: any) {
-        connectionTest = { success: false, error: error.message }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown connection test error';
+        connectionTest = { success: false, error: message }
       }
     }
 
@@ -46,8 +47,9 @@ export async function POST(request: Request) {
       data: validation.data,
       connectionTest,
     })
-  } catch (error: any) {
-    return internalError(error.message || 'Validation failed')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Validation failed';
+    return internalError(message);
   }
 }
 
@@ -71,7 +73,8 @@ export async function GET(request: Request) {
       const configs = await configManager.getAllProviderConfigs(session.user.id)
       return NextResponse.json({ configs })
     }
-  } catch (error: any) {
-    return internalError(error.message || 'Failed to load configuration')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to load configuration';
+    return internalError(message);
   }
 }

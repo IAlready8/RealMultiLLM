@@ -26,21 +26,22 @@ export enum ErrorSeverity {
 export interface ErrorContext {
   endpoint: string
   userId?: string
-  timestamp: Date
-  metadata: Record<string, any>
+  timestamp?: Date
+  metadata?: Record<string, any>
   requestId?: string
 }
 
 // Base application error class
 export class BaseAppError extends Error {
   public id: string
+  public context: ErrorContext
   constructor(
     public code: string,
     public category: ErrorCategory,
     public severity: ErrorSeverity,
     message: string,
     public userMessage: string,
-    public context: ErrorContext,
+    context: ErrorContext,
     public isRetryable: boolean = false,
     public maxRetries: number = 3,
     public retryCount: number = 0
@@ -48,6 +49,11 @@ export class BaseAppError extends Error {
     super(message)
     this.name = 'BaseAppError'
     this.id = uuidv4()
+    this.context = {
+      ...context,
+      timestamp: context.timestamp ?? new Date(),
+      metadata: context.metadata ?? {},
+    }
   }
 }
 
@@ -64,7 +70,10 @@ export class ValidationError extends BaseAppError {
       ErrorSeverity.MEDIUM,
       message,
       `Invalid ${field}. Please check your input.`,
-      { ...context, metadata: { ...context.metadata, field } }
+      {
+        ...context,
+        metadata: { ...(context.metadata ?? {}), field },
+      }
     )
   }
 }
@@ -100,7 +109,7 @@ export class LLMProviderError extends BaseAppError {
       ErrorSeverity.MEDIUM,
       `${message}${originalError ? `: ${originalError.message}` : ''}`,
       `Error with ${provider} provider. Please try again or switch providers.`,
-      { ...context, metadata: { ...context.metadata, provider } },
+      { ...context, metadata: { ...(context.metadata ?? {}), provider } },
       true // retryable
     )
   }
@@ -157,7 +166,7 @@ export class RateLimitError extends BaseAppError {
       {
         ...context,
         metadata: {
-          ...context.metadata,
+          ...(context.metadata ?? {}),
           retryAfter,
         },
       },
@@ -168,15 +177,94 @@ export class RateLimitError extends BaseAppError {
   }
 }
 
-// Type for AppError (union of all specific error types)
-export type AppError = 
-  | BaseAppError
+export interface AppErrorContext extends Partial<ErrorContext> {
+  [key: string]: any
+}
+
+export interface AppErrorOptions {
+  code?: string
+  category?: ErrorCategory | string
+  severity?: ErrorSeverity | string
+  userMessage?: string
+  context?: AppErrorContext
+  metadata?: Record<string, any>
+  isRetryable?: boolean
+  maxRetries?: number
+  retryCount?: number
+}
+
+export class AppError extends BaseAppError {
+  constructor(message: string, options: AppErrorOptions = {}) {
+    const {
+      code = 'APP_ERROR',
+      category = ErrorCategory.UNKNOWN,
+      severity = ErrorSeverity.MEDIUM,
+      userMessage = message,
+      context = {},
+      metadata,
+      isRetryable = false,
+      maxRetries = isRetryable ? 1 : 0,
+      retryCount = 0,
+    } = options
+    const resolvedCategory =
+      typeof category === 'string'
+        ? (Object.values(ErrorCategory).includes(category as ErrorCategory)
+            ? (category as ErrorCategory)
+            : ErrorCategory.UNKNOWN)
+        : category
+    const resolvedSeverity =
+      typeof severity === 'string'
+        ? (Object.values(ErrorSeverity).includes(severity as ErrorSeverity)
+            ? (severity as ErrorSeverity)
+            : ErrorSeverity.MEDIUM)
+        : severity
+    const {
+      endpoint,
+      userId,
+      timestamp,
+      requestId,
+      metadata: contextMetadata,
+      ...rest
+    } = context
+
+    const normalizedContext: ErrorContext = {
+      endpoint: endpoint ?? 'unknown',
+      userId,
+      timestamp,
+      requestId,
+      metadata: {
+        ...(contextMetadata ?? {}),
+        ...(metadata ?? {}),
+        ...rest,
+      },
+    }
+
+    super(
+      code,
+      resolvedCategory,
+      resolvedSeverity,
+      message,
+      userMessage,
+      normalizedContext,
+      isRetryable,
+      maxRetries,
+      retryCount,
+    )
+
+    this.name = 'AppError'
+  }
+}
+
+// Type helper to cover all error variants managed by the system
+export type AppErrorLike =
+  | AppError
   | ValidationError
   | NetworkError
   | LLMProviderError
   | DatabaseError
   | AuthenticationError
   | RateLimitError
+  | BaseAppError
 
 // Recovery action types
 export type RecoveryAction = 
@@ -262,7 +350,7 @@ export class ErrorManager {
     }
   }
 
-  private normalizeError(error: Error, context?: Partial<ErrorContext>): AppError {
+  private normalizeError(error: Error, context?: Partial<ErrorContext>): BaseAppError {
     if (error instanceof BaseAppError) {
       return error
     }
@@ -287,7 +375,7 @@ export class ErrorManager {
     )
   }
 
-  private async reportToMonitoring(error: AppError): Promise<void> {
+  private async reportToMonitoring(error: BaseAppError): Promise<void> {
     // Implement integration with your monitoring service (e.g., Sentry, DataDog)
     // This is a placeholder implementation
     console.log('Reporting to monitoring service:', {
@@ -298,11 +386,11 @@ export class ErrorManager {
     })
   }
 
-  createUserFriendlyMessage(error: AppError): string {
+  createUserFriendlyMessage(error: BaseAppError): string {
     return error.userMessage
   }
 
-  async attemptRecovery(error: AppError): Promise<RecoveryResult> {
+  async attemptRecovery(error: BaseAppError): Promise<RecoveryResult> {
     if (!error.isRetryable || error.retryCount >= error.maxRetries) {
       return {
         success: false,
@@ -334,7 +422,7 @@ export class ErrorManager {
     }
   }
 
-  private determineRecoveryAction(error: AppError): RecoveryAction | null {
+  private determineRecoveryAction(error: BaseAppError): RecoveryAction | null {
     switch (error.category) {
       case ErrorCategory.NETWORK:
         return { type: 'retry' }

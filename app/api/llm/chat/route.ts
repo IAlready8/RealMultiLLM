@@ -4,19 +4,16 @@ import { authOptions } from '@/lib/auth'
 import { callLLMApi } from '@/lib/llm-api-client-server';
 import { 
   checkApiRateLimit, 
-  withErrorHandling,
   createErrorResponse,
   RateLimitError,
   executeWithCircuitBreaker,
-  CircuitBreakerError
 } from '@/lib/api'
 import { processSecurityRequest, sanitizeInput } from '@/lib/security'
 import { logger } from '@/lib/observability/logger'
 import { 
   metricsRegistry 
 } from '@/lib/observability/metrics'
-import { withObservability } from '@/lib/observability/middleware'
-import { validateChatRequest } from '@/schemas/llm'
+import { validateChatRequest, ChatRequestSchema, ChatMessageSchema } from '@/schemas/llm'
 import { logDataAccessEvent } from '@/lib/compliance'
 
 // Adds centralized logging and supports new Ollama provider via callLLMApi.
@@ -45,7 +42,7 @@ export async function POST(request: Request) {
   const userId = session.user.id;
   const endpoint = 'llm/chat';
   const startTime = Date.now();
-  let body: any = null;
+  let body: ChatRequestSchema | null = null;
   
   try {
     // Check rate limit
@@ -88,7 +85,7 @@ export async function POST(request: Request) {
     const log = logger.child({ userId });
 
     // Sanitize messages
-    const sanitizedMessages = messages.map((message: any) => ({
+    const sanitizedMessages = messages.map((message: ChatMessageSchema) => ({
       ...message,
       content: sanitizeInput(message.content),
     }));
@@ -135,7 +132,7 @@ export async function POST(request: Request) {
       {
         provider,
         model: options?.model || 'default',
-        promptLength: messages.reduce((sum: number, msg: any) => sum + (msg.content?.length || 0), 0),
+        promptLength: messages.reduce((sum: number, msg: ChatMessageSchema) => sum + (msg.content?.length || 0), 0),
         responseTime: ms
       }
     );
@@ -195,9 +192,9 @@ export async function POST(request: Request) {
         'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     const ms = Date.now() - startTime;
-    const { messages, provider, options } = body || {};
+    const { provider, options } = body || {};
 
     try {
       // Log data access error for compliance
@@ -209,7 +206,7 @@ export async function POST(request: Request) {
         securityResult.context?.userAgent,
         {
           provider: provider || 'unknown',
-          error: error?.message || 'Unknown',
+          error: error instanceof Error ? error.message : 'Unknown',
           responseTime: ms
         }
       );
@@ -223,9 +220,9 @@ export async function POST(request: Request) {
 
       // Queue error for async processing (non-blocking)
       import('@/lib/async-error-processor').then(({ asyncErrorProcessor }) => {
-        const errorLevel = error?.statusCode >= 500 ? 'critical' : 'error';
+        const errorLevel = error instanceof Error && 'statusCode' in error && typeof (error as { statusCode?: number }).statusCode === 'number' && (error as { statusCode: number }).statusCode >= 500 ? 'critical' : 'error';
         asyncErrorProcessor.queueError(
-          error,
+          error instanceof Error ? error : new Error(String(error)),
           errorLevel,
           'llm.chat.endpoint',
           {
@@ -249,9 +246,10 @@ export async function POST(request: Request) {
     errorMetric.inc(1);
 
     // Return standardized error response
-    const errorResponse = createErrorResponse(error as any);
+    const errorForResponse = error instanceof Error ? error : new Error(String(error));
+    const errorResponse = createErrorResponse(errorForResponse);
     return NextResponse.json(errorResponse, { 
-      status: errorResponse.error.statusCode || 500,
+      status: (errorResponse.error as { statusCode?: number }).statusCode || 500,
       headers: securityResult.headers
     });
   }

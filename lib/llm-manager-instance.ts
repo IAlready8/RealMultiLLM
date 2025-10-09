@@ -64,7 +64,7 @@ function createLLMManager(): LLMManager {
   const providers = providerRegistry.getAll();
 
   for (const providerService of providers) {
-    const metadata = providerService.getMetadata();
+    const metadata = providerService.metadata;
     const adapter = new ProviderAdapter(metadata.id, providerService);
     manager.registerProvider(adapter);
   }

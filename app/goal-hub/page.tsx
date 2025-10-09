@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, PlusCircle, Trash2, XCircle, Loader2, AlertTriangle, Target } from "lucide-react";
+import { CheckCircle, PlusCircle, Trash2, XCircle, AlertTriangle, Target } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -45,12 +45,13 @@ export default function GoalHub() {
       }
       const data: Goal[] = await response.json();
       setGoals(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error fetching goals";
+      setError(message);
       console.error("Error fetching goals:", err);
       toast({
         title: "Error fetching goals",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -102,12 +103,13 @@ export default function GoalHub() {
         description: "Your goal has been successfully added.",
         variant: "success",
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error adding goal";
+      setError(message);
       console.error("Error adding goal:", err);
       toast({
         title: "Error adding goal",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -156,12 +158,13 @@ export default function GoalHub() {
         description: "Your goal has been marked as completed.",
         variant: "success",
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error marking goal complete";
+      setError(message);
       console.error("Error marking goal complete:", err);
       toast({
         title: "Error marking goal complete",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -198,12 +201,13 @@ export default function GoalHub() {
         description: "Your goal has been successfully deleted.",
         variant: "success",
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error deleting goal";
+      setError(message);
       console.error("Error deleting goal:", err);
       toast({
         title: "Error deleting goal",
-        description: err.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -370,7 +374,7 @@ export default function GoalHub() {
               <div className="border border-dashed border-gray-700 bg-gray-800/30 rounded-md p-6 text-center">
                 <CheckCircle className="h-12 w-12 mx-auto text-green-500/30 mb-3" />
                 <p className="text-gray-400 font-medium mb-1">No completed goals yet</p>
-                <p className="text-sm text-gray-500">Keep working on your goals - you'll see them here when completed! 🎯</p>
+                <p className="text-sm text-gray-500">Keep working on your goals - you&apos;ll see them here when completed! 🎯</p>
               </div>
             ) : (
               completedGoals.map((goal) => (

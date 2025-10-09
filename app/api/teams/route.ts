@@ -15,8 +15,9 @@ export async function POST(request: Request) {
     const team = await createTeam(session.user.id, body);
 
     return NextResponse.json(team, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to create team' }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create team';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
@@ -30,7 +31,8 @@ export async function GET() {
 
     const teams = await getUserTeams(session.user.id);
     return NextResponse.json(teams);
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to fetch teams' }, { status: 500 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch teams';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

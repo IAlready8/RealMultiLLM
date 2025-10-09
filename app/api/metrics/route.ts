@@ -4,6 +4,14 @@ import { authOptions } from '@/lib/auth'
 import { monitoring } from '@/lib/monitoring'
 import { getApiSecurityHeaders } from '@/lib/security-headers'
 
+interface ClientPerformancePayload {
+  type: 'client-performance';
+  name: string;
+  value: number;
+  timestamp?: number;
+  tags?: Record<string, unknown>;
+}
+
 const toNumberOrNull = (value: number) => (Number.isFinite(value) ? value : null)
 
 export async function GET(request: NextRequest) {
@@ -84,7 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  let payload: any
+  let payload: ClientPerformancePayload;
   try {
     payload = await request.json()
   } catch (error) {
@@ -103,7 +111,7 @@ export async function POST(request: NextRequest) {
   }
 
   const metricTimestamp = typeof payload.timestamp === 'number' ? payload.timestamp : Date.now()
-  const metricTags: Record<string, any> = {
+  const metricTags: Record<string, unknown> = {
     source: 'client',
     ...(payload.tags ?? {}),
   }
@@ -118,7 +126,7 @@ export async function POST(request: NextRequest) {
       value: payload.value,
       timestamp: metricTimestamp,
       type: 'gauge',
-      tags: metricTags,
+      tags: metricTags as Record<string, string>,
     })
   } catch (error) {
     monitoring.recordError(error as Error, { endpoint: '/api/metrics' })

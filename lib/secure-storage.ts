@@ -1,5 +1,5 @@
 // lib/secure-storage.ts
-import { encrypt, decrypt } from './crypto';
+import { encrypt, decrypt, encryptApiKey as baseEncryptApiKey, decryptApiKey as baseDecryptApiKey } from './crypto';
 
 // In-memory storage for API keys (in a real app, this would be more secure)
 const secureStorage: Record<string, string> = {};
@@ -63,3 +63,6 @@ export async function getLegacyApiKeyIfPresent(provider: string): Promise<string
   
   return null;
 }
+
+export const encryptApiKey = baseEncryptApiKey;
+export const decryptApiKey = baseDecryptApiKey;

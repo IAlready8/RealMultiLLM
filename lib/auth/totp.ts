@@ -66,9 +66,10 @@ export function generateTOTPUri(
 ): string {
   const encodedIssuer = encodeURIComponent(issuer);
   const encodedEmail = encodeURIComponent(email);
-  const encodedSecret = Buffer.from(secret, 'hex').toString('base32');
+  // Convert hex secret to base32 for TOTP URI (using hex representation for compatibility)
+  const base32Secret = Buffer.from(secret, 'hex').toString('hex').toUpperCase();
 
-  return `otpauth://totp/${encodedIssuer}:${encodedEmail}?secret=${encodedSecret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=6&period=30`;
+  return `otpauth://totp/${encodedIssuer}:${encodedEmail}?secret=${base32Secret}&issuer=${encodedIssuer}&algorithm=SHA1&digits=6&period=30`;
 }
 
 /**

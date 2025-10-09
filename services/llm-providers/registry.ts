@@ -452,5 +452,27 @@ export async function validateProviderConfig(
   }
 }
 
+/**
+ * Provider registry class for external compatibility
+ */
+class ProviderRegistry {
+  getAll() {
+    return Object.values(PROVIDER_FACTORIES);
+  }
+  
+  get(providerId: string) {
+    return PROVIDER_FACTORIES[providerId] || null;
+  }
+  
+  has(providerId: string) {
+    return providerId in PROVIDER_FACTORIES;
+  }
+}
+
+/**
+ * Global provider registry instance
+ */
+export const providerRegistry = new ProviderRegistry();
+
 // Export types for external usage
 export type { ILLMProvider, ProviderMetadata, ChatRequest, ChatChunk, ChatResponse, ModelInfo, ConnectionTestResult }

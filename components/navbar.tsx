@@ -15,6 +15,7 @@ export default function Navbar() {
     { label: "Comparison", href: "/comparison" },
     { label: "Pipeline", href: "/pipeline" },
     { label: "Personas", href: "/personas" },
+    { label: "Teams", href: "/teams" },
     { label: "Analytics", href: "/analytics" },
     { label: "Settings", href: "/settings" },
   ];

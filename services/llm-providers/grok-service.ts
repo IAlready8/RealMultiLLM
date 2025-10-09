@@ -1,7 +1,7 @@
 // Grok Provider Service
 // This service handles communication with xAI's Grok models
 
-import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types';
+import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types/llm';
 import OpenAI from 'openai';
 
 class GrokProvider implements LLMProvider {
@@ -43,7 +43,7 @@ class GrokProvider implements LLMProvider {
       this.client = new OpenAI({
         apiKey,
         baseURL: 'https://api.x.ai/v1',
-      });
+      } as any);
     }
   }
 
@@ -57,7 +57,7 @@ class GrokProvider implements LLMProvider {
       const testClient = new OpenAI({
         apiKey: config.apiKey,
         baseURL: 'https://api.x.ai/v1',
-      });
+      } as any);
 
       await testClient.models.list();
       return true;
@@ -74,7 +74,7 @@ class GrokProvider implements LLMProvider {
       }
 
       const models = await this.client.models.list();
-      return models.data.map(model => ({
+      return ((models as any).data as any[]).map((model: any) => ({
         id: model.id,
         name: model.id,
         maxTokens: this.maxTokens,
@@ -108,28 +108,25 @@ class GrokProvider implements LLMProvider {
       stream: false,
     });
 
-    const choice = response.choices?.[0];
+    const choice = (response as any).choices?.[0];
     return {
       content: choice?.message?.content ?? '',
       finish_reason: choice?.finish_reason ?? 'stop',
-      usage: response.usage ?? null
+      usage: (response as any).usage ?? null
     };
   }
 
-  async streamChat(
-    messages: Message[],
-    options?: ChatOptions
-  ): Promise<StreamResponse> {
+  async streamChat(options: ChatOptions): Promise<AsyncGenerator<string, void, undefined>> {
     if (!this.client) {
       throw new Error('Grok client not initialized');
     }
 
-    const model = options?.model || this.model;
-    const temperature = options?.temperature ?? 0.7;
-    const maxTokens = options?.maxTokens || this.maxTokens;
+    const model = options.model || this.model;
+    const temperature = options.temperature ?? 0.7;
+    const maxTokens = options.maxTokens || this.maxTokens;
 
     // Convert messages to OpenAI format
-    const openAIMessages = messages.map(msg => ({
+    const openAIMessages = options.messages.map(msg => ({
       role: msg.role as 'user' | 'assistant' | 'system',
       content: msg.content
     }));
@@ -142,12 +139,16 @@ class GrokProvider implements LLMProvider {
       stream: true,
     });
 
-    return {
-      stream,
-      provider: this.id,
-      model,
-      usage: null // Will be populated after completion
-    };
+    async function* generator(): AsyncGenerator<string, void, undefined> {
+      for await (const chunk of stream as any) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          yield content;
+        }
+      }
+    }
+
+    return generator();
   }
 }
 

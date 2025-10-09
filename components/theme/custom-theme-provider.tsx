@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { ThemeProvider as NextThemesProvider, useTheme as useNextTheme } from "next-themes";
 
-interface CustomThemeSettings {
+export interface CustomThemeSettings {
   primaryColor: string;
   secondaryColor: string;
   accentColor: string;

@@ -36,6 +36,7 @@ vi.mock('@prisma/client', () => ({
     user: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      count: vi.fn(),
       create: vi.fn(),
       update: vi.fn()
     },

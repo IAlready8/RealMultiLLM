@@ -25,7 +25,8 @@ export async function GET() {
     const json = NextResponse.json(data);
     json.headers.set("Cache-Control", "s-maxage=600, stale-while-revalidate=86400");
     return json;
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Internal error" }, { status: 500 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Internal error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

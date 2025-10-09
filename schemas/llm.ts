@@ -6,6 +6,17 @@ export interface ChatMessageSchema {
   content: string
 }
 
+export interface ExtendedChatMessageSchema extends ChatMessageSchema {
+  metadata?: {
+    error?: boolean
+    promptTokens?: number
+    completionTokens?: number
+    totalTokens?: number
+    [key: string]: any
+  }
+  [key: string]: any
+}
+
 export interface ChatRequestSchema {
   provider: string
   messages: ChatMessageSchema[]

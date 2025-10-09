@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertTriangle, RefreshCw, Home, Bug } from 'lucide-react'
-import { errorManager, type AppError, createErrorContext } from '@/lib/error-system'
+import { errorManager, type AppErrorLike, createErrorContext } from '@/lib/error-system'
 
 interface Props {
   children: ReactNode
@@ -69,11 +69,11 @@ export class ErrorBoundary extends Component<Props, State> {
     // Attempt automatic recovery for recoverable errors
     // Removed isAppError check since it's not exported
     if (error && this.state.recoveryAttempts < this.maxRecoveryAttempts) {
-      this.attemptRecovery(error as AppError)
+      this.attemptRecovery(error as AppErrorLike)
     }
   }
 
-  private async attemptRecovery(error: AppError) {
+  private async attemptRecovery(error: AppErrorLike) {
     this.setState({ isRecovering: true })
 
     try {

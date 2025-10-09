@@ -11,11 +11,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 import { authOptions } from '@/lib/auth';
-import { deleteUserProviderConfig, hasValidApiKey } from '@/lib/api-key-service';
+import { deleteUserProviderConfig } from '@/lib/api-key-service';
 import { badRequest, internalError, unauthorized } from '@/lib/http';
 import logger from '@/lib/logger';
 import { configManager } from '@/lib/config-manager';
-import { testProviderConnection, getProviderMetadata, hasProvider } from '@/services/llm-providers/registry';
+import { testProviderConnection, hasProvider } from '@/services/llm-providers/registry';
 
 const validProviders = [
   'openai',
@@ -29,31 +29,36 @@ const validProviders = [
   'grok',
 ] as const;
 
-// Schema to validate the dynamic route parameter
 const routeContextSchema = z.object({
   provider: z.enum(validProviders),
 });
 
-// Validation schema for provider configuration
 const providerConfigSchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
   baseUrl: z.string().url().optional().or(z.literal('')),
   models: z.array(z.string()).optional(),
   rateLimits: z.object({
     requests: z.number().int().positive(),
-    window: z.number().int().positive()
+    window: z.number().int().positive(),
   }).optional(),
   isActive: z.boolean().optional().default(true),
-  settings: z.record(z.any()).optional()
+  settings: z.record(z.string(), z.any()).optional(),
 });
+
+type ProviderConfigInput = z.infer<typeof providerConfigSchema>;
+
+async function resolveProvider(params: Promise<{ provider: string }>): Promise<string> {
+  const raw = await params;
+  const parsed = routeContextSchema.parse(raw);
+  return parsed.provider;
+}
 
 /**
  * GET /api/provider-configs/[provider]
- * Retrieve configuration for a specific provider
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
+  context: { params: Promise<{ provider: string }> }
 ) {
   const session = await getServerSession(authOptions);
 
@@ -61,10 +66,9 @@ export async function GET(
     return unauthorized();
   }
 
+  let provider: string | null = null;
   try {
-    const { provider } = routeContextSchema.parse(await params);
-
-    // Fetch configuration
+    provider = await resolveProvider(context.params);
     const config = await configManager.getProviderConfig(session.user.id, provider);
 
     if (!config) {
@@ -73,13 +77,12 @@ export async function GET(
           provider,
           configured: false,
           hasValidKey: false,
-          message: `No configuration found for ${provider}`
+          message: `No configuration found for ${provider}`,
         },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    // Never expose raw API key in response
     const sanitizedConfig = {
       provider,
       configured: true,
@@ -88,19 +91,20 @@ export async function GET(
       baseUrl: config.baseUrl || null,
       models: config.models || [],
       rateLimits: config.rateLimits,
-      settings: config.settings || {}
+      settings: config.settings || {},
     };
 
     return NextResponse.json(sanitizedConfig, { status: 200 });
-
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest('Invalid provider in URL', { details: error.issues });
     }
+
+    const message = error instanceof Error ? error.message : 'Unknown error checking provider configuration status';
     logger.error('Failed to check provider configuration status', {
       userId: session.user.id,
-      provider: (await params).provider,
-      error: error.message,
+      provider,
+      error: message,
     });
     return internalError('Failed to check provider configuration status');
   }
@@ -108,11 +112,10 @@ export async function GET(
 
 /**
  * POST /api/provider-configs/[provider]
- * Create new provider configuration
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
+  context: { params: Promise<{ provider: string }> }
 ) {
   const session = await getServerSession(authOptions);
 
@@ -120,10 +123,10 @@ export async function POST(
     return unauthorized();
   }
 
+  let provider: string | null = null;
   try {
-    const { provider } = routeContextSchema.parse(await params);
+    provider = await resolveProvider(context.params);
 
-    // Parse and validate request body
     const body = await request.json();
     const validation = providerConfigSchema.safeParse(body);
 
@@ -133,39 +136,28 @@ export async function POST(
 
     const configData = validation.data;
 
-    // Test connection before persisting (optional but recommended)
     if (configData.apiKey && hasProvider(provider)) {
-      const testResult = await testProviderConnection(
-        provider,
-        configData.apiKey,
-        configData.baseUrl
-      );
-
+      const testResult = await testProviderConnection(provider, configData.apiKey, configData.baseUrl);
       if (!testResult.success) {
         return NextResponse.json(
           {
             error: 'Connection Test Failed',
             message: testResult.error || 'Unable to connect with provided credentials',
-            tested: true
+            tested: true,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
 
-    // Create configuration
-    const result = await configManager.updateProviderConfig(
-      session.user.id,
-      provider,
-      {
-        apiKey: configData.apiKey,
-        baseUrl: configData.baseUrl,
-        models: configData.models,
-        rateLimits: configData.rateLimits,
-        isActive: configData.isActive,
-        settings: configData.settings
-      }
-    );
+    const result = await configManager.updateProviderConfig(session.user.id, provider, {
+      apiKey: configData.apiKey,
+      baseUrl: configData.baseUrl || undefined,
+      models: configData.models,
+      rateLimits: configData.rateLimits,
+      isActive: configData.isActive,
+      settings: configData.settings,
+    });
 
     if (!result.success) {
       return internalError('Failed to save configuration');
@@ -173,7 +165,7 @@ export async function POST(
 
     logger.info('Provider config created', {
       userId: session.user.id,
-      provider: provider,
+      provider,
     });
 
     return NextResponse.json(
@@ -181,19 +173,20 @@ export async function POST(
         success: true,
         provider,
         message: 'Configuration created successfully',
-        warnings: result.warnings
+        warnings: result.warnings,
       },
-      { status: 201 }
+      { status: 201 },
     );
-
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest('Invalid provider in URL', { details: error.issues });
     }
+
+    const message = error instanceof Error ? error.message : 'Unknown error creating provider configuration';
     logger.error('Failed to create provider configuration', {
       userId: session.user.id,
-      provider: (await params).provider,
-      error: error.message,
+      provider,
+      error: message,
     });
     return internalError('Failed to create provider configuration');
   }
@@ -201,11 +194,10 @@ export async function POST(
 
 /**
  * PUT /api/provider-configs/[provider]
- * Update existing provider configuration
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
+  context: { params: Promise<{ provider: string }> }
 ) {
   const session = await getServerSession(authOptions);
 
@@ -213,13 +205,11 @@ export async function PUT(
     return unauthorized();
   }
 
+  let provider: string | null = null;
   try {
-    const { provider } = routeContextSchema.parse(await params);
+    provider = await resolveProvider(context.params);
 
-    // Parse request body (partial update allowed)
     const body = await request.json();
-
-    // Validate partial configuration
     const partialSchema = providerConfigSchema.partial();
     const validation = partialSchema.safeParse(body);
 
@@ -227,34 +217,26 @@ export async function PUT(
       return badRequest('Invalid configuration data', { details: validation.error.format() });
     }
 
-    const configData = validation.data;
+    const configData = validation.data as Partial<ProviderConfigInput>;
 
-    // If API key changed, test new connection
     if (configData.apiKey && hasProvider(provider)) {
-      const testResult = await testProviderConnection(
-        provider,
-        configData.apiKey,
-        configData.baseUrl
-      );
-
+      const testResult = await testProviderConnection(provider, configData.apiKey, configData.baseUrl);
       if (!testResult.success) {
         return NextResponse.json(
           {
             error: 'Connection Test Failed',
             message: testResult.error || 'Unable to connect with provided credentials',
-            tested: true
+            tested: true,
           },
-          { status: 400 }
+          { status: 400 },
         );
       }
     }
 
-    // Update configuration
-    const result = await configManager.updateProviderConfig(
-      session.user.id,
-      provider,
-      configData as any
-    );
+    const result = await configManager.updateProviderConfig(session.user.id, provider, {
+      ...configData,
+      baseUrl: configData.baseUrl || undefined,
+    });
 
     if (!result.success) {
       return internalError('Failed to update configuration');
@@ -262,7 +244,7 @@ export async function PUT(
 
     logger.info('Provider config updated', {
       userId: session.user.id,
-      provider: provider,
+      provider,
     });
 
     return NextResponse.json(
@@ -270,19 +252,20 @@ export async function PUT(
         success: true,
         provider,
         message: 'Configuration updated successfully',
-        warnings: result.warnings
+        warnings: result.warnings,
       },
-      { status: 200 }
+      { status: 200 },
     );
-
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest('Invalid provider in URL', { details: error.issues });
     }
+
+    const message = error instanceof Error ? error.message : 'Unknown error updating provider configuration';
     logger.error('Failed to update provider configuration', {
       userId: session.user.id,
-      provider: (await params).provider,
-      error: error.message,
+      provider,
+      error: message,
     });
     return internalError('Failed to update provider configuration');
   }
@@ -290,11 +273,10 @@ export async function PUT(
 
 /**
  * DELETE /api/provider-configs/[provider]
- * Remove provider configuration
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> }
+  context: { params: Promise<{ provider: string }> }
 ) {
   const session = await getServerSession(authOptions);
 
@@ -302,25 +284,28 @@ export async function DELETE(
     return unauthorized();
   }
 
+  let provider: string | null = null;
   try {
-    const { provider } = routeContextSchema.parse(await params);
+    provider = await resolveProvider(context.params);
 
     await deleteUserProviderConfig(session.user.id, provider);
 
     logger.info('Provider config deleted', {
       userId: session.user.id,
-      provider: provider,
+      provider,
     });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest('Invalid provider in URL', { details: error.issues });
     }
+
+    const message = error instanceof Error ? error.message : 'Unknown error deleting provider configuration';
     logger.error('Failed to delete provider configuration', {
       userId: session.user.id,
-      provider: (await params).provider,
-      error: error.message,
+      provider,
+      error: message,
     });
     return internalError('Failed to delete provider configuration');
   }

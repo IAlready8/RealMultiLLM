@@ -1,8 +1,8 @@
 // Provider Registry
 // This file manages all LLM providers and their configurations
 
-import { LLMProvider } from '@/types';
-import OpenAIProvider from './openai-service';
+import { LLMProvider } from '@/types/llm';
+import OpenAIProvider from './openai-provider';
 import AnthropicProvider from './anthropic-service';
 import GoogleAIProvider from './google-ai-service';
 import OpenRouterProvider from './openrouter-service';
@@ -58,15 +58,14 @@ export async function getProviderModels(providerId: string): Promise<any[]> {
 // Stream chat with a specific provider
 export async function streamChatWithProvider(
   providerId: string,
-  messages: any[],
-  options?: any
+  options: any
 ): Promise<any> {
   const provider = getProvider(providerId);
   if (!provider) {
     throw new Error(`Provider ${providerId} not found`);
   }
 
-  return await provider.streamChat(messages, options);
+  return await provider.streamChat(options);
 }
 
 export default providerRegistry;

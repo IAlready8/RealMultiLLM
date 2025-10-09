@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Trash2, Play, Edit, Loader2, Terminal } from "lucide-react";
+import { PlusCircle, Trash2, Play, Edit } from "lucide-react";
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from "@/components/ui/use-toast";
-import { EmptyState } from "@/components/ui/empty-state";
+
 
 interface PipelineStep {
   id: string;
@@ -226,8 +226,8 @@ export default function Pipeline() {
         const chatResponse = await response.json();
         currentOutput = chatResponse.content;
         addLogEntry(`Step completed. Output: ${currentOutput.substring(0, 100)}...`, "success");
-      } catch (error: any) {
-        const errorMessage = error.message || "Unknown error";
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
         addLogEntry(`Step failed: ${errorMessage}`, "error");
         toast({
           title: "Pipeline Execution Error",

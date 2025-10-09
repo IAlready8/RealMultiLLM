@@ -18,7 +18,7 @@ export interface StreamOptions {
 }
 
 export interface StreamHandle {
-  abort: (reason?: any) => void
+  abort: (reason?: unknown) => void
 }
 
 // Client helper to consume the NDJSON streaming API.

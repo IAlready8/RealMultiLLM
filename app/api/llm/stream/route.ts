@@ -116,8 +116,9 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        let fullContent = '';
+        
         let tokenCount = 0;
+        let fullContent = '';
 
         try {
           for await (const chunk of result) {
@@ -175,13 +176,14 @@ export async function POST(request: NextRequest) {
             { provider, model, responseTime: ms }
           );
 
-        } catch (error: any) {
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown streaming error';
           controller.enqueue(
-            encoder.encode(JSON.stringify({ type: 'error', error: error.message }) + '\n')
+            encoder.encode(JSON.stringify({ type: 'error', error: message }) + '\n')
           );
           controller.error(error);
 
-          logger.error('llm.stream.error', { provider, userId, error: error.message, requestId });
+          logger.error('llm.stream.error', { provider, userId, error: message, requestId });
 
           metricsRegistry.registerCounter(
             'llm_requests_total',
@@ -202,9 +204,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error) {
     const ms = Date.now() - startTime;
-    logger.error('llm.stream.error', { error: error.message, userId, ms, requestId });
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    const statusCode = (error instanceof Error && 'statusCode' in error && typeof error.statusCode === 'number') ? error.statusCode : 500;
+
+    logger.error('llm.stream.error', { error: message, userId, ms, requestId });
 
     metricsRegistry.registerCounter(
       'llm_requests_total',
@@ -213,8 +218,8 @@ export async function POST(request: NextRequest) {
     ).inc(1);
 
     return NextResponse.json(
-      { error: { message: error.message || 'Internal server error' } },
-      { status: error.statusCode || 500, headers: securityResult.headers }
+      { error: { message: message } },
+      { status: statusCode, headers: securityResult.headers }
     );
   }
 }

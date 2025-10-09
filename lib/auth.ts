@@ -1,5 +1,5 @@
 
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
@@ -166,3 +166,21 @@ export const authOptions: NextAuthOptions = {
   },
   secret: getValidatedEnv().NEXTAUTH_SECRET, // No fallback - must be provided
 };
+
+/**
+ * Get the current session user from NextAuth
+ */
+export async function getSessionUser() {
+  const session = await getServerSession(authOptions);
+  return session?.user || null;
+}
+
+/**
+ * Check if user has one or more roles
+ */
+export function hasRole(user: { role?: string } | undefined | null, roles: string[]): boolean {
+  if (!user || !user.role) {
+    return false;
+  }
+  return roles.includes(user.role);
+}

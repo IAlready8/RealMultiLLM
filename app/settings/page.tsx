@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
-import { AlertTriangle, Check, Clock, Terminal, Trash2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Check, Clock, Terminal, Trash2, RefreshCw, Palette, Shield, Bell, Zap } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UsageChart } from "@/components/analytics/usage-chart";
@@ -76,8 +77,8 @@ export default function Settings() {
         description: "Data exported successfully.",
       });
       return exported;
-    } catch (error: any) {
-      const message = error?.message ?? "Export failed.";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Export failed.";
       toast({
         title: "Error",
         description: message,
@@ -104,8 +105,8 @@ export default function Settings() {
         title: "Success",
         description: "Data imported successfully.",
       });
-    } catch (error: any) {
-      const message = error?.message ?? "Import failed.";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Import failed.";
       toast({
         title: "Error",
         description: message,
@@ -116,13 +117,9 @@ export default function Settings() {
   }, [session?.user?.id, toast]);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [configuredProviders, setConfiguredProviders] = useState<string[]>([]);
-  const [modelSettings, setModelSettings] = useState<Record<string, any>>({});
+  const [modelSettings, setModelSettings] = useState<Record<string, Record<string, any>>>({});
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [exportPassword, setExportPassword] = useState("");
-  const [importData, setImportData] = useState("");
-  const [importError, setImportError] = useState("");
-  const [openRouterModels, setOpenRouterModels] = useState<any[]>([]);
+  const [openRouterModels, setOpenRouterModels] = useState<Array<{ id: string; name: string; pricing?: { prompt?: number; completion?: number } }>>([]);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   
   // Generate some sample logs for demo purposes
@@ -177,7 +174,7 @@ export default function Settings() {
       }
     } else {
       // Default settings
-      const defaults: Record<string, any> = {};
+      const defaults: Record<string, Record<string, unknown>> = {};
       providers.forEach(provider => {
         defaults[provider.id] = {
           temperature: 0.7,
@@ -290,7 +287,7 @@ export default function Settings() {
   };
   
   // Save model settings to localStorage
-  const saveModelSettings = (providerId: string, settings: any) => {
+  const saveModelSettings = (providerId: string, settings: Record<string, unknown>) => {
     const updatedSettings = {
       ...modelSettings,
       [providerId]: {
@@ -493,7 +490,7 @@ export default function Settings() {
                       <div className="space-y-2">
                         <Label htmlFor={`model-${provider.id}`}>Default Model</Label>
                         <Select
-                          defaultValue={settings.defaultModel || "default"}
+                          defaultValue={String(settings.defaultModel || "default")}
                           onValueChange={(value) => 
                             saveModelSettings(provider.id, { defaultModel: value })
                           }
@@ -517,14 +514,14 @@ export default function Settings() {
                                   const isFree = (!prompt && !completion) || (prompt === 0 && completion === 0);
                                   const label = isFree
                                     ? `${name} (Free)`
-                                    : `${name} ($${prompt ?? 0} / $${completion ?? 0})`;
+                                    : `${name} (${prompt ?? 0} / ${completion ?? 0})`;
                                   return (
                                     <SelectItem key={id} value={id} disabled={!isFree}>
                                       {label}
                                     </SelectItem>
                                   );
                                 })}
-                                <SelectItem value="openrouter/auto">OpenRouter Auto (routing)</SelectItem>
+                                <SelectItem value="openrouter/auto">OpenRouter - Auto (routing)</SelectItem>
                               </>
                             )}
                             {provider.id === "openai" && (
@@ -570,10 +567,10 @@ export default function Settings() {
                       
                       <div className="space-y-2">
                         <div className="flex justify-between">
-                          <Label>Default Temperature: {settings.temperature || 0.7}</Label>
+                          <Label>Default Temperature: {Number(settings.temperature) || 0.7}</Label>
                         </div>
                         <Slider
-                          value={[settings.temperature || 0.7]}
+                          value={[Number(settings.temperature) || 0.7]}
                           min={0}
                           max={1}
                           step={0.1}
@@ -588,10 +585,10 @@ export default function Settings() {
                       
                       <div className="space-y-2">
                         <div className="flex justify-between">
-                          <Label>Default Max Tokens: {settings.maxTokens || 2048}</Label>
+                          <Label>Default Max Tokens: {Number(settings.maxTokens) || 2048}</Label>
                         </div>
                         <Slider
-                          value={[settings.maxTokens || 2048]}
+                          value={[Number(settings.maxTokens) || 2048]}
                           min={256}
                           max={4096}
                           step={256}
@@ -688,7 +685,7 @@ export default function Settings() {
               <CardHeader>
                 <CardTitle>Export/Import Data</CardTitle>
                 <CardDescription>
-                  Export your data to use on another device or import previously exported data
+                  Export all your data to use on another device or import previously exported data
                 </CardDescription>
               </CardHeader>
               <CardContent>

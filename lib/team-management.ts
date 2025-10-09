@@ -33,9 +33,14 @@ export class TeamService {
       });
     }
     return this.prisma.$transaction(async (tx) => {
-      const team = await tx.team.create({ data: { name } });
+      const team = await tx.team.create({ 
+        data: { 
+          name,
+          ownerId: ownerId // Assign the owner when creating the team
+        } 
+      });
       await tx.teamMembership.create({
-        data: { teamId: team.id, userId: ownerId, role: 'MEMBER' }, // Using MEMBER as default role
+        data: { teamId: team.id, userId: ownerId, role: 'OWNER' }, // Assign owner role to the team creator
       });
       return team;
     });
@@ -46,7 +51,7 @@ export class TeamService {
    * permission on the team may add members.
    */
   async addMember(currentUserId: string, teamId: string, userId: string, role: string): Promise<TeamMembership> {
-    if (!(await hasPermission(currentUserId, 'team:write', { teamId }))) {
+    if (!(await hasPermission(currentUserId, 'team:write', { resource: 'team', resourceId: teamId }))) {
       throw new AppError('Not authorized to add members', {
         category: 'authentication',
         severity: 'medium',
@@ -59,7 +64,7 @@ export class TeamService {
    * Removes a user from a team.  Requires `team:write` permission.
    */
   async removeMember(currentUserId: string, teamId: string, userId: string): Promise<TeamMembership> {
-    if (!(await hasPermission(currentUserId, 'team:write', { teamId }))) {
+    if (!(await hasPermission(currentUserId, 'team:write', { resource: 'team', resourceId: teamId }))) {
       throw new AppError('Not authorized to remove members', {
         category: 'authentication',
         severity: 'medium',
@@ -82,7 +87,7 @@ export class TeamService {
    * Retrieves the members of a team.  Requires `team:read` permission.
    */
   async listMembers(currentUserId: string, teamId: string): Promise<TeamMembership[]> {
-    if (!(await hasPermission(currentUserId, 'team:read', { teamId }))) {
+    if (!(await hasPermission(currentUserId, 'team:read', { resource: 'team', resourceId: teamId }))) {
       throw new AppError('Not authorized to view members', {
         category: 'authentication',
         severity: 'low',

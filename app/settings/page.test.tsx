@@ -41,7 +41,7 @@ vi.mock('@/components/export-import-dialog', () => ({
 describe('Settings Page', () => {
   let fetchMock: ReturnType<typeof vi.fn>
   let configuredProvidersResponse: string[]
-  let openRouterModelsResponse: any[]
+  let openRouterModelsResponse: unknown[]
 
   beforeEach(() => {
     vi.clearAllMocks()

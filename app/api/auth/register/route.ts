@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { getPasswordSchema, validatePasswordStrength, checkPasswordBreach, rateLimitPasswordValidation } from "@/lib/password-validator";
+import { getPasswordSchema, validatePasswordStrength, checkPasswordBreach } from "@/lib/password-validator";
 import { auditLogger } from "@/lib/audit-logger";
 import { enterpriseRateLimiter, defaultConfigs } from "@/lib/rate-limiter-enterprise";
-import { getValidatedEnv } from "@/lib/env";
 import { sanitizeInput } from "@/lib/security";
 
 export async function POST(request: NextRequest) {
@@ -69,7 +68,7 @@ export async function POST(request: NextRequest) {
             clientIP, 
             userAgent,
             email: sanitizedEmail?.substring(0, 3) + '***', // Partially obscure for privacy
-            errors: (validationError as any).errors?.map((e: any) => ({ field: e.path.join('.'), message: e.message })) || []
+            errors: validationError.issues.map((e) => ({ field: e.path.join('.'), message: e.message }))
           },
           { ipAddress: clientIP },
           'medium'
@@ -78,10 +77,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             message: "Validation failed",
-            errors: (validationError as any).errors?.map((e: any) => ({
+            errors: validationError.issues.map((e) => ({
               field: e.path.join('.'),
               message: e.message
-            })) || []
+            }))
           },
           { status: 400 }
         );

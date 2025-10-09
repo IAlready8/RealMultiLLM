@@ -63,7 +63,7 @@ export async function createSharedConversation(ownerId: string, data: SharedConv
   const conversation = await prisma.sharedConversation.create({
     data: {
       title: data.title.trim(),
-      messages: data.messages ?? [],
+      messages: JSON.stringify(data.messages ?? []),
       ownerId,
       teamId: data.teamId ?? null,
       isPublic: data.isPublic ?? false,
@@ -210,7 +210,7 @@ export async function updateSharedConversation(
     where: { id },
     data: {
       title: data.title?.trim() ?? undefined,
-      messages: data.messages ?? undefined,
+      messages: data.messages ? JSON.stringify(data.messages) : undefined,
       teamId: data.teamId === undefined ? undefined : data.teamId || null,
       isPublic: data.isPublic ?? undefined,
       canEdit: data.canEdit ?? undefined,

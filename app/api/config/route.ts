@@ -62,8 +62,9 @@ export async function POST(req: Request) {
 
     console.log(JSON.stringify({ level: 'info', message: 'API Key saved successfully', userId: session.user.id, provider: provider }));
     return new NextResponse(JSON.stringify({ success: true, action: 'saved' }), { status: 200 });
-  } catch (error: any) {
-    console.error('Error saving API key:', error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error saving API key';
+    console.error('Error saving API key:', message);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 }
@@ -93,8 +94,9 @@ export async function GET(req: Request) {
 
     console.log(JSON.stringify({ level: 'info', message: 'Configured providers fetched successfully', userId: session.user.id, count: configuredProviders.length }));
     return new NextResponse(JSON.stringify({ configuredProviders }), { status: 200 });
-  } catch (error: any) {
-    console.error('Error fetching provider configs:', error);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error fetching provider configs';
+    console.error('Error fetching provider configs:', message);
     return new NextResponse(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
   }
 }

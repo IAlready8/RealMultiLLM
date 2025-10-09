@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -72,26 +72,7 @@ export default function AdminAnalyticsPage() {
   const [hasPermission, setHasPermission] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>('7d');
 
-  useEffect(() => {
-    if (status === 'authenticated' && session?.user) {
-      const userRole = (session.user as any).role || 'USER';
-      const adminRoles = ['super-admin', 'admin', 'observer'];
-      const userHasAdminRole = adminRoles.includes(userRole);
-      setHasPermission(userHasAdminRole);
-
-      if (userHasAdminRole) {
-        fetchAdminAnalytics();
-      } else {
-        toast({
-          title: 'Access Denied',
-          description: 'You do not have permission to view admin analytics',
-          variant: 'destructive',
-        });
-      }
-    }
-  }, [session, status, toast, timeRange]);
-
-  const fetchAdminAnalytics = async () => {
+  const fetchAdminAnalytics = useCallback(async () => {
     try {
       setIsLoading(true);
 
@@ -122,7 +103,26 @@ export default function AdminAnalyticsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [timeRange, toast]);
+
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user) {
+      const userRole = (session.user as { role?: string }).role || 'USER';
+      const adminRoles = ['super-admin', 'admin', 'observer'];
+      const userHasAdminRole = adminRoles.includes(userRole);
+      setHasPermission(userHasAdminRole);
+
+      if (userHasAdminRole) {
+        fetchAdminAnalytics();
+      } else {
+        toast({
+          title: 'Access Denied',
+          description: 'You do not have permission to view admin analytics',
+          variant: 'destructive',
+        });
+      }
+    }
+  }, [session, status, toast, fetchAdminAnalytics]);
 
   if (status === 'loading') {
     return (

@@ -37,7 +37,8 @@ export async function POST(request: Request) {
     })
 
     return NextResponse.json(stats)
-  } catch (error: any) {
-    return internalError(error.message || 'Failed to get error statistics')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to get error statistics';
+    return internalError(message);
   }
 }

@@ -21,11 +21,12 @@ export async function GET(
     }
 
     return NextResponse.json(team);
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof NextResponse) {
       return error;
     }
-    return NextResponse.json({ error: error?.message ?? 'Failed to fetch team' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to fetch team';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -44,8 +45,9 @@ export async function PUT(
     const team = await updateTeam(id, session.user.id, payload);
 
     return NextResponse.json(team);
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to update team' }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update team';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
@@ -62,7 +64,8 @@ export async function DELETE(
     const { id } = await params;
     await deleteTeam(id, session.user.id);
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error?.message ?? 'Failed to delete team' }, { status: 400 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete team';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

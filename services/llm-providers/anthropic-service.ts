@@ -2,7 +2,7 @@
 // This service handles communication with Anthropic's Claude models
 
 import Anthropic from '@anthropic-ai/sdk';
-import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types';
+import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types/llm';
 
 class AnthropicProvider implements LLMProvider {
   id = 'anthropic';
@@ -80,11 +80,13 @@ class AnthropicProvider implements LLMProvider {
 
       // Get available models from Anthropic API
       const models = await this.client.models.list();
-      return models.data
-        .filter(model => model.id.startsWith('claude'))
-        .map(model => ({
+      // Handle both array and object with data property
+      const modelList = Array.isArray(models) ? models : (models as any).data || [];
+      return modelList
+        .filter((model: any) => model.id.startsWith('claude'))
+        .map((model: any) => ({
           id: model.id,
-          name: model.id.replace('claude-', 'Claude ').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          name: model.id.replace('claude-', 'Claude ').replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
           maxTokens: this.getMaxTokensForModel(model.id),
           description: `Anthropic ${model.id} model`
         }));
@@ -145,12 +147,12 @@ class AnthropicProvider implements LLMProvider {
       const response = await this.client.messages.create(params);
       
       return {
-        content: response.content[0].text,
-        finish_reason: response.stop_reason,
+        content: (response as any).content[0].text,
+        finish_reason: (response as any).stop_reason,
         usage: {
-          prompt_tokens: response.usage.input_tokens,
-          completion_tokens: response.usage.output_tokens,
-          total_tokens: response.usage.input_tokens + response.usage.output_tokens
+          prompt_tokens: (response as any).usage.input_tokens,
+          completion_tokens: (response as any).usage.output_tokens,
+          total_tokens: (response as any).usage.input_tokens + (response as any).usage.output_tokens
         }
       };
     } catch (error) {
@@ -194,9 +196,9 @@ class AnthropicProvider implements LLMProvider {
       const stream = await this.client.messages.create(params);
       
       async function* generator(): AsyncGenerator<string, void, undefined> {
-        for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            yield chunk.delta.text;
+        for await (const chunk of (stream as any)) {
+          if ((chunk as any).type === 'content_block_delta' && (chunk as any).delta.type === 'text_delta') {
+            yield (chunk as any).delta.text;
           }
         }
       }

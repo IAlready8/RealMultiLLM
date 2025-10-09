@@ -37,7 +37,7 @@ export async function getProviders() {
   };
 }
 
-export async function updateProvider(providerId: string, data: { apiKey?: string; settings?: any }) {
+export async function updateProvider(providerId: string, data: { apiKey?: string; settings?: unknown }) {
   if (data.apiKey !== undefined) {
     if (data.apiKey) {
       await setStoredApiKey(providerId, data.apiKey);

@@ -5,7 +5,8 @@
       "Bash(npm run build:*)",
       "Bash(npx prisma generate:*)",
       "Bash(npx prisma:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run type-check:*)"
     ],
     "deny": []
   }

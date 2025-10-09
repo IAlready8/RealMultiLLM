@@ -434,7 +434,7 @@ function recordToConversation<T extends Conversation['type']>(record: Conversati
     createdAt: createdAtMs,
     updatedAt: updatedAtMs,
     data: (record.data ?? { messages: record.messages ?? [] }) as ConversationData<T>
-  }
+  } as Extract<Conversation, { type: T }>
 }
 
 

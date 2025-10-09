@@ -1,766 +1,386 @@
-import { Span, Tracer, globalTracer, trace, tracingMiddleware } from './tracing';
-import { logger } from '../logger';
-import { enterpriseConfigManager, isEnterpriseFeatureEnabled } from '../config';
-import { env } from '../env';
-import { type SystemConfig } from '../config-manager';
+import { logger } from './logger';
+import { Counter } from './metrics';
+import { configManager } from '../config';
 
-// Telemetry data types
-export interface Metric {
+// Type definitions for telemetry data
+export interface TelemetryEvent {
+  id: string;
   name: string;
-  value: number;
-  type: 'counter' | 'gauge' | 'histogram' | 'timer';
-  labels?: Record<string, string>;
-  timestamp?: number;
-}
-
-export interface LogEntry {
-  level: 'debug' | 'info' | 'warn' | 'error';
-  message: string;
-  timestamp: number;
-  context?: Record<string, any>;
-  traceId?: string;
-  spanId?: string;
-}
-
-export interface Event {
-  name: string;
+  timestamp: Date;
   properties: Record<string, any>;
-  timestamp: number;
   userId?: string;
   sessionId?: string;
+  type: 'user_action' | 'system_event' | 'performance_metric';
 }
 
-export interface TelemetryData {
-  metrics: Metric[];
-  logs: LogEntry[];
-  events: Event[];
-  traces: Span[];
+export interface PerformanceMetric {
+  name: string;
+  value: number;
+  tags?: Record<string, string>;
 }
 
-// Telemetry collector interface
-export interface TelemetryCollector {
-  recordMetric(metric: Metric): void;
-  recordLog(log: LogEntry): void;
-  recordEvent(event: Event): void;
-  getTelemetryData(): Promise<TelemetryData>;
-  flush(): Promise<void>;
+export interface TelemetryConfig {
+  enabled: boolean;
+  sampleRate: number;
+  apiKey: string | null;
+  endpoint: string | null;
+  bufferSize: number;
+  flushInterval: number;
+  maxQueueSize: number;
 }
 
-// Console-based telemetry collector for development
-class ConsoleTelemetryCollector implements TelemetryCollector {
-  private metrics: Metric[] = [];
-  private logs: LogEntry[] = [];
-  private events: Event[] = [];
-  private traces: Span[] = [];
-
-  recordMetric(metric: Metric): void {
-    this.metrics.push(metric);
-    if (env.NODE_ENV === 'development') {
-      console.log(`[METRIC] ${metric.name}: ${metric.value}`, metric.labels);
-    }
-  }
-
-  recordLog(log: LogEntry): void {
-    this.logs.push(log);
-    const consoleLevel = log.level === 'error' ? 'error' : 
-                        log.level === 'warn' ? 'warn' : 
-                        log.level === 'debug' ? 'debug' : 'log';
-    console[consoleLevel](`[LOG ${log.level.toUpperCase()}]`, log.message, log.context);
-  }
-
-  recordEvent(event: Event): void {
-    this.events.push(event);
-    if (env.NODE_ENV === 'development') {
-      console.log(`[EVENT] ${event.name}`, event.properties);
-    }
-  }
-
-  async getTelemetryData(): Promise<TelemetryData> {
-    return {
-      metrics: [...this.metrics],
-      logs: [...this.logs],
-      events: [...this.events],
-      traces: [...globalTracer.getAllSpans()],
-    };
-  }
-
-  async flush(): Promise<void> {
-    // In console collector, just clear the data
-    this.metrics = [];
-    this.logs = [];
-    this.events = [];
-  }
-}
-
-// Enterprise telemetry collector for production
-class EnterpriseTelemetryCollector implements TelemetryCollector {
-  private metrics: Metric[] = [];
-  private logs: LogEntry[] = [];
-  private events: Event[] = [];
-  private traceBuffer: Span[] = [];
-  private readonly flushInterval: number;
+// Telemetry manager class
+export class TelemetryManager {
+  private static instance: TelemetryManager;
+  private config: TelemetryConfig;
+  private buffer: TelemetryEvent[];
   private flushTimer: NodeJS.Timeout | null = null;
-  private readonly maxBufferSize: number;
-  private readonly endpoint: string | null;
-  private readonly apiKey: string | null;
+  private isInitialized = false;
+  private flushIntervalId: NodeJS.Timeout | null = null;
+  private eventQueue: TelemetryEvent[] = [];
+  private performanceMetrics: Record<string, number> = {};
+  private logger = logger;
+  private metrics: Counter;
+  private maxQueueSize = 1000;
+  private MAX_QUEUE_SIZE = 1000;
 
-  constructor(
-    flushIntervalMs: number = 30000, // 30 seconds
-    maxBufferSize: number = 1000,
-    endpoint: string | null = null,
-    apiKey: string | null = null
-  ) {
-    this.flushInterval = flushIntervalMs;
-    this.maxBufferSize = maxBufferSize;
-    this.endpoint = endpoint || env.TELEMETRY_ENDPOINT || null;
-    this.apiKey = apiKey || env.TELEMETRY_API_KEY || null;
-  }
-
-  recordMetric(metric: Metric): void {
-    this.metrics.push(metric);
-    this.checkBufferSize();
-  }
-
-  recordLog(log: LogEntry): void {
-    this.logs.push(log);
-    this.checkBufferSize();
-  }
-
-  recordEvent(event: Event): void {
-    this.events.push(event);
-    this.checkBufferSize();
-  }
-
-  private checkBufferSize(): void {
-    if (
-      this.metrics.length + this.logs.length + this.events.length > this.maxBufferSize ||
-      this.traceBuffer.length > this.maxBufferSize
-    ) {
-      void this.flush(); // Trigger flush if buffer is full
-    }
-  }
-
-  async getTelemetryData(): Promise<TelemetryData> {
-    return {
-      metrics: [...this.metrics],
-      logs: [...this.logs],
-      events: [...this.events],
-      traces: [...this.traceBuffer],
+  constructor(config?: TelemetryConfig) {
+    this.config = config || {
+      enabled: false,
+      sampleRate: 1.0,
+      apiKey: null,
+      endpoint: null,
+      bufferSize: 100,
+      flushInterval: 30000,
+      maxQueueSize: 1000
     };
+    this.buffer = [];
+    this.metrics = new Counter('telemetry-metrics', 'Metrics for telemetry system');
   }
 
-  async flush(): Promise<void> {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
+  public static getInstance(): TelemetryManager {
+    if (!TelemetryManager.instance) {
+      // Get config from configManager, fall back to defaults
+      const appConfig = configManager.getConfig();
+      const telemetryConfig: TelemetryConfig = {
+        enabled: appConfig.enableTelemetry || false,
+        sampleRate: 1.0,
+        apiKey: null, // Should come from secure storage
+        endpoint: null, // Should be configured in environment
+        bufferSize: 100,
+        flushInterval: 30000,
+        maxQueueSize: 1000
+      };
+      TelemetryManager.instance = new TelemetryManager(telemetryConfig);
     }
+    return TelemetryManager.instance;
+  }
 
-    // Don't flush if we don't have an endpoint
-    if (!this.endpoint) {
-      // Still clear the buffers if no endpoint is configured
-      this.metrics = [];
-      this.logs = [];
-      this.events = [];
-      this.traceBuffer = [];
+  public async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      logger.warn('Telemetry manager already initialized');
       return;
     }
 
-    // Collect data to send
-    const data = await this.getTelemetryData();
+    if (!this.config.enabled) {
+      logger.info('Telemetry disabled');
+      this.isInitialized = true;
+      return;
+    }
 
-    // Prepare payload
-    const payload = {
-      metrics: data.metrics,
-      logs: data.logs,
-      events: data.events,
-      traces: data.traces.map(span => span.toJSON()),
-      timestamp: Date.now(),
-      service: 'realllm',
-      version: env.npm_package_version || 'unknown',
+    // Start periodic flushing
+    this.flushIntervalId = setInterval(() => {
+      this.flush().catch(error => {
+        logger.error('Failed to flush telemetry data', { error: (error as Error).message });
+      });
+    }, this.config.flushInterval);
+
+    logger.info('Telemetry manager initialized', {
+      enabled: this.config.enabled,
+      sampleRate: this.config.sampleRate,
+      bufferSize: this.config.bufferSize,
+      flushInterval: this.config.flushInterval,
+    });
+
+    this.isInitialized = true;
+  }
+
+  /**
+   * Track a custom event
+   */
+  public trackEvent(event: Omit<TelemetryEvent, 'id' | 'timestamp'>): void {
+    if (!this.config.enabled || Math.random() > this.config.sampleRate) {
+      return;
+    }
+
+    const telemetryEvent: TelemetryEvent = {
+      id: this.generateId(),
+      timestamp: new Date(),
+      ...event
     };
 
-    try {
-      // Send data to telemetry endpoint
-      const response = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-          'X-Telemetry-Source': 'realllm-enterprise',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Telemetry API returned status ${response.status}`);
-      }
-
-      // Clear buffers after successful send
-      this.metrics = [];
-      this.logs = [];
-      this.events = [];
-      this.traceBuffer = [];
-
-      logger.info('Telemetry data successfully sent', {
-        metrics: data.metrics.length,
-        logs: data.logs.length,
-        events: data.events.length,
-        traces: data.traces.length,
-      });
-    } catch (error: any) {
-      logger.error('Failed to send telemetry data', {
-        error: error.message,
-        endpoint: this.endpoint,
-      });
-
-      // In case of failure, we keep the data for the next flush attempt
-    }
-
-    // Schedule next flush
-    this.flushTimer = setTimeout(() => {
-      void this.flush();
-    }, this.flushInterval);
-  }
-
-  // Start the automatic flush interval
-  start(): void {
-    if (!this.flushTimer) {
-      this.flushTimer = setTimeout(() => {
-        void this.flush();
-      }, this.flushInterval);
-    }
-  }
-
-  // Stop the automatic flush interval
-  stop(): void {
-    if (this.flushTimer) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
-  }
-}
-
-// Telemetry service singleton
-export class TelemetryService {
-  private static instance: TelemetryService;
-  private collector: TelemetryCollector;
-  private tracer: Tracer;
-  private isEnabled: boolean = false;
-  private sampleRate: number = 1.0; // Default to 100% sampling
-
-  private constructor() {
-    // Initialize based on environment and configuration
-    this.initialize();
-  }
-
-  private async initialize(): Promise<void> {
-    // Check if env is available
-    const hasEnv = typeof env !== 'undefined';
+    // Add to queue
+    this.eventQueue.push(telemetryEvent);
     
-    // Check if telemetry is enabled either via env or enterprise config
-    const isTelemetryEnabled = 
-      (hasEnv && (env.ENABLE_TELEMETRY === true || env.ENABLE_TELEMETRY === 'true')) ||
-      await isEnterpriseFeatureEnabled('performanceMonitoring');
-
-    if (isTelemetryEnabled) {
-      this.isEnabled = true;
-      
-      // Get sample rate from enterprise config
-      const config = await enterpriseConfigManager.getEnterpriseConfig();
-      this.sampleRate = config.performance.monitoring.sampleRate;
-      
-      // Initialize appropriate collector based on environment
-      if ((hasEnv && env.NODE_ENV === 'development') || (hasEnv && env.TELEMETRY_MODE === 'console')) {
-        this.collector = new ConsoleTelemetryCollector();
-      } else {
-        const collector = new EnterpriseTelemetryCollector(
-          hasEnv ? parseInt(env.TELEMETRY_FLUSH_INTERVAL || '30000', 10) : 30000,
-          hasEnv ? parseInt(env.TELEMETRY_MAX_BUFFER_SIZE || '1000', 10) : 1000,
-          hasEnv ? env.TELEMETRY_ENDPOINT || null : null,
-          hasEnv ? env.TELEMETRY_API_KEY || null : null
-        );
-        
-        this.collector = collector;
-        collector.start();
-      }
-    } else {
-      // Use console collector as fallback even when disabled
-      // This allows logs to still appear in console
-      this.collector = new ConsoleTelemetryCollector();
+    // Flush if queue is full
+    if (this.eventQueue.length >= this.config.maxQueueSize) {
+      this.flush().catch(error => {
+        this.logger.error('Failed to flush telemetry data', { error: (error as Error).message });
+      });
     }
 
-    this.tracer = globalTracer;
-  }
-
-  public static getInstance(): TelemetryService {
-    if (!TelemetryService.instance) {
-      TelemetryService.instance = new TelemetryService();
-    }
-    return TelemetryService.instance;
+    // Record metric
+    this.metrics.inc(1);
   }
 
   /**
-   * Check if a request should be sampled based on the sample rate
+   * Track performance metric
    */
-  private shouldSample(): boolean {
-    if (this.sampleRate >= 1.0) return true;
-    if (this.sampleRate <= 0) return false;
-    return Math.random() < this.sampleRate;
-  }
-
-  /**
-   * Record a metric
-   */
-  recordMetric(name: string, value: number, type: Metric['type'], labels?: Record<string, string>): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    const metric: Metric = {
-      name,
-      value,
-      type,
-      labels,
-      timestamp: Date.now(),
-    };
-
-    this.collector.recordMetric(metric);
-  }
-
-  /**
-   * Record a log entry
-   */
-  recordLog(level: LogEntry['level'], message: string, context?: Record<string, any>): void {
-    if (!this.shouldSample()) return;
-
-    // Always record logs regardless of enabled state for visibility
-    const log: LogEntry = {
-      level,
-      message,
-      timestamp: Date.now(),
-      context,
-    };
-
-    this.collector.recordLog(log);
-  }
-
-  /**
-   * Record an event
-   */
-  recordEvent(name: string, properties: Record<string, any>, userId?: string, sessionId?: string): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    const event: Event = {
-      name,
-      properties,
-      timestamp: Date.now(),
-      userId,
-      sessionId,
-    };
-
-    this.collector.recordEvent(event);
-  }
-
-  /**
-   * Start a new trace span
-   */
-  startSpan(name: string, parentSpan?: Span): Span {
-    if (!this.isEnabled) {
-      // Even if disabled, we might want to return a no-op span for API compatibility
-      return {
-        getContext: () => ({ traceId: '', spanId: '' }),
-        setAttribute: () => this as any,
-        setAttributes: () => this as any,
-        addEvent: () => this as any,
-        setStatus: () => this as any,
-        end: () => {},
-        isEnded: () => true,
-        duration: () => 0,
-        toJSON: () => ({}),
-      } as Span;
+  public trackPerformance(metric: PerformanceMetric): void {
+    if (!this.config.enabled || Math.random() > this.config.sampleRate) {
+      return;
     }
 
-    return this.tracer.startSpan(name, parentSpan);
-  }
+    // Track performance metrics in the buffer for flushing
+    const metricKey = `${metric.name}_${Date.now()}`;
+    this.performanceMetrics[metricKey] = metric.value;
 
-  /**
-   * Get the global tracer
-   */
-  getTracer(): Tracer {
-    return this.tracer;
-  }
-
-  /**
-   * Get current telemetry data
-   */
-  async getTelemetryData(): Promise<TelemetryData> {
-    return await this.collector.getTelemetryData();
-  }
-
-  /**
-   * Force flush all telemetry data
-   */
-  async flush(): Promise<void> {
-    await this.collector.flush();
-  }
-
-  /**
-   * Shutdown the telemetry service
-   */
-  async shutdown(): Promise<void> {
-    if (this.collector instanceof EnterpriseTelemetryCollector) {
-      this.collector.stop();
-    }
-    await this.flush();
+    // Record through metrics system as well
+    this.metrics.inc(metric.value);
   }
 
   /**
    * Measure execution time of a function
    */
-  async measure<T>(name: string, fn: () => Promise<T>): Promise<T> {
-    if (!this.isEnabled || !this.shouldSample()) {
-      return await fn();
-    }
-
-    const span = this.startSpan(name);
-    try {
-      const result = await fn();
-      span.setStatus({ code: 'OK' });
-      return result;
-    } catch (error: any) {
-      span.setStatus({ code: 'ERROR', message: error.message });
-      span.setAttribute('error', true);
-      span.setAttribute('error.message', error.message);
-      throw error;
-    } finally {
-      span.end();
-      // Record duration as a metric
-      this.recordMetric(`${name}.duration`, span.duration(), 'timer');
-    }
-  }
-
-  /**
-   * Record API performance metrics
-   */
-  recordApiMetrics(
-    endpoint: string, 
-    provider: string | null, 
-    duration: number, 
-    success: boolean,
-    context?: Record<string, any>
-  ): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    const baseName = provider ? `api.${endpoint}.${provider}` : `api.${endpoint}`;
-    
-    this.recordMetric(`${baseName}.duration`, duration, 'timer', {
-      ...context,
-      success: success.toString(),
-      provider: provider || 'unknown',
-    });
-
-    if (success) {
-      this.recordMetric(`${baseName}.success`, 1, 'counter', context);
-    } else {
-      this.recordMetric(`${baseName}.error`, 1, 'counter', context);
-    }
-  }
-
-  /**
-   * Record database performance metrics
-   */
-  recordDatabaseMetrics(
-    operation: string,
-    entity: string,
-    duration: number,
-    success: boolean,
-    context?: Record<string, any>
-  ): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    const baseName = `db.${operation}.${entity}`;
-    
-    this.recordMetric(`${baseName}.duration`, duration, 'timer', {
-      ...context,
-      success: success.toString(),
-    });
-
-    if (success) {
-      this.recordMetric(`${baseName}.success`, 1, 'counter', context);
-    } else {
-      this.recordMetric(`${baseName}.error`, 1, 'counter', context);
-    }
-  }
-
-  /**
-   * Record provider performance metrics
-   */
-  recordProviderMetrics(
-    provider: string,
-    model: string,
-    duration: number,
-    success: boolean,
-    context?: Record<string, any>
-  ): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    const baseName = `provider.${provider}.${model}`;
-    
-    this.recordMetric(`${baseName}.duration`, duration, 'timer', {
-      ...context,
-      success: success.toString(),
-    });
-
-    if (success) {
-      this.recordMetric(`${baseName}.success`, 1, 'counter', context);
-    } else {
-      this.recordMetric(`${baseName}.error`, 1, 'counter', context);
-    }
-  }
-
-  /**
-   * Record cache performance metrics
-   */
-  recordCacheMetrics(
-    operation: string,
-    key: string,
-    hit: boolean,
-    duration: number,
-    context?: Record<string, any>
-  ): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    const baseName = `cache.${operation}`;
-    
-    this.recordMetric(`${baseName}.duration`, duration, 'timer', {
-      ...context,
-      hit: hit.toString(),
-      key,
-    });
-
-    if (hit) {
-      this.recordMetric(`${baseName}.hit`, 1, 'counter', context);
-    } else {
-      this.recordMetric(`${baseName}.miss`, 1, 'counter', context);
-    }
-  }
-
-  /**
-   * Record system resource metrics
-   */
-  recordResourceMetrics(memoryUsed: number, cpuUsage: number, context?: Record<string, any>): void {
-    if (!this.isEnabled || !this.shouldSample()) return;
-
-    this.recordMetric('system.memory.used', memoryUsed, 'gauge', context);
-    this.recordMetric('system.cpu.usage', cpuUsage, 'gauge', context);
-  }
-
-  /**
-   * Enable/disable telemetry
-   */
-  async setEnabled(enabled: boolean): Promise<void> {
-    this.isEnabled = enabled;
-    
-    if (!enabled && this.collector instanceof EnterpriseTelemetryCollector) {
-      this.collector.stop();
-    } else if (enabled && this.collector instanceof EnterpriseTelemetryCollector) {
-      this.collector.start();
-    }
-  }
-
-  /**
-   * Get telemetry status
-   */
-  getStatus(): { enabled: boolean; sampleRate: number; collectorType: string } {
-    return {
-      enabled: this.isEnabled,
-      sampleRate: this.sampleRate,
-      collectorType: this.collector.constructor.name,
-    };
-  }
-}
-
-// Export the singleton instance
-export const telemetryService = TelemetryService.getInstance();
-
-// Convenience functions for common telemetry operations
-export const recordApiCall = (
-  endpoint: string,
-  provider: string | null,
-  duration: number,
-  success: boolean,
-  context?: Record<string, any>
-) => {
-  telemetryService.recordApiMetrics(endpoint, provider, duration, success, context);
-};
-
-export const recordDatabaseQuery = (
-  operation: string,
-  entity: string,
-  duration: number,
-  success: boolean,
-  context?: Record<string, any>
-) => {
-  telemetryService.recordDatabaseMetrics(operation, entity, duration, success, context);
-};
-
-export const recordProviderCall = (
-  provider: string,
-  model: string,
-  duration: number,
-  success: boolean,
-  context?: Record<string, any>
-) => {
-  telemetryService.recordProviderMetrics(provider, model, duration, success, context);
-};
-
-export const measureFunction = <T>(name: string, fn: () => Promise<T>): Promise<T> => {
-  return telemetryService.measure(name, fn);
-};
-
-// Export the tracing middleware for use in API routes
-export { tracingMiddleware };
-
-// Export the trace decorator
-export { trace };
-
-// Export Span and Tracer for advanced usage
-export { Span, Tracer };
-
-// Performance monitoring utilities
-export class PerformanceMonitor {
-  private static readonly LONG_TASK_THRESHOLD = 50; // 50ms threshold for long tasks
-
-  /**
-   * Monitor function execution with performance tracking
-   */
-  static async monitor<T>(
+  public async measureExecution<T>(
     name: string,
-    fn: () => Promise<T>,
-    context?: Record<string, any>
+    fn: () => Promise<T> | T,
+    tags: Record<string, string> = {}
   ): Promise<T> {
-    const startTime = performance.now();
+    const start = performance.now();
     let result: T;
-    let error: any = null;
+    let error: any;
 
     try {
-      result = await telemetryService.measure(name, fn);
+      result = await Promise.resolve(fn());
+      return result;
     } catch (err) {
       error = err;
       throw err;
     } finally {
-      const duration = performance.now() - startTime;
+      const duration = performance.now() - start;
+      
+      // Track performance metric
+      this.trackPerformance({
+        name: `${name}_duration`,
+        value: duration,
+        tags: { ...tags, success: !error ? 'true' : 'false' }
+      });
 
-      // Record performance metrics
-      telemetryService.recordMetric(
-        `${name}.execution.time`,
-        duration,
-        'timer',
-        context
-      );
+      // Track as counter metric instead of histogram
+      this.metrics.inc(1);
+    }
+  }
 
-      // Record long task if applicable
-      if (duration > PerformanceMonitor.LONG_TASK_THRESHOLD) {
-        telemetryService.recordMetric(
-          `${name}.execution.long_task`,
-          1,
-          'counter',
-          { ...context, duration: duration.toFixed(2) }
-        );
-      }
+  /**
+   * Add properties to all subsequent events
+   */
+  public setUserProperties(properties: Record<string, any>): void {
+    // In a real implementation, this would set context for all subsequent events
+    this.logger.debug('Setting user properties', { properties });
+  }
 
-      // Record error metrics if applicable
-      if (error) {
-        telemetryService.recordMetric(
-          `${name}.execution.error`,
-          1,
-          'counter',
-          { ...context, error: error.message }
-        );
-      }
+  /**
+   * Flush all queued telemetry data
+   */
+  public async flush(): Promise<void> {
+    if (!this.config.enabled || (this.eventQueue.length === 0 && Object.keys(this.performanceMetrics).length === 0)) {
+      return;
     }
 
-    return result!;
+    const eventsToFlush = [...this.eventQueue];
+    const metricsToFlush = { ...this.performanceMetrics };
+
+    // Clear queues
+    this.eventQueue = [];
+    this.performanceMetrics = {};
+
+    try {
+      // In a real implementation, we would send the data to a telemetry backend
+      // For now, we'll just log the data if in development
+      const appConfig = configManager.getConfig();
+      
+      if (appConfig.environment === 'development') {
+        this.logger.debug('Flushing telemetry data', {
+          eventCount: eventsToFlush.length,
+          metricCount: Object.keys(metricsToFlush).length,
+          events: eventsToFlush.slice(0, 5), // Log only first 5 events to avoid excessive logging
+          metrics: Object.entries(metricsToFlush).slice(0, 5)
+        });
+      }
+
+      // Send to external telemetry service if endpoint is configured
+      if (this.config.endpoint && this.config.apiKey) {
+        await this.sendToTelemetryService(eventsToFlush, metricsToFlush);
+      }
+
+      this.logger.info('Telemetry data flushed', {
+        eventsSent: eventsToFlush.length,
+        metricsSent: Object.keys(metricsToFlush).length
+      });
+
+      this.metrics.inc(1);
+    } catch (error) {
+      this.logger.error('Failed to flush telemetry data', { error: (error as Error).message });
+      
+      // Add events back to queue if sending failed (with size limits)
+      if (eventsToFlush.length + this.eventQueue.length < this.MAX_QUEUE_SIZE) {
+        this.eventQueue.unshift(...eventsToFlush);
+      }
+      
+      // Restore metrics to queue (object merge)
+      if (Object.keys(metricsToFlush).length + Object.keys(this.performanceMetrics).length < this.MAX_QUEUE_SIZE) {
+        this.performanceMetrics = { ...this.performanceMetrics, ...metricsToFlush };
+      }
+      
+      this.metrics.inc(1); // Track error
+      throw error;
+    }
   }
 
   /**
-   * Monitor a database query
+   * Send telemetry data to external service
    */
-  static async monitorDatabaseQuery<T>(
-    operation: string,
-    entity: string,
-    query: () => Promise<T>
-  ): Promise<T> {
-    return PerformanceMonitor.monitor(`db.${operation}.${entity}`, query, {
-      operation,
-      entity,
-    });
-  }
+  private async sendToTelemetryService(
+    events: TelemetryEvent[],
+    metrics: Record<string, number>
+  ): Promise<void> {
+    if (!this.config.endpoint || !this.config.apiKey) {
+      return;
+    }
 
-  /**
-   * Monitor an API call
-   */
-  static async monitorApiCall<T>(
-    endpoint: string,
-    provider: string | null,
-    call: () => Promise<T>
-  ): Promise<T> {
-    const name = provider ? `api.${endpoint}.${provider}` : `api.${endpoint}`;
-    return PerformanceMonitor.monitor(name, call, {
-      endpoint,
-      provider: provider || 'none',
-    });
-  }
-
-  /**
-   * Monitor a provider call
-   */
-  static async monitorProviderCall<T>(
-    provider: string,
-    model: string,
-    call: () => Promise<T>
-  ): Promise<T> {
-    return PerformanceMonitor.monitor(
-      `provider.${provider}.${model}`,
-      call,
-      { provider, model }
-    );
-  }
-}
-
-// Export performance monitor
-export { PerformanceMonitor as performanceMonitor };
-
-// Telemetry health check
-export async function telemetryHealthCheck(): Promise<{
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  details: Record<string, any>;
-}> {
-  try {
-    const status = telemetryService.getStatus();
-    const data = await telemetryService.getTelemetryData();
-
-    const details = {
-      enabled: status.enabled,
-      sampleRate: status.sampleRate,
-      collectorType: status.collectorType,
-      metricsCount: data.metrics.length,
-      logsCount: data.logs.length,
-      eventsCount: data.events.length,
-      spansCount: data.traces.length,
+    // Prepare payload
+    const payload = {
+      events,
+      metrics,
+      timestamp: new Date().toISOString(),
+      source: configManager.getConfig().appName,
+      version: process.env.npm_package_version || 'unknown'
     };
 
-    // Consider unhealthy if metrics are enabled but there's an issue with the collector
-    if (status.enabled && status.collectorType === 'EnterpriseTelemetryCollector') {
-      // Additional checks for enterprise collector
-      return { status: 'healthy', details };
+    try {
+      // Using fetch or similar to send data to telemetry service
+      // Note: In a Node.js environment, we'd need to use node-fetch or similar
+      // This is a placeholder implementation
+      this.logger.debug('Sending telemetry data to external service', {
+        endpoint: this.config.endpoint,
+        payloadSize: JSON.stringify(payload).length
+      });
+
+      // In a real implementation:
+      // const response = await fetch(this.config.endpoint, {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //     'Authorization': `Bearer ${this.config.apiKey}`,
+      //     'User-Agent': `${configManager.getConfig().appName}/${process.env.npm_package_version || 'unknown'}`
+      //   },
+      //   body: JSON.stringify(payload)
+      // });
+      //
+      // if (!response.ok) {
+      //   throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      // }
+    } catch (error) {
+      this.logger.error('Failed to send telemetry data to service', { 
+        error: (error as Error).message,
+        endpoint: this.config.endpoint 
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Generate a unique ID for telemetry events
+   */
+  private generateId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+  }
+
+  /**
+   * Shutdown the telemetry system
+   */
+  public async shutdown(): Promise<void> {
+    if (!this.isInitialized) {
+      return;
     }
 
-    return { status: 'healthy', details };
-  } catch (error: any) {
+    // Clear the flush interval
+    if (this.flushIntervalId) {
+      clearInterval(this.flushIntervalId);
+      this.flushIntervalId = null;
+    }
+
+    // Flush remaining data
+    try {
+      await this.flush();
+    } catch (error) {
+      this.logger.error('Failed to flush telemetry during shutdown', { error: (error as Error).message });
+    }
+
+    this.logger.info('Telemetry manager shutdown complete');
+    this.isInitialized = false;
+  }
+
+  /**
+   * Get current queue sizes for monitoring
+   */
+  public getQueueSizes(): { events: number; metrics: number } {
     return {
-      status: 'unhealthy',
-      details: {
-        error: error.message,
-      },
+      events: this.eventQueue.length,
+      metrics: Object.keys(this.performanceMetrics).length
     };
   }
+
+  /**
+   * Check if telemetry is enabled
+   */
+  public isEnabled(): boolean {
+    return this.config.enabled;
+  }
 }
+
+// Create and initialize singleton instance
+const telemetryManager = TelemetryManager.getInstance();
+
+// Initialize telemetry when the module loads (in a non-blocking way)
+Promise.resolve().then(async () => {
+  try {
+    await telemetryManager.initialize();
+  } catch (error) {
+    console.error('Failed to initialize telemetry manager:', error);
+  }
+});
+
+// Convenience functions
+export const trackEvent = (event: Omit<TelemetryEvent, 'id' | 'timestamp'>): void => {
+  telemetryManager.trackEvent(event);
+};
+
+export const trackPerformance = (metric: PerformanceMetric): void => {
+  telemetryManager.trackPerformance(metric);
+};
+
+export const measureExecution = <T>(
+  name: string,
+  fn: () => Promise<T> | T,
+  tags: Record<string, string> = {}
+): Promise<T> => {
+  return telemetryManager.measureExecution(name, fn, tags);
+};
+
+export const flushTelemetry = (): Promise<void> => {
+  return telemetryManager.flush();
+};
+
+export { telemetryManager };

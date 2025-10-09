@@ -44,8 +44,8 @@ export async function POST(request: Request) {
             { status: 400 }
           );
       }
-    } catch (error: any) {
-      errorMessage = error.message || "API test failed";
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : "API test failed";
       isValid = false;
     }
 

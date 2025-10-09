@@ -17,7 +17,7 @@ export const applyThemeSettings = (settings: CustomThemeSettings) => {
     md: "1rem",
     lg: "1.125rem"
   };
-  root.style.fontSize = fontSizeMap[settings.fontSize];
+  root.style.fontSize = fontSizeMap[settings.fontSize as keyof typeof fontSizeMap];
   
   // Apply border radius
   root.style.setProperty("--radius", `${settings.borderRadius}px`);

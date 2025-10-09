@@ -76,7 +76,7 @@ export interface LLMManagerConfig {
  */
 export class LLMManager {
   private readonly providers: Map<string, Provider> = new Map();
-  private readonly queue: Task<unknown>[] = [];
+  private readonly queue: Task<ProviderResponse>[] = [];
   private running = 0;
   private readonly concurrency: number;
 
@@ -131,7 +131,7 @@ export class LLMManager {
 
   private async processQueue(): Promise<void> {
     while (this.running < this.concurrency && this.queue.length > 0) {
-      const { fn, resolve, reject } = this.queue.shift() as Task<unknown>;
+      const { fn, resolve, reject } = this.queue.shift() as Task<ProviderResponse>;
       this.running++;
       fn().then((result) => {
         this.running--;

@@ -1,12 +1,36 @@
-// Observability Dashboard API
-
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { monitoring } from '@/lib/monitoring';
+import { monitoring, HealthCheckResult, SystemMetrics } from '@/lib/monitoring';
 import { globalTracer } from '@/lib/observability/tracing';
-import { metricsRegistry } from '@/lib/observability/metrics';
+import { metricsRegistry, Counter, Gauge, Histogram, MetricType, HistogramData } from '@/lib/observability/metrics';
 import { logger } from '@/lib/observability/logger';
+
+interface MetricOutput {
+  name: string;
+  type: MetricType;
+  description: string;
+  attributes: Record<string, string | number | boolean>;
+  value?: number | HistogramData;
+}
+
+interface SpanOutput {
+  traceId: string;
+  spanId: string;
+  parentSpanId?: string;
+  name: string;
+  startTime: number;
+  endTime?: number;
+  attributes: Record<string, string | number | boolean | Array<string | number | boolean>>;
+  events: Array<{ name: string; timestamp: number; attributes?: Record<string, string | number | boolean> }>;
+  status: { code: 'UNSET' | 'OK' | 'ERROR'; message?: string };
+}
+
+interface HealthCheckOutput {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  checks: HealthCheckResult[];
+  timestamp: Date;
+}
 
 export async function GET(request: Request) {
   try {
@@ -29,28 +53,32 @@ export async function GET(request: Request) {
     const performanceSummary = monitoring.getMetricsSummary();
     
     // Get system metrics
-    const systemMetrics = await monitoring.getSystemMetrics();
+    const systemMetrics: SystemMetrics = await monitoring.getSystemMetrics();
     
     // Get metrics based on include parameter
-    let metricsData: any = {};
+    let metricsData: { metrics?: MetricOutput[] } = {};
     if (include === 'all' || include.includes('metrics')) {
       metricsData = {
-        metrics: metricsRegistry.getAllMetrics().map(metric => ({
-          name: metric.name,
-          type: metric.type,
-          description: metric.description,
-          attributes: metric.attributes,
-          value: (metric as any).getValue 
-            ? (metric as any).getValue() 
-            : (metric as any).getHistogramData 
-              ? (metric as any).getHistogramData()
-              : undefined
-        }))
+        metrics: metricsRegistry.getAllMetrics().map(metric => {
+          let value: number | HistogramData | undefined;
+          if (metric instanceof Counter || metric instanceof Gauge) {
+            value = metric.getValue();
+          } else if (metric instanceof Histogram) {
+            value = metric.getHistogramData();
+          }
+          return {
+            name: metric.name,
+            type: metric.type,
+            description: metric.description,
+            attributes: metric.attributes,
+            value: value
+          };
+        })
       };
     }
     
     // Get traces based on include parameter
-    let tracesData: any = {};
+    let tracesData: { traces?: SpanOutput[] } = {};
     if (include === 'all' || include.includes('traces')) {
       const spans = globalTracer.getAllSpans();
       tracesData = {
@@ -61,7 +89,7 @@ export async function GET(request: Request) {
     }
     
     // Get health checks based on include parameter
-    let healthData: any = {};
+    let healthData: { health?: HealthCheckOutput } = {};
     if (include === 'all' || include.includes('health')) {
       healthData = {
         health: await monitoring.runHealthChecks()
@@ -90,17 +118,17 @@ export async function GET(request: Request) {
     } else {
       return NextResponse.json(responseData);
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error in observability dashboard API', {
-      error: error.message,
-      stack: error.stack
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
     });
     
     return NextResponse.json(
       { 
         error: { 
           message: 'Internal server error',
-          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
         } 
       },
       { status: 500 }
@@ -144,17 +172,17 @@ export async function POST(request: Request) {
           { status: 400 }
         );
     }
-  } catch (error: any) {
+  } catch (error) {
     logger.error('Error in observability dashboard API POST', {
-      error: error.message,
-      stack: error.stack
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
     });
     
     return NextResponse.json(
       { 
         error: { 
           message: 'Internal server error',
-          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          error: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : 'Unknown error') : undefined
         } 
       },
       { status: 500 }

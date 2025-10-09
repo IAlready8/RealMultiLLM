@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
-import { AnalyticsService } from '@/services/analytics-service';
 import { hasRole } from '@/lib/auth';
 import { getSessionUser } from '@/lib/auth';
+import prisma from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Check authentication and authorization
     const sessionUser = await getSessionUser();
@@ -23,79 +23,134 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get analytics data
-    const analyticsService = new AnalyticsService();
-    const systemMetrics = await analyticsService.getSystemMetrics();
-    
-    // Provider-specific metrics (fetched from stored events)
-    const allEvents = analyticsService.getStoredEvents();
-    const providerMetrics = allEvents.reduce((acc, event) => {
-      const provider = event.properties?.provider || event.properties?.model || 'unknown';
-      if (!acc[provider]) {
-        acc[provider] = {
-          provider,
+    // Get analytics data from database
+    const allEvents = await prisma.analytics.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 1000, // Limit to last 1000 events to prevent memory issues
+    });
+
+    type ProviderMetric = {
+      provider: string;
+      requests: number;
+      tokens: number;
+      errors: number;
+      totalResponseTime: number;
+    };
+
+    const providerMetricsRecord = allEvents.reduce<Record<string, ProviderMetric>>((acc, event) => {
+      // Extract provider from payload (JSON string) - parse to object
+      let eventPayload: any = {};
+      if (event.payload) {
+        try {
+          eventPayload = JSON.parse(event.payload);
+        } catch (e) {
+          // If payload is not valid JSON, continue with empty object
+          eventPayload = {};
+        }
+      }
+      
+      const providerKey = eventPayload?.provider || eventPayload?.model || 'unknown';
+      if (!acc[providerKey]) {
+        acc[providerKey] = {
+          provider: providerKey,
           requests: 0,
           tokens: 0,
           errors: 0,
-          successRate: 0,
-          avgResponseTime: 0
+          totalResponseTime: 0,
         };
       }
-      
-      acc[provider].requests++;
-      
-      if (event.properties?.tokens) {
-        acc[provider].tokens += event.properties.tokens;
+
+      const metric = acc[providerKey];
+      metric.requests += 1;
+
+      const tokens = Number(eventPayload?.tokens);
+      if (!Number.isNaN(tokens)) {
+        metric.tokens += tokens;
       }
-      
-      if (event.event.includes('error') || event.properties?.error) {
-        acc[provider].errors++;
+
+      if (event.event.includes('error') || Boolean(eventPayload?.error)) {
+        metric.errors += 1;
       }
-      
-      if (event.properties?.responseTime) {
-        acc[provider].avgResponseTime = 
-          ((acc[provider].avgResponseTime * (acc[provider].requests - 1)) + event.properties.responseTime) / acc[provider].requests;
+
+      const responseTime = Number(eventPayload?.responseTime);
+      if (!Number.isNaN(responseTime)) {
+        metric.totalResponseTime += responseTime;
       }
-      
+
       return acc;
-    }, {} as Record<string, any>);
-    
-    // Calculate success rates
-    Object.values(providerMetrics).forEach((provider: any) => {
-      provider.successRate = ((provider.requests - provider.errors) / provider.requests) * 100;
-    });
-    
-    // User activity data
-    const allUsers = new Set(allEvents.map(event => event.userId));
-    const userActivity = Array.from(allUsers).map(userId => {
-      const userEvents = allEvents.filter(event => event.userId === userId);
-      const lastEvent = userEvents.reduce((latest, current) => 
-        new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest
-      );
-      
+    }, {});
+
+    const providerMetrics = Object.values(providerMetricsRecord).map(metric => {
+      const successCount = metric.requests - metric.errors;
       return {
-        userId,
-        userName: `User ${userId.substring(0, 8)}`, // In a real app, we'd look up the actual user data
-        requests: userEvents.length,
-        lastActive: lastEvent.timestamp,
-        role: sessionUser.id === userId ? sessionUser.role || 'user' : 'user' // Simplified
+        provider: metric.provider,
+        requests: metric.requests,
+        tokens: metric.tokens,
+        errors: metric.errors,
+        successRate: metric.requests > 0 ? (successCount / metric.requests) * 100 : 0,
+        avgResponseTime: metric.requests > 0 ? metric.totalResponseTime / metric.requests : 0,
       };
     });
     
-    // Error logs (events with error-related properties)
-    const errorEvents = allEvents.filter(event => 
-      event.event.includes('error') || 
-      event.event.includes('failed') || 
-      event.properties?.error === true
-    );
+    // User activity data
+    const allUserIds = new Set(allEvents.map(event => event.userId));
+    const userActivity = Array.from(allUserIds).map(userId => {
+      const userEvents = allEvents.filter(event => event.userId === userId);
+      const lastEvent = userEvents.reduce((latest, current) => {
+        if (!latest) return current;
+        return current.createdAt > latest.createdAt ? current : latest;
+      }, allEvents[0]);
+
+      return {
+        userId: userId || 'unknown',
+        userName: `User ${(userId || 'unknown').substring(0, 8)}`,
+        requests: userEvents.length,
+        lastActive: lastEvent?.createdAt.toISOString() || '',
+        role: sessionUser.id === userId ? (sessionUser.role || 'user') : 'user',
+      };
+    });
     
-    const errorLogs = errorEvents.map(event => ({
-      id: `${event.timestamp}-${event.userId}`,
-      timestamp: event.timestamp,
-      level: event.properties?.errorType || 'error',
-      message: event.properties?.errorMessage || event.event,
-      provider: event.properties?.provider
-    }));
+    // Error logs (events with error-related payload)
+    const errorEvents = allEvents.filter(event => {
+      let eventPayload: any = {};
+      if (event.payload) {
+        try {
+          eventPayload = JSON.parse(event.payload);
+        } catch (e) {
+          // If payload is not valid JSON, use empty object
+          eventPayload = {};
+        }
+      }
+      return event.event.includes('error') ||
+             event.event.includes('failed') ||
+             eventPayload?.error === true;
+    });
+    
+    const errorLogs = errorEvents.map(event => {
+      let eventPayload: any = {};
+      if (event.payload) {
+        try {
+          eventPayload = JSON.parse(event.payload);
+        } catch (e) {
+          // If payload is not valid JSON, use empty object
+          eventPayload = {};
+        }
+      }
+      return {
+        id: `${event.createdAt.toISOString()}-${event.userId || 'unknown'}`,
+        timestamp: event.createdAt.toISOString(),
+        level: eventPayload?.errorType || 'error',
+        message: eventPayload?.errorMessage || event.event,
+        provider: eventPayload?.provider
+      };
+    });
+
+    // System metrics
+    const systemMetrics = {
+      totalEvents: allEvents.length,
+      uniqueUsers: allUserIds.size,
+      errorRate: allEvents.length > 0 ? errorEvents.length / allEvents.length : 0,
+    };
 
     // Return comprehensive admin analytics data
     return Response.json({

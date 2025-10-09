@@ -104,7 +104,7 @@ export async function enforceRetentionPolicy(
         result,
       },
       { userId: 'system' },
-      'info'
+      'low'
     );
 
     console.log(`✅ Retention policy complete:`, result);

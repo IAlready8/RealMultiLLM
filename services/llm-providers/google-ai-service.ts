@@ -2,7 +2,7 @@
 // This service handles communication with Google's Gemini models
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types';
+import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types/llm';
 
 class GoogleAIProvider implements LLMProvider {
   id = 'google-ai';
@@ -104,39 +104,35 @@ class GoogleAIProvider implements LLMProvider {
     const generationConfig = {
       temperature,
       maxOutputTokens: maxTokens,
-      topP: options.topP,
-      topK: options.topK,
+      topP: (options as any)?.topP,
+      topK: (options as any)?.topK,
     };
 
-    const safetySettings = options.safetySettings || [
+    const safetySettings = (options as any)?.safetySettings || [
       {
         category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
         threshold: 'BLOCK_MEDIUM_AND_ABOVE'
       }
     ];
 
-    const geminiModel = this.client.getGenerativeAI({
+    const geminiModel = this.client.getGenerativeModel({
       model: modelId,
-      generationConfig,
-      safetySettings
     });
 
     try {
       const result = await geminiModel.generateContent({
         contents: googleMessages,
-        generationConfig,
-        safetySettings
       });
 
-      const response = result.response;
+      const response = (result as any).response;
       
       return {
-        content: response.text(),
-        finish_reason: response.candidates?.[0]?.finishReason || 'stop',
+        content: (response as any).text(),
+        finish_reason: (response as any).candidates?.[0]?.finishReason || 'stop',
         usage: {
-          prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
-          completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
-          total_tokens: response.usageMetadata?.totalTokenCount || 0
+          prompt_tokens: (response as any).usageMetadata?.promptTokenCount || 0,
+          completion_tokens: (response as any).usageMetadata?.candidatesTokenCount || 0,
+          total_tokens: (response as any).usageMetadata?.totalTokenCount || 0
         }
       };
     } catch (error) {
@@ -172,33 +168,29 @@ class GoogleAIProvider implements LLMProvider {
     const generationConfig = {
       temperature,
       maxOutputTokens: maxTokens,
-      topP: options.topP,
-      topK: options.topK,
+      topP: (options as any)?.topP,
+      topK: (options as any)?.topK,
     };
 
-    const safetySettings = options.safetySettings || [
+    const safetySettings = (options as any)?.safetySettings || [
       {
         category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
         threshold: 'BLOCK_MEDIUM_AND_ABOVE'
       }
     ];
 
-    const geminiModel = this.client.getGenerativeAI({
+    const geminiModel = this.client.getGenerativeModel({
       model: modelId,
-      generationConfig,
-      safetySettings
     });
 
     try {
       const result = await geminiModel.generateContentStream({
         contents: googleMessages,
-        generationConfig,
-        safetySettings
       });
 
       async function* generator(): AsyncGenerator<string, void, undefined> {
-        for await (const chunk of result.stream) {
-          yield chunk.text();
+        for await (const chunk of (result as any).stream) {
+          yield (chunk as any).text();
         }
       }
 

@@ -40,7 +40,7 @@ describe('useConversation Hook', () => {
     // This assertion needs to wait for the state update after the hook has settled
     await vi.waitFor(() => {
         expect(result.current.conversations).toEqual([mockConversation]);
-        expect(result.current.isLoading).toBe(false);
+    expect(result.current.isLoading).toBe(false);
     });
   });
 

@@ -8,18 +8,18 @@ generator client {
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -35,34 +35,37 @@ model Session {
 }
 
 model User {
-  id            String           @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String?
-  email         String?          @unique
+  email         String?   @unique
   emailVerified DateTime?
   image         String?
-  password      String?          // For credential-based authentication
-  role          String           @default("USER")
+  password      String? // For credential-based authentication
+  role          String    @default("USER")
 
   // Two-Factor Authentication
-  twoFactorEnabled     Boolean?  @default(false)
-  twoFactorSecret      String?   // TOTP secret (encrypted)
-  twoFactorBackupCodes String?   // JSON array of hashed backup codes
+  twoFactorEnabled     Boolean? @default(false)
+  twoFactorSecret      String? // TOTP secret (encrypted)
+  twoFactorBackupCodes String? // JSON array of hashed backup codes
 
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  accounts      Account[]
-  sessions      Session[]
-  providerConfigs ProviderConfig[]
-  conversations Conversation[]
-  messages      Message[]
-  teamMemberships TeamMembership[] @relation("UserTeamMembership")
-  auditLogs     AuditLog[]
-  goals         Goal[]
-  personas      Persona[]
-  ownedTeams    Team[]               @relation("TeamOwner")
-  sharedConversations SharedConversation[] @relation("SharedConversationOwner")
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  accounts                 Account[]
+  sessions                 Session[]
+  providerConfigs          ProviderConfig[]
+  conversations            Conversation[]
+  messages                 Message[]
+  teamMemberships          TeamMembership[]         @relation("UserTeamMembership")
+  auditLogs                AuditLog[]
+  goals                    Goal[]
+  personas                 Persona[]
+  ownedTeams               Team[]                   @relation("TeamOwner")
+  sharedConversations      SharedConversation[]     @relation("SharedConversationOwner")
   sharedConversationAccess SharedConversationUser[] @relation("SharedConversationAccess")
   sharedConversationShares SharedConversationUser[] @relation("SharedConversationSharedBy")
+  deletionRecords          DeletionRecord[]
+  complianceConfigs        ComplianceConfig[]
+  userConsents             UserConsent[]
 
   @@index([email])
   @@index([createdAt])
@@ -77,17 +80,17 @@ model VerificationToken {
 }
 
 model ProviderConfig {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   provider   String
-  apiKey     String?  // Encrypted API key stored server-side
-  settings   String?  // JSON object for additional provider settings
-  isActive   Boolean  @default(true)
+  apiKey     String? // Encrypted API key stored server-side
+  settings   String? // JSON object for additional provider settings
+  isActive   Boolean   @default(true)
   lastUsedAt DateTime? // Track when API key was last used (added for lifecycle management)
-  usageCount Int      @default(0) // Track API key usage (added for lifecycle management)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  usageCount Int       @default(0) // Track API key usage (added for lifecycle management)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
   userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, provider])
   @@index([lastUsedAt]) // Index for lifecycle queries
@@ -101,21 +104,21 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team    Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team     Team?     @relation(fields: [teamId], references: [id], onDelete: SetNull)
   messages Message[]
 }
 
 model Message {
-  id            String     @id @default(cuid())
-  conversationId String
-  userId        String?
-  role          String
-  content       String
-  promptTokens  Int?
+  id               String   @id @default(cuid())
+  conversationId   String
+  userId           String?
+  role             String
+  content          String
+  promptTokens     Int?
   completionTokens Int?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -125,50 +128,50 @@ model Message {
 }
 
 model Team {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  ownerId     String
-  owner       User     @relation("TeamOwner", fields: [ownerId], references: [id])
-  members     TeamMembership[]
-  conversations   Conversation[]
+  id                  String               @id @default(cuid())
+  name                String
+  description         String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  ownerId             String
+  owner               User                 @relation("TeamOwner", fields: [ownerId], references: [id])
+  members             TeamMembership[]
+  conversations       Conversation[]
   sharedConversations SharedConversation[]
-  auditLogs   AuditLog[]
+  auditLogs           AuditLog[]
 
   @@index([ownerId, createdAt])
   @@index([createdAt])
 }
 
 model TeamMembership {
-  id       String         @id @default(cuid())
+  id       String   @id @default(cuid())
   teamId   String
   userId   String
-  role     String @default("MEMBER")
-  joinedAt DateTime       @default(now())
-  team     Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user     User           @relation("UserTeamMembership", fields: [userId], references: [id], onDelete: Cascade)
+  role     String   @default("MEMBER")
+  joinedAt DateTime @default(now())
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user     User     @relation("UserTeamMembership", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
   @@index([userId, role])
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  timestamp   DateTime @default(now())
-  userId      String?
-  teamId      String?
-  action      String
-  resource    String?
-  resourceId  String?
-  details     String?  // Changed from Json to String for SQLite compatibility
-  outcome     String?
-  ipAddress   String?
-  userAgent   String?
+  id            String   @id @default(cuid())
+  timestamp     DateTime @default(now())
+  userId        String?
+  teamId        String?
+  action        String
+  resource      String?
+  resourceId    String?
+  details       String? // Changed from Json to String for SQLite compatibility
+  outcome       String?
+  ipAddress     String?
+  userAgent     String?
   correlationId String?
-  severity    String?
-  category    String?
+  severity      String?
+  category      String?
 
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
   team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
@@ -191,14 +194,14 @@ model Analytics {
 }
 
 model Goal {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   title       String
   description String?
-  status      String    @default("pending")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, status])
   @@index([status, createdAt])
@@ -220,18 +223,18 @@ model Persona {
 }
 
 model SharedConversation {
-  id         String   @id @default(cuid())
+  id         String                   @id @default(cuid())
   title      String
   messages   String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime                 @default(now())
+  updatedAt  DateTime                 @updatedAt
   ownerId    String
-  owner      User     @relation("SharedConversationOwner", fields: [ownerId], references: [id])
+  owner      User                     @relation("SharedConversationOwner", fields: [ownerId], references: [id])
   teamId     String?
-  team       Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  team       Team?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
   sharedWith SharedConversationUser[]
-  isPublic   Boolean  @default(false)
-  canEdit    Boolean  @default(false)
+  isPublic   Boolean                  @default(false)
+  canEdit    Boolean                  @default(false)
 
   @@index([ownerId, createdAt])
   @@index([teamId])
@@ -239,17 +242,118 @@ model SharedConversation {
 }
 
 model SharedConversationUser {
-  id                   String   @id @default(cuid())
+  id                   String             @id @default(cuid())
   sharedConversationId String
   userId               String
-  canEdit              Boolean  @default(false)
-  sharedAt             DateTime @default(now())
+  canEdit              Boolean            @default(false)
+  sharedAt             DateTime           @default(now())
   sharedBy             String
   conversation         SharedConversation @relation(fields: [sharedConversationId], references: [id], onDelete: Cascade)
-  user                 User              @relation("SharedConversationAccess", fields: [userId], references: [id], onDelete: Cascade)
-  sharedByUser         User              @relation("SharedConversationSharedBy", fields: [sharedBy], references: [id], onDelete: Restrict)
+  user                 User               @relation("SharedConversationAccess", fields: [userId], references: [id], onDelete: Cascade)
+  sharedByUser         User               @relation("SharedConversationSharedBy", fields: [sharedBy], references: [id], onDelete: Restrict)
 
   @@unique([sharedConversationId, userId])
   @@index([userId])
   @@index([sharedBy])
+}
+
+model DeletionRecord {
+  id              String    @id @default(cuid())
+  userId          String
+  status          String    @default("requested")
+  deletionMethod  String    @default("hard")
+  reason          String?
+  deletionSummary String? // Using String to store JSON for compatibility
+  startedAt       DateTime?
+  completedAt     DateTime?
+  error           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ComplianceConfig {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  dataRetentionPeriod Int       @default(90)
+  exportFormat        String    @default("json")
+  notificationEmail   String?
+  consentGivenAt      DateTime?
+  consentWithdrawnAt  DateTime?
+  lastExportedAt      DateTime?
+  exportFrequency     String    @default("manual")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([consentGivenAt])
+  @@index([consentWithdrawnAt])
+  @@index([createdAt])
+}
+
+model RetentionPolicy {
+  id                   String   @id @default(cuid())
+  name                 String
+  description          String?
+  retentionPeriodDays  Int      @default(90)
+  appliesTo            String   // JSON array of table names or data categories
+  isActive             Boolean  @default(true)
+  lastRunAt            DateTime?
+  nextRunAt            DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Add opposite relation to RetentionPolicyExecution
+  executions           RetentionPolicyExecution[]
+
+  @@index([isActive])
+  @@index([nextRunAt])
+}
+
+model RetentionPolicyExecution {
+  id              String   @id @default(cuid())
+  policyId        String
+  executedAt      DateTime @default(now())
+  recordsDeleted  Int      @default(0)
+  executionTimeMs Int      @default(0)
+  status          String   @default("success")
+  error           String?
+  details         String?  // JSON object with execution details
+  policy          RetentionPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([policyId])
+  @@index([executedAt])
+  @@index([status])
+}
+
+model UserConsent {
+  id              String    @id @default(cuid())
+  userId          String
+  category        String    // Consent category (e.g., "data_processing", "marketing", etc.)
+  regulation      String?   // Compliance regulation (GDPR, CCPA, etc.)
+  consentText     String    // The actual consent text agreed to
+  version         String    // Version of the consent agreement
+  status          String    @default("granted")  // granted, withdrawn, expired
+  consentedAt     DateTime  @default(now())
+  withdrawnAt     DateTime?
+  ipAddress       String?
+  userAgent       String?
+  requiresRenewal Boolean   @default(false)
+  renewalDate     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([status])
+  @@index([consentedAt])
+  @@index([withdrawnAt])
+  @@index([requiresRenewal])
+  @@index([renewalDate])
 }

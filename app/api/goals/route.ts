@@ -17,7 +17,7 @@ const updateGoalSchema = goalSchema.extend({
   status: z.enum(["pending", "in_progress", "completed"]),
 });
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {

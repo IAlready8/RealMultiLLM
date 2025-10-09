@@ -39,9 +39,10 @@ export async function POST(request: NextRequest) {
         ? 'Backup code used successfully. Generate new backup codes soon.'
         : '2FA verification successful',
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to verify 2FA code';
     return NextResponse.json(
-      { error: error.message || 'Failed to verify 2FA code' },
+      { error: message },
       { status: 500 }
     );
   }

@@ -1,8 +1,8 @@
 import { LLMProvider, Message, ChatOptions, StreamResponse } from '@/types';
 import { getProvider } from '@/services/llm-providers';
 import { errorManager, LLMProviderError, ValidationError } from '@/lib/error-system';
-import { ApiKeyManager } from '@/lib/api-key-manager';
-import { logger } from '@/lib/logger';
+import { hasValidApiKey } from '@/lib/api-key-service';
+import logger from '@/lib/logger';
 
 interface LLMManagerOptions {
   userId?: string;
@@ -34,31 +34,56 @@ export class LLMManager {
       // Get provider with error handling
       const provider = getProvider(providerId);
       if (!provider) {
-        throw new ValidationError(`Unsupported provider: ${providerId}`, {
-          providerId,
-          availableProviders: this.getAvailableProviders()
-        });
+        throw new ValidationError(
+          `Unsupported provider: ${providerId}`,
+          'providerId',
+          {
+            endpoint: 'LLM.stream',
+            metadata: {
+              providerId,
+              availableProviders: this.getAvailableProviders()
+            }
+          }
+        );
       }
 
       // Verify API key is available
-      if (!ApiKeyManager.hasApiKey(providerId)) {
-        throw new ValidationError(`No API key configured for provider: ${providerId}`, {
-          providerId
-        });
+      if (options?.userId && !(await hasValidApiKey(options.userId, providerId))) {
+        throw new ValidationError(
+          `No API key configured for provider: ${providerId}`,
+          'apiKey',
+          {
+            endpoint: 'LLM.stream',
+            userId: options.userId,
+            metadata: {
+              providerId
+            }
+          }
+        );
       }
 
       // Record start time for metrics
       const startTime = Date.now();
 
-      // Call provider's streamChat method
-      const result = await provider.streamChat(messages, {
+      // Prepare options for provider
+      const providerOptions = {
+        messages,
         model: options?.model,
         temperature: options?.temperature,
         maxTokens: options?.maxTokens,
-        topP: options?.topP,
-        topK: options?.topK,
-        safetySettings: options?.safetySettings
-      });
+        stream: true
+      };
+
+      // Call provider's streamChat method
+      const streamResult = await provider.streamChat(providerOptions);
+
+      // Collect all stream chunks into a single response
+      let fullContent = '';
+      for await (const chunk of streamResult) {
+        if (chunk && typeof chunk === 'string') {
+          fullContent += chunk;
+        }
+      }
 
       // Log success metrics
       logger.info('LLM stream request completed', {
@@ -66,19 +91,24 @@ export class LLMManager {
         userId: options?.userId,
         teamId: options?.teamId,
         requestId,
-        duration: Date.now() - startTime,
-        model: result.model
+        duration: Date.now() - startTime
       });
 
-      return result;
+      // Return the collected response
+      return {
+        content: fullContent,
+      };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
       logger.error('LLM stream request failed', {
         providerId,
         userId: options?.userId,
         teamId: options?.teamId,
         requestId,
-        error: error.message,
-        stack: error.stack
+        error: errorMessage,
+        stack: errorStack
       });
 
       // Wrap and re-throw with context
@@ -87,8 +117,17 @@ export class LLMManager {
       }
       
       throw new LLMProviderError(
-        `Stream chat failed for provider ${providerId}: ${error.message}`,
-        { providerId, requestId, originalError: error }
+        providerId,
+        `Stream chat failed for provider ${providerId}: ${errorMessage}`,
+        {
+          endpoint: 'LLM.stream',
+          userId: options?.userId,
+          metadata: {
+            providerId,
+            requestId
+          }
+        },
+        error instanceof Error ? error : new Error(errorMessage)
       );
     }
   }
@@ -116,48 +155,53 @@ export class LLMManager {
       // Get provider with error handling
       const provider = getProvider(providerId);
       if (!provider) {
-        throw new ValidationError(`Unsupported provider: ${providerId}`, {
-          providerId,
-          availableProviders: this.getAvailableProviders()
-        });
+        throw new ValidationError(
+          `Unsupported provider: ${providerId}`,
+          'providerId',
+          {
+            endpoint: 'LLM.complete',
+            metadata: {
+              providerId,
+              availableProviders: this.getAvailableProviders()
+            }
+          }
+        );
       }
 
       // Verify API key is available
-      if (!ApiKeyManager.hasApiKey(providerId)) {
-        throw new ValidationError(`No API key configured for provider: ${providerId}`, {
-          providerId
-        });
+      if (options?.userId && !(await hasValidApiKey(options.userId, providerId))) {
+        throw new ValidationError(
+          `No API key configured for provider: ${providerId}`,
+          'apiKey',
+          {
+            endpoint: 'LLM.complete',
+            userId: options.userId,
+            metadata: {
+              providerId
+            }
+          }
+        );
       }
 
       // Record start time for metrics
       const startTime = Date.now();
 
       // For non-streaming, we'll create a temporary stream and collect the result
-      const streamResult = await provider.streamChat(messages, {
+      const providerOptions = {
+        messages,
         model: options?.model,
         temperature: options?.temperature,
         maxTokens: options?.maxTokens,
-        topP: options?.topP,
-        topK: options?.topK,
-        safetySettings: options?.safetySettings
-      });
+        stream: false
+      };
+
+      const streamResult = await provider.streamChat(providerOptions);
 
       // Collect all stream chunks into a single response
       let fullResponse = '';
-      if (streamResult.stream && streamResult.stream.getReader) {
-        const reader = streamResult.stream.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (value && typeof value === 'string') {
-              fullResponse += value;
-            } else if (value instanceof Uint8Array) {
-              fullResponse += new TextDecoder().decode(value);
-            }
-          }
-        } finally {
-          reader.releaseLock();
+      for await (const chunk of streamResult) {
+        if (chunk && typeof chunk === 'string') {
+          fullResponse += chunk;
         }
       }
 
@@ -168,19 +212,21 @@ export class LLMManager {
         teamId: options?.teamId,
         requestId,
         duration: Date.now() - startTime,
-        responseLength: fullResponse.length,
-        model: streamResult.model
+        responseLength: fullResponse.length
       });
 
       return fullResponse;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
       logger.error('LLM complete request failed', {
         providerId,
         userId: options?.userId,
         teamId: options?.teamId,
         requestId,
-        error: error.message,
-        stack: error.stack
+        error: errorMessage,
+        stack: errorStack
       });
 
       // Wrap and re-throw with context
@@ -189,8 +235,17 @@ export class LLMManager {
       }
       
       throw new LLMProviderError(
-        `Complete chat failed for provider ${providerId}: ${error.message}`,
-        { providerId, requestId, originalError: error }
+        providerId,
+        `Complete chat failed for provider ${providerId}: ${errorMessage}`,
+        {
+          endpoint: 'LLM.complete',
+          userId: options?.userId,
+          metadata: {
+            providerId,
+            requestId
+          }
+        },
+        error instanceof Error ? error : new Error(errorMessage)
       );
     }
   }
@@ -207,9 +262,10 @@ export class LLMManager {
 
       return await provider.validateConfig({ apiKey });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       logger.error('Provider validation failed', {
         providerId,
-        error: error.message
+        error: errorMessage
       });
       return false;
     }

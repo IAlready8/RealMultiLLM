@@ -47,10 +47,11 @@ export async function GET() {
   try {
     const configs = await getUserProviderConfigs(session.user.id);
     return NextResponse.json({ configs });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error fetching provider configurations';
     logger.error('Failed to fetch provider configurations', { 
       userId: session.user.id, 
-      error: error.message 
+      error: message 
     });
     return internalError('Failed to fetch provider configurations');
   }
@@ -81,13 +82,14 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ config });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest('Invalid configuration data', { details: error.issues });
     }
+    const message = error instanceof Error ? error.message : 'Unknown error storing provider configuration';
     logger.error('Failed to store provider configuration', {
       userId: session.user.id,
-      error: error.message,
+      error: message,
     });
     return internalError('Failed to store provider configuration');
   }
@@ -124,13 +126,14 @@ export async function PUT(request: Request) {
     });
 
     return NextResponse.json({ config });
-  } catch (error: any) {
+  } catch (error) {
     if (error instanceof z.ZodError) {
       return badRequest('Invalid settings data', { details: error.issues });
     }
+    const message = error instanceof Error ? error.message : 'Unknown error updating provider settings';
     logger.error('Failed to update provider settings', {
       userId: session.user.id,
-      error: error.message,
+      error: message,
     });
     return internalError('Failed to update provider settings');
   }

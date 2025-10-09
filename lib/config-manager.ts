@@ -13,6 +13,9 @@ import {
 } from './config-schemas'
 import { v4 as uuidv4 } from 'uuid'
 
+// Export SystemConfig for use in other modules
+export type { SystemConfig }
+
 export class ConfigurationError extends Error {
   constructor(message: string, public code: string, public details?: any) {
     super(message)
@@ -351,15 +354,17 @@ export class ConfigurationManager {
       details.configurationError = error
     }
 
-    const unhealthyCount = Object.values(details).filter(status => status === 'unhealthy').length
-    
+    const statuses = Object.values(details)
+    const unhealthyCount = statuses.filter(status => status === 'unhealthy').length
+    const totalChecks = statuses.length
+
     let status: 'healthy' | 'degraded' | 'unhealthy'
     if (unhealthyCount === 0) {
       status = 'healthy'
-    } else if (unhealthyCount < Object.keys(details).length / 2) {
-      status = 'degraded'
-    } else {
+    } else if (unhealthyCount === totalChecks) {
       status = 'unhealthy'
+    } else {
+      status = 'degraded'
     }
 
     return { status, details }

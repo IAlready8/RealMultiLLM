@@ -11,7 +11,7 @@ import { generateTOTPSecret, generateTOTPUri, enableTwoFactor, verifyTOTPCode } 
 /**
  * GET - Generate new 2FA secret and QR code
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
@@ -31,9 +31,10 @@ export async function GET(request: NextRequest) {
       qrUri,
       manualEntry: base32,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to generate 2FA secret';
     return NextResponse.json(
-      { error: error.message || 'Failed to generate 2FA secret' },
+      { error: message },
       { status: 500 }
     );
   }
@@ -78,9 +79,10 @@ export async function POST(request: NextRequest) {
       backupCodes: result.backupCodes,
       message: '2FA enabled successfully. Save your backup codes in a secure location.',
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to enable 2FA';
     return NextResponse.json(
-      { error: error.message || 'Failed to enable 2FA' },
+      { error: message },
       { status: 500 }
     );
   }

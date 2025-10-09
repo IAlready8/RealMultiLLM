@@ -10,13 +10,25 @@ import {
 } from '@/lib/analytics';
 import { 
   checkApiRateLimit, 
-  withErrorHandling,
   createErrorResponse
 } from '@/lib/api';
 import { processSecurityRequest } from '@/lib/security';
 import { logger } from '@/lib/observability/logger';
-import { withObservability } from '@/lib/observability/middleware';
 import { cache, CacheKeys, CacheConfigs } from '@/lib/cache';
+
+interface AnalyticsPredictions {
+  eventType: string;
+  timeframe: string;
+  predictions: unknown[];
+  confidence: number;
+}
+
+interface AnalyticsAnomalies {
+  eventType: string;
+  timeRange: { start: number; end: number };
+  anomalies: unknown[];
+  detectedAt: number;
+}
 
 export async function GET(request: Request) {
   // Apply security middleware
@@ -126,16 +138,16 @@ export async function GET(request: Request) {
     ]);
 
     // Generate predictions if requested
-    let predictions: any = null;
+    let predictions: AnalyticsPredictions | null = null;
     if (includePredictions) {
-      const analyticsEngine = getGlobalAnalyticsEngine();
+      getGlobalAnalyticsEngine();
       predictions = await generateAnalyticsPredictions('llm_request', 'day');
     }
 
     // Detect anomalies if requested
-    let anomalies: any = null;
+    let anomalies: AnalyticsAnomalies | null = null;
     if (includeAnomalies) {
-      const analyticsEngine = getGlobalAnalyticsEngine();
+      getGlobalAnalyticsEngine();
       const now = Date.now();
       anomalies = await detectAnalyticsAnomalies('llm_request', {
         start: now - 86400000, // Last 24 hours
@@ -174,13 +186,15 @@ export async function GET(request: Request) {
         'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
       }
     });
-  } catch (error: any) {
-    logger.error('Error getting analytics:', { error: error.message });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error getting analytics';
+    logger.error('Error getting analytics:', { error: message });
     
-    // Return standardized error response
-    const errorResponse = createErrorResponse(error as any);
+    const errorForResponse = error instanceof Error ? error : new Error(message);
+    const errorResponse = createErrorResponse(errorForResponse);
+    
     return NextResponse.json(errorResponse, { 
-      status: errorResponse.error.statusCode || 500,
+      status: (errorResponse.error as { statusCode?: number }).statusCode || 500,
       headers: securityResult.headers
     });
   }
