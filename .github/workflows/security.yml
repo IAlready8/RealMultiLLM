@@ -1,0 +1,52 @@
+name: Security Audit
+
+on:
+  schedule:
+    # Run security audit daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+  pull_request:
+    paths:
+      - 'package*.json'
+      - '.github/workflows/security.yml'
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          echo "🔍 Running npm security audit..."
+          npm audit --audit-level moderate || echo "⚠️ Security vulnerabilities found"
+          
+      - name: Check for known vulnerabilities
+        run: |
+          echo "📊 Security Summary:"
+          npm audit --audit-level high --dry-run || echo "High-risk vulnerabilities detected"
+          
+      - name: Generate security report
+        run: |
+          npm audit --json > security-report.json || true
+          echo "📄 Security report generated"
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-report
+          path: security-report.json
+          retention-days: 7

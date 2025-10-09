@@ -1,0 +1,90 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1' # Weekly on Mondays at 6 AM UTC
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lighthouse-audit:
+    name: Lighthouse Performance Audit  
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          DATABASE_URL: 'sqlite://perf-test.db'
+          NEXTAUTH_SECRET: 'perf-test-secret'
+          JWT_SECRET: 'perf-test-jwt-secret'
+          NEXTAUTH_URL: 'http://localhost:3000'
+
+      - name: Start application
+        run: |
+          npm start &
+          echo "Waiting for application to start..."
+          sleep 15
+          curl -f http://localhost:3000 || echo "App not ready yet"
+        env:
+          DATABASE_URL: 'sqlite://perf-test.db'
+          NEXTAUTH_SECRET: 'perf-test-secret'
+          JWT_SECRET: 'perf-test-jwt-secret'
+          NEXTAUTH_URL: 'http://localhost:3000'
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: |
+            http://localhost:3000
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  bundle-analysis:
+    name: Bundle Size Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and analyze bundle
+        run: |
+          npm run build
+          echo "📦 Bundle Analysis:"
+          du -sh .next/static/* | sort -hr | head -10
+          echo "🏗️ Build size:"
+          du -sh .next/
+        env:
+          DATABASE_URL: 'sqlite://bundle-test.db'
+          NEXTAUTH_SECRET: 'bundle-test-secret'
+          JWT_SECRET: 'bundle-test-jwt-secret'
+          NEXTAUTH_URL: 'http://localhost:3000'
