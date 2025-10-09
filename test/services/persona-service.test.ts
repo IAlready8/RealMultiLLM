@@ -12,9 +12,11 @@ describe('Persona Service',
   () => {
     it('should prepend persona prompt to messages if no system message exists',
       () => {
-        const persona: Persona = {
+        const persona: PersonaData = {
+          id: 'test-persona',
           name: 'Test Persona',
           systemPrompt: 'You are a test assistant.',
+          createdAt: new Date(),
         };
         const messages: ChatMessage[] = [{ role: 'user', content: 'Hello' }];
 
@@ -28,9 +30,11 @@ describe('Persona Service',
 
     it('should replace existing system message',
       () => {
-        const persona: Persona = {
+        const persona: PersonaData = {
+          id: 'test-persona',
           name: 'Test Persona',
           systemPrompt: 'You are a new assistant.',
+          createdAt: new Date(),
         };
         const messages: ChatMessage[] = [
           { role: 'system', content: 'Old system prompt' },
@@ -54,7 +58,12 @@ describe('Persona Service',
 
     it('should return original messages if persona systemPrompt is empty or whitespace',
       () => {
-        const persona: Persona = { name: 'Empty', systemPrompt: '   ' };
+        const persona: PersonaData = { 
+          id: 'empty-persona',
+          name: 'Empty', 
+          systemPrompt: '   ',
+          createdAt: new Date(),
+        };
         const messages: ChatMessage[] = [{ role: 'user', content: 'Hello' }];
         const result = applyPersonaPrompt(messages, persona);
         expect(result).toEqual(messages);
