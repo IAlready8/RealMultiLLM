@@ -8,22 +8,6 @@
       "enabled": true
     }
   },
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next",
-      "config": {
-        "serverless": false,
-        "includeFiles": [
-          "services/llm-providers/**",
-          "lib/**",
-          "types/**",
-          "schemas/**",
-          "prisma/**"
-        ]
-      }
-    }
-  ],
   "routes": [
     {
       "src": "/api/(.*)",

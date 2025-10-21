@@ -20,9 +20,27 @@ jobs:
     name: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    
+    # Add PostgreSQL Service Container for production-like testing
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       NODE_OPTIONS: "--max-old-space-size=4096"
-      DATABASE_URL: "file:./test.db"
+      # Use PostgreSQL for production-like testing
+      DATABASE_URL: "postgresql://testuser:testpassword@localhost:5432/testdb"
       NEXTAUTH_SECRET: "test-secret-do-not-use-in-production"
       NEXTAUTH_URL: "http://localhost:3000"
       JWT_SECRET: "test-jwt-secret-do-not-use-in-production"
@@ -39,6 +57,9 @@ jobs:
       
       - name: Generate Prisma Client
         run: npx prisma generate
+        
+      - name: Apply Database Migrations
+        run: npx prisma migrate deploy
       
       - name: Lint Code (Allow Warnings)
         run: npm run lint || echo "Linting completed with warnings"

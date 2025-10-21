@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getAnalytics, getDailyUsage } from '@/services/analytics-service';
@@ -197,5 +197,84 @@ export async function GET(request: Request) {
       status: (errorResponse.error as { statusCode?: number }).statusCode || 500,
       headers: securityResult.headers
     });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Authentication check first to get userId
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { 
+          status: 401
+        }
+      );
+    }
+
+    // Process security request
+    const securityResult = await processSecurityRequest(request);
+    
+    // Rate limiting with userId
+    const rateLimitResult = await checkApiRateLimit(request, 'analytics-post', session.user.id);
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded' },
+        { 
+          status: 429,
+          headers: {
+            ...securityResult.headers,
+            'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+          }
+        }
+      );
+    }
+
+    const body = await request.json();
+    const { eventType, metadata } = body;
+
+    if (!eventType) {
+      return NextResponse.json(
+        { error: 'Event type is required' },
+        { 
+          status: 400,
+          headers: securityResult.headers
+        }
+      );
+    }
+
+    // Track the analytics event
+    await getAnalytics(eventType, metadata || {});
+    
+    logger.info('analytics.event.tracked', { 
+      userId: session.user.id, 
+      eventType,
+      metadata 
+    });
+
+    return NextResponse.json(
+      { success: true, message: 'Event tracked successfully' },
+      {
+        headers: {
+          ...securityResult.headers,
+          'X-RateLimit-Limit': rateLimitResult.limit.toString(),
+          'X-RateLimit-Remaining': rateLimitResult.remaining.toString(),
+          'X-RateLimit-Reset': rateLimitResult.resetTime.toString()
+        }
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error tracking analytics event';
+    logger.error('Error tracking analytics event:', { error: message });
+    
+    return NextResponse.json(
+      { error: 'Failed to track event' },
+      { 
+        status: 500
+      }
+    );
   }
 }
