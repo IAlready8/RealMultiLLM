@@ -261,7 +261,7 @@ export function useProviderConfig() {
   // Load configs on mount
   useEffect(() => {
     fetchConfigs();
-  }, [fetchConfigs]);
+  }, []);
 
   return {
     configs,
