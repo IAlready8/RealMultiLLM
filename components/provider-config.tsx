@@ -66,7 +66,6 @@ const PROVIDERS = [
 
 export default function ProviderConfig() {
   const {
-    configs,
     loading,
     saveConfig,
     deleteConfig,
