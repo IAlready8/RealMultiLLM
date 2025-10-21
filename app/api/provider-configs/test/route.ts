@@ -106,16 +106,16 @@ export async function POST(request: Request) {
 }
 
 async function testOpenRouter(apiKey: string): Promise<boolean> {
-  const res = await fetch('https://openrouter.ai/api/v1/models', {
+  const response = await fetch('https://openrouter.ai/api/v1/models', {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || 'Invalid OpenRouter API key');
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.message || 'Invalid OpenRouter API key');
   }
   return true;
 }
