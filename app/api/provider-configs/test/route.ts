@@ -213,10 +213,13 @@ async function testGrok(apiKey: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    // If the endpoint is not available, just validate format
-    if (!apiKey.startsWith('xai-')) {
-      throw new Error("Grok API key should start with 'xai-'");
+    // Only fall back to format validation for network errors (TypeError)
+    if (error instanceof TypeError) {
+      if (!apiKey.startsWith('xai-')) {
+        throw new Error("Grok API key should start with 'xai-'");
+      }
+      return true;
     }
-    return true;
+    throw error;
   }
 }
