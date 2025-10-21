@@ -57,7 +57,7 @@ describe('/api/auth/register', () => {
       }
 
       // Mock bcrypt.hash
-      vi.mocked(bcrypt.hash).mockResolvedValue(hashedPassword)
+      (bcrypt.hash as any).mockResolvedValue(hashedPassword)
 
       // Mock database operations
       mockPrismaUser.findUnique.mockResolvedValue(null) // User doesn't exist
@@ -260,7 +260,7 @@ describe('/api/auth/register', () => {
         updatedAt: new Date()
       }
 
-      vi.mocked(bcrypt.hash).mockResolvedValue(hashedPassword)
+      (bcrypt.hash as any).mockResolvedValue(hashedPassword)
       mockPrismaUser.findUnique.mockResolvedValue(null)
       mockPrismaUser.create.mockResolvedValue(createdUser)
 

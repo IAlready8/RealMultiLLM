@@ -10,7 +10,7 @@ vi.mock('next/link', () => {
   return {
     __esModule: true,
     default: React.forwardRef<HTMLAnchorElement, React.ComponentProps<'a'>>(
-      ({ href, children, ...props }, ref) => (
+      ({ href, children, ...props }: { href?: string; children?: React.ReactNode } & React.ComponentProps<'a'>, ref: React.Ref<HTMLAnchorElement>) => (
         <a ref={ref} href={href as string} {...props}>
           {children}
         </a>

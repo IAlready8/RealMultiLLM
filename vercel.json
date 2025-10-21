@@ -2,28 +2,6 @@
   "version": 2,
   "name": "realmultillm",
   "framework": "nextjs",
-  "settings": {
-    "createdAt": "2025-10-05T00:00:00.000Z",
-    "gitIntegration": {
-      "enabled": true
-    }
-  },
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next",
-      "config": {
-        "serverless": false,
-        "includeFiles": [
-          "services/llm-providers/**",
-          "lib/**",
-          "types/**",
-          "schemas/**",
-          "prisma/**"
-        ]
-      }
-    }
-  ],
   "routes": [
     {
       "src": "/api/(.*)",
@@ -149,10 +127,5 @@
       "source": "/health",
       "destination": "/api/health"
     }
-  ],
-  "overrides": {
-    "_static/*": {
-      "contentType": "text/css; charset=utf-8"
-    }
-  }
+  ]
 }

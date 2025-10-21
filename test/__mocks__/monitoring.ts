@@ -70,7 +70,7 @@ realmultillm_memory_rss 512`
   }),
 
   recordMetric: vi.fn((metric: any) => {
-    mockMonitoring.metrics.push(metric)
+    mockMonitoring.metrics.push(metric as never)
   }),
 
   // Helper methods for tests

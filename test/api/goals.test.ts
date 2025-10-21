@@ -67,13 +67,13 @@ const mockIDBOpenRequest = {
 
 global.indexedDB = {
   open: vi.fn(() => {
-    const request = { ...mockIDBOpenRequest }
+    const request = { ...mockIDBOpenRequest, source: null, transaction: null }
     setTimeout(() => {
       request.result = mockIDBDatabase
       if (request.onsuccess) request.onsuccess({ target: request } as any)
     }, 0)
-    return request
-  }),
+    return request as any
+  }) as any,
   deleteDatabase: vi.fn(() => mockIDBRequest),
   databases: vi.fn(() => Promise.resolve([])),
   cmp: vi.fn(),

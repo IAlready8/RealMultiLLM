@@ -5,6 +5,7 @@ import {
   type ChatMessage,
   type Persona,
 } from '@/services/persona-service';
+import { PersonaData } from '@/services/persona-storage';
 
 describe('Persona Service',
 () => {
@@ -12,11 +13,13 @@ describe('Persona Service',
   () => {
     it('should prepend persona prompt to messages if no system message exists',
       () => {
-        const persona: PersonaData = {
+        const persona: Persona = {
           id: 'test-persona',
-          name: 'Test Persona',
-          systemPrompt: 'You are a test assistant.',
+          title: 'Test Persona',
+          description: null,
+          prompt: 'You are a test assistant.',
           createdAt: new Date(),
+          updatedAt: new Date(),
         };
         const messages: ChatMessage[] = [{ role: 'user', content: 'Hello' }];
 
@@ -30,11 +33,13 @@ describe('Persona Service',
 
     it('should replace existing system message',
       () => {
-        const persona: PersonaData = {
+        const persona: Persona = {
           id: 'test-persona',
-          name: 'Test Persona',
-          systemPrompt: 'You are a new assistant.',
+          title: 'Test Persona',
+          description: null,
+          prompt: 'You are a new assistant.',
           createdAt: new Date(),
+          updatedAt: new Date(),
         };
         const messages: ChatMessage[] = [
           { role: 'system', content: 'Old system prompt' },

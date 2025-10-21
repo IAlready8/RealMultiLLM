@@ -266,7 +266,9 @@ export async function encryptApiKey(apiKey: string, provider: string = 'unknown'
   
   try {
     // Fallback to secure implementation
-    return await secureEncryptApiKey(apiKey, provider);
+    // Note: crypto-enterprise temporarily disabled, using main encryption
+    const key = resolveEncryptionKey();
+    return await encrypt(apiKey, key);
   } catch (error) {
     console.error('Secure encryption failed, using legacy method:', error);
     
@@ -292,7 +294,9 @@ export async function decryptApiKey(encryptedApiKey: string, provider: string = 
   try {
     // Try secure decryption first
     if (encryptedApiKey.startsWith('v3:AES-256-GCM:')) {
-      return await secureDecryptApiKey(encryptedApiKey, provider);
+      // Note: crypto-enterprise temporarily disabled, using main decryption
+      const key = resolveEncryptionKey();
+      return await decrypt(encryptedApiKey, key);
     }
     
     // Legacy decryption for old data

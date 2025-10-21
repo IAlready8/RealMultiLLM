@@ -17,7 +17,11 @@ describe('Authentication API', () => {
         updatedAt: new Date(),
         emailVerified: null,
         image: null,
-        password: 'hashedpassword'
+        password: 'hashedpassword',
+        role: 'user',
+        twoFactorEnabled: null,
+        twoFactorSecret: null,
+        twoFactorBackupCodes: null
       });
 
       const request = new TestRequestBuilder()
@@ -46,6 +50,10 @@ describe('Authentication API', () => {
         image: null,
         createdAt: new Date(),
         updatedAt: new Date(),
+        role: 'user',
+        twoFactorEnabled: null,
+        twoFactorSecret: null,
+        twoFactorBackupCodes: null
       });
 
       const request = new TestRequestBuilder()

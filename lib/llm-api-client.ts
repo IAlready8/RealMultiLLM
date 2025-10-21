@@ -348,3 +348,18 @@ export async function callLLMWithCache(
 
   return response;
 }
+
+// LLMClient class wrapper for backward compatibility with tests
+export class LLMClient {
+  static async callLLM(userId: string, provider: string, messages: LLMMessage[], options?: LLMRequestOptions): Promise<LLMResponse> {
+    return callLLM(userId, provider, messages, options);
+  }
+
+  static async streamLLM(userId: string, provider: string, messages: LLMMessage[], callbacks: LLMStreamCallbacks, options?: LLMRequestOptions): Promise<void> {
+    return streamLLM(userId, provider, messages, callbacks, options);
+  }
+
+  static async callLLMWithCache(userId: string, provider: string, messages: LLMMessage[], options?: LLMRequestOptions): Promise<LLMResponse> {
+    return callLLMWithCache(userId, provider, messages, options);
+  }
+}
