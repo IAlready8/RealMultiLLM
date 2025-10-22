@@ -18,7 +18,9 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "types": ["vitest/globals", "node"],
+    "types": [
+      "node"
+    ],
     "plugins": [
       {
         "name": "next"
@@ -26,8 +28,12 @@
     ],
     "baseUrl": ".",
     "paths": {
-      "@/api/*": ["app/api/*"],
-      "@/*": ["./*"]
+      "@/api/*": [
+        "app/api/*"
+      ],
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -37,6 +43,7 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "playwright.config.ts"
   ]
 }

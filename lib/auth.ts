@@ -28,6 +28,7 @@ export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
   MODERATOR = 'moderator',
+  OBSERVER = 'observer',
 }
 
 // NextAuth configuration
@@ -82,7 +83,11 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role || UserRole.USER;
+        const role =
+          'role' in user && typeof user.role === 'string'
+            ? (user.role as UserRole)
+            : UserRole.USER;
+        token.role = role;
       }
       return token;
     },
@@ -96,7 +101,6 @@ export const authOptions: AuthOptions = {
   },
   pages: {
     signIn: '/auth/signin',
-    signUp: '/auth/signup',
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
@@ -172,6 +176,10 @@ class AuthService {
         return null;
       }
 
+      const expiration = typeof token.exp === 'number'
+        ? new Date(token.exp * 1000).toISOString()
+        : new Date(Date.now() + this.MAX_AGE * 1000).toISOString();
+
       const validatedSession = SessionSchema.parse({
         user: {
           id: token.sub || token.email,
@@ -179,9 +187,7 @@ class AuthService {
           name: token.name,
           role: (token.role as UserRole) || UserRole.USER,
         },
-        expires: token.exp
-          ? new Date(token.exp * 1000).toISOString()
-          : new Date(Date.now() + this.MAX_AGE * 1000).toISOString(),
+        expires: expiration,
       });
 
       return validatedSession;
@@ -202,7 +208,7 @@ class AuthService {
 
     // Check exact role match or if required role is less privileged
     if (requiredRole === UserRole.USER) return true; // All logged-in users are at least "users"
-    if (requiredRole === UserRole.MODERATOR && user.role === UserRole.MODERATOR) return true;
+    if (user.role === requiredRole) return true;
 
     return false;
   }
@@ -228,7 +234,7 @@ export async function getSessionUser(req?: NextApiRequest | NextRequest): Promis
     return {
       id: session.user.id || session.user.email,
       email: session.user.email,
-      name: session.user.name,
+      name: session.user.name ?? undefined,
       role: (session.user.role as UserRole) || UserRole.USER,
     };
   } catch (error) {
@@ -238,12 +244,12 @@ export async function getSessionUser(req?: NextApiRequest | NextRequest): Promis
 }
 
 export function hasRole(user: SessionData['user'] | undefined | null, requiredRole: UserRole): boolean {
-  return authService.hasRole(user, requiredRole);
+  return authService.hasRole(user ?? undefined, requiredRole);
 }
 
 // Re-export NextAuth functions for convenience
 export { getServerSession } from 'next-auth/next';
 export type { Session } from 'next-auth';
 
-// Export the service class as default
-export default AuthService;
+// Export authOptions as default and named export
+export default authOptions;

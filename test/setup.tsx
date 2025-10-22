@@ -1,6 +1,16 @@
 import '@testing-library/jest-dom'
-import { beforeAll, afterAll, afterEach, vi } from 'vitest'
+import { beforeAll, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import { webcrypto } from 'crypto';
+
+// Polyfill Web Crypto API for test environment
+if (typeof global.crypto === 'undefined') {
+  Object.defineProperty(global, 'crypto', {
+    value: webcrypto,
+    writable: true,
+  });
+}
+
 
 // Cleanup after each test case
 afterEach(() => {
@@ -22,19 +32,6 @@ Object.defineProperty(global, 'performance', {
     measure: vi.fn(),
     getEntriesByName: vi.fn(() => []),
     getEntriesByType: vi.fn(() => []),
-  }
-})
-
-// Mock crypto for test environment
-Object.defineProperty(global, 'crypto', {
-  writable: true,
-  value: {
-    randomUUID: vi.fn(() => '123e4567-e89b-12d3-a456-426614174000'),
-    subtle: {
-      digest: vi.fn(),
-      encrypt: vi.fn(),
-      decrypt: vi.fn(),
-    }
   }
 })
 

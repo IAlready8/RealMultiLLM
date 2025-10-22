@@ -118,11 +118,9 @@ export async function POST(request: NextRequest) {
       async start(controller) {
         
         let tokenCount = 0;
-        let fullContent = '';
-
+        
         try {
           for await (const chunk of result) {
-            fullContent += chunk;
             tokenCount += chunk.split(' ').length; // Rough estimate
 
             controller.enqueue(

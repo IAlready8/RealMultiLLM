@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,11 +46,7 @@ export function ComplianceAuditViewer() {
   });
   const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
-    fetchAuditLogs();
-  }, []);
-
-  const fetchAuditLogs = async () => {
+  const fetchAuditLogs = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -152,7 +148,11 @@ export function ComplianceAuditViewer() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    void fetchAuditLogs();
+  }, [fetchAuditLogs]);
 
   const handleFilterChange = (field: string, value: string) => {
     setFilters(prev => ({
@@ -608,29 +608,7 @@ function Settings(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-function Bot(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 8V4H8" />
-      <rect width="16" height="12" x="4" y="8" rx="2" />
-      <path d="M2 14h2" />
-      <path d="M20 14h2" />
-      <path d="M15 13v2" />
-      <path d="M9 13v2" />
-    </svg>
-  );
-}
+
 
 function Eye(props: React.SVGProps<SVGSVGElement>) {
   return (

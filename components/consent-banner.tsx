@@ -14,7 +14,7 @@ interface ConsentBannerProps {
 }
 
 const ConsentBanner: React.FC<ConsentBannerProps> = ({ onConsentChange }) => {
-  const { consentStatus, loading, error, grantConsent, withdrawConsent, refreshConsentStatus } = useConsent();
+  const { consentStatus, loading, grantConsent, withdrawConsent, refreshConsentStatus } = useConsent();
   const [isVisible, setIsVisible] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 

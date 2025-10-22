@@ -1,4 +1,4 @@
-import { getSessionUser, hasRole } from '@/lib/auth';
+import { getSessionUser, hasRole, UserRole } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 import type { NextRequest } from 'next/server';
@@ -36,12 +36,25 @@ function parsePayload(payload: string | null): AnalyticsPayload {
 
 export async function GET(_request: NextRequest) {
   try {
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+      return Response.json({
+        systemMetrics: {
+          totalEvents: 0,
+          uniqueUsers: 0,
+          errorRate: 0,
+        },
+        providerMetrics: [],
+        userActivity: [],
+        errorLogs: [],
+      });
+    }
+
     const sessionUser = await getSessionUser();
     if (!sessionUser) {
       return Response.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const userHasPermission = hasRole(sessionUser, ['admin', 'observer']);
+    const userHasPermission = hasRole(sessionUser, UserRole.ADMIN) || hasRole(sessionUser, UserRole.OBSERVER);
     if (!userHasPermission) {
       return Response.json({ error: 'Insufficient permissions' }, { status: 403 });
     }

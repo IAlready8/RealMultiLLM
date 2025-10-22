@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,13 +59,7 @@ export default function TeamsPage() {
   const [newTeam, setNewTeam] = useState({ name: '', description: '' });
   const [newMemberEmail, setNewMemberEmail] = useState('');
 
-  useEffect(() => {
-    if (status === 'authenticated') {
-      fetchTeams();
-    }
-  }, [status]);
-
-  const fetchTeams = async () => {
+  const fetchTeams = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await fetch('/api/teams');
@@ -80,7 +75,13 @@ export default function TeamsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (status === 'authenticated') {
+      void fetchTeams();
+    }
+  }, [status, fetchTeams]);
 
   const handleCreateTeam = async () => {
     try {

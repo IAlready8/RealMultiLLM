@@ -182,6 +182,17 @@ class RedisCache {
       console.error('Redis clear error:', error);
     }
   }
+
+  async keys(pattern: string): Promise<string[]> {
+    if (!this.client || !this.isConnected) return [];
+
+    try {
+      return await this.client.keys(pattern);
+    } catch (error) {
+      console.error('Redis keys error:', error);
+      return [];
+    }
+  }
 }
 
 // Unified cache interface
@@ -247,6 +258,24 @@ export class Cache {
       await this.redisCache.clear(prefix);
     } catch (error) {
       console.warn('Failed to clear Redis cache:', error);
+    }
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    const memoryKeys = this.memoryCache.keys().filter((key) => {
+      if (!pattern.includes('*')) {
+        return key === pattern;
+      }
+      const prefix = pattern.slice(0, pattern.indexOf('*'));
+      return key.startsWith(prefix);
+    });
+
+    try {
+      const redisKeys = await this.redisCache.keys(pattern);
+      return Array.from(new Set([...memoryKeys, ...redisKeys]));
+    } catch (error) {
+      console.warn('Failed to retrieve Redis keys:', error);
+      return memoryKeys;
     }
   }
 

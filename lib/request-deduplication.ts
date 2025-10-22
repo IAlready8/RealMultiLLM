@@ -5,7 +5,7 @@
  * Implements intelligent caching with collision-resistant hashing and memory management
  */
 
-import { createHash } from 'node:crypto';
+import { createHash } from 'crypto';
 import { logger } from '@/lib/observability/logger';
 import { metricsRegistry } from '@/lib/observability/metrics';
 

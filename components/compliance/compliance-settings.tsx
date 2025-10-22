@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
@@ -63,11 +63,7 @@ export function ComplianceSettings() {
     consentVersion: '1.0'
   });
 
-  useEffect(() => {
-    fetchComplianceSettings();
-  }, []);
-
-  const fetchComplianceSettings = async () => {
+  const fetchComplianceSettings = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -103,7 +99,11 @@ export function ComplianceSettings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    void fetchComplianceSettings();
+  }, [fetchComplianceSettings]);
 
   const handleSave = async () => {
     try {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,8 +28,8 @@ import {
   Zap
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { ComplianceService } from '@/services/compliance/compliance-service';
 import { ComplianceMetrics, ComplianceStatus } from '@/types/compliance';
+import { format } from 'date-fns';
 
 // Constants for data subject rights
 const DATA_SUBJECT_RIGHTS = [
@@ -44,7 +44,6 @@ const DATA_SUBJECT_RIGHTS = [
 ] as const;
 
 type DataSubjectRight = typeof DATA_SUBJECT_RIGHTS[number];
-import { format } from 'date-fns';
 
 /**
  * Compliance Dashboard Component
@@ -60,11 +59,7 @@ export function ComplianceDashboard() {
   const [exportLoading, setExportLoading] = useState(false);
   const [deletionLoading, setDeletionLoading] = useState(false);
 
-  useEffect(() => {
-    fetchComplianceData();
-  }, []);
-
-  const fetchComplianceData = async () => {
+  const fetchComplianceData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -126,7 +121,11 @@ export function ComplianceDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    void fetchComplianceData();
+  }, [fetchComplianceData]);
 
   const handleExportRequest = async () => {
     try {

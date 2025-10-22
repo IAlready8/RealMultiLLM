@@ -17,6 +17,7 @@ export default function Navbar() {
     { label: "Personas", href: "/personas" },
     { label: "Teams", href: "/teams" },
     { label: "Analytics", href: "/analytics" },
+    { label: "Monitoring", href: "/monitoring" },
     { label: "Settings", href: "/settings" },
   ];
 

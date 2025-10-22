@@ -6,6 +6,7 @@ import ConsentBanner from '@/components/consent-banner';
 import Navbar from '@/components/navbar';
 import { SettingsProvider } from '@/components/settings-provider';
 import { ThemeProvider } from '@/components/theme-provider';
+
 import type { Metadata } from 'next';
 
 const inter = { className: 'font-sans' };

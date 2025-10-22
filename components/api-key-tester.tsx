@@ -139,7 +139,6 @@ export function ApiKeyTester() {
     setTestingAll(true);
 
     const providers = Object.keys(PROVIDER_CONFIGS);
-    const results: Record<string, TestResult> = {};
 
     for (const provider of providers) {
       if (apiKeys[provider]?.trim()) {

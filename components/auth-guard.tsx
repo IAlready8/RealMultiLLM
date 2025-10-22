@@ -26,7 +26,6 @@ export function AuthGuard({
 }: AuthGuardProps) {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const pathname = usePathname();
   const [redirected, setRedirected] = useState(false);
 
   const isExpired = useMemo(() => {
