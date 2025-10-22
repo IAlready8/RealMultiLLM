@@ -1,4 +1,4 @@
-import { getSessionUser, hasRole } from '@/lib/auth';
+import { getSessionUser, hasRole, UserRole } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 import type { NextRequest } from 'next/server';
@@ -41,7 +41,7 @@ export async function GET(_request: NextRequest) {
       return Response.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const userHasPermission = hasRole(sessionUser, ['admin', 'observer']);
+    const userHasPermission = hasRole(sessionUser, UserRole.ADMIN);
     if (!userHasPermission) {
       return Response.json({ error: 'Insufficient permissions' }, { status: 403 });
     }

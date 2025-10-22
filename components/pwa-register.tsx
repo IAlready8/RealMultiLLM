@@ -19,15 +19,7 @@ import { useEffect } from "react";
 const EVENT_UPDATE_AVAILABLE = "pwa:update-available";
 const EVENT_UPDATE_APPLIED = "pwa:update-applied";
 
-declare global {
-  interface Window {
-    __PWA__: {
-      skipWaiting: () => void;
-      registration: ServiceWorkerRegistration | null;
-      lastEvent: "idle" | "update-available" | "update-applied";
-    };
-  }
-}
+// Note: __PWA__ is declared in types/service-worker.d.ts
 
 function canUseSW(): boolean {
   return typeof window !== "undefined" && "serviceWorker" in navigator;
@@ -47,7 +39,9 @@ async function registerSW() {
     }
 
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    window.__PWA__.registration = reg;
+    if (window.__PWA__) {
+      window.__PWA__.registration = reg;
+    }
 
     // If an update is found, notify UI
     reg.addEventListener("updatefound", () => {
@@ -55,7 +49,9 @@ async function registerSW() {
       if (!installing) return;
       installing.addEventListener("statechange", () => {
         if (installing.state === "installed" && navigator.serviceWorker.controller) {
-          window.__PWA__.lastEvent = "update-available";
+          if (window.__PWA__) {
+            window.__PWA__.lastEvent = "update-available";
+          }
           window.dispatchEvent(new CustomEvent(EVENT_UPDATE_AVAILABLE));
         }
       });
@@ -63,13 +59,17 @@ async function registerSW() {
 
     // If a waiting worker already exists (e.g., reload), surface it
     if (reg.waiting && navigator.serviceWorker.controller) {
-      window.__PWA__.lastEvent = "update-available";
+      if (window.__PWA__) {
+        window.__PWA__.lastEvent = "update-available";
+      }
       window.dispatchEvent(new CustomEvent(EVENT_UPDATE_AVAILABLE));
     }
 
     // When the new SW takes control, reload the page to get fresh assets
     navigator.serviceWorker.addEventListener("controllerchange", () => {
-      window.__PWA__.lastEvent = "update-applied";
+      if (window.__PWA__) {
+        window.__PWA__.lastEvent = "update-applied";
+      }
       window.dispatchEvent(new CustomEvent(EVENT_UPDATE_APPLIED));
       // Delay slightly to allow state to settle
       setTimeout(() => {
@@ -89,7 +89,7 @@ export default function PWARegister() {
     if (!window.__PWA__) {
       window.__PWA__ = {
         skipWaiting: () => {
-          const reg = window.__PWA__.registration;
+          const reg = window.__PWA__?.registration;
           reg?.waiting?.postMessage?.({ type: "SKIP_WAITING" });
         },
         registration: null,

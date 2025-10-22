@@ -82,7 +82,7 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role || UserRole.USER;
+        token.role = (user as any).role || UserRole.USER;
       }
       return token;
     },
@@ -96,7 +96,6 @@ export const authOptions: AuthOptions = {
   },
   pages: {
     signIn: '/auth/signin',
-    signUp: '/auth/signup',
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
@@ -179,7 +178,7 @@ class AuthService {
           name: token.name,
           role: (token.role as UserRole) || UserRole.USER,
         },
-        expires: token.exp
+        expires: token.exp && typeof token.exp === 'number'
           ? new Date(token.exp * 1000).toISOString()
           : new Date(Date.now() + this.MAX_AGE * 1000).toISOString(),
       });
@@ -228,7 +227,7 @@ export async function getSessionUser(req?: NextApiRequest | NextRequest): Promis
     return {
       id: session.user.id || session.user.email,
       email: session.user.email,
-      name: session.user.name,
+      name: session.user.name || undefined,
       role: (session.user.role as UserRole) || UserRole.USER,
     };
   } catch (error) {
@@ -238,7 +237,7 @@ export async function getSessionUser(req?: NextApiRequest | NextRequest): Promis
 }
 
 export function hasRole(user: SessionData['user'] | undefined | null, requiredRole: UserRole): boolean {
-  return authService.hasRole(user, requiredRole);
+  return authService.hasRole(user || undefined, requiredRole);
 }
 
 // Re-export NextAuth functions for convenience
