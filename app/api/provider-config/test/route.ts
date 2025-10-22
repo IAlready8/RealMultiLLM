@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { provider, apiKey } = testSchema.parse(body);
 
-    let testApiKey: string | undefined;
+    let testApiKey: string | undefined | null;
     
     if (apiKey) {
       // Use the API key provided in the request body
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input data', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input data', details: error.issues }, { status: 400 });
     }
 
     console.error('Error testing provider config:', error);
