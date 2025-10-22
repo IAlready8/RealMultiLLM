@@ -1,58 +1,50 @@
-# RealMultiLLM Netlify Configuration
-# Production-ready deployment for Next.js multi-LLM platform
-
 [build]
   command = "npm run build"
   publish = ".next"
-  functions = "netlify/functions"
-  
-[build.environment]
-  NODE_VERSION = "20"
-  # Optimize build performance
-  NODE_OPTIONS = "--max-old-space-size=4096"
-  NEXT_TELEMETRY_DISABLED = "1"
-  NODE_ENV = "production"
+  environment = { NODE_ENV = "production" }
 
-# Template environment variables for Deploy to Netlify button
-# These will be prompted during deployment
-[template.environment]
-  NEXTAUTH_SECRET = "JWT signing secret - Generate with: openssl rand -base64 32"
-  NEXTAUTH_URL = "Your deployment URL (e.g., https://your-app.netlify.app)"
-  DATABASE_URL = "Database connection string (file:./dev.db or PostgreSQL URL)"
-  
-  # LLM API Keys (at least one required)
-  OPENAI_API_KEY = "OpenAI API key for GPT models (sk-proj-...)"
-  ANTHROPIC_API_KEY = "Anthropic Claude API key (sk-ant-api03-...)"
-  GOOGLE_AI_API_KEY = "Google AI Gemini API key (AIza...)"
-  
-  # Optional OAuth Configuration
-  GOOGLE_CLIENT_ID = "Google OAuth Client ID (optional)"
-  GOOGLE_CLIENT_SECRET = "Google OAuth Client Secret (optional)"
-  GITHUB_CLIENT_ID = "GitHub OAuth Client ID (optional)"  
-  GITHUB_CLIENT_SECRET = "GitHub OAuth Client Secret (optional)"
+[context.production.environment]
+  NEXT_PUBLIC_SITE_URL = "https://realmultillm.netlify.app"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+[context.deploy-preview.environment]
+  NEXT_PUBLIC_SITE_URL = "https://deploy-preview-{DEPLOY_ID}--realmultillm.netlify.app"
+
+[context.branch-deploy.environment]
+  NEXT_PUBLIC_SITE_URL = "https://branch-{BRANCH_SLUG}--realmultillm.netlify.app"
+
+[[redirects]]
+  from = "/app"
+  to = "/"
+  status = 200
+
+[[redirects]]
+  from = "/health"
+  to = "/api/health"
+  status = 200
+
+[[redirects]]
+  from = "/api/*"
+  to = "/api/:splat"
+  status = 200
 
 [[headers]]
   for = "/*"
   [headers.values]
-    # security: Add security headers
+    X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
-    X-Content-Type-Options = "nosniff"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; media-src 'self'; object-src 'none'"
     Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com"
 
 [[headers]]
-  for = "/_next/static/*"
+  for = "/api/*"
   [headers.values]
-    # optimization: Add caching for static assets
-    Cache-Control = "public, max-age=31536000, immutable"
+    Cache-Control = "public, max-age=0, must-revalidate"
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "X-Requested-With, Content-Type, Authorization"
 
-# Optional: Create redirects if needed
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
+[dev]
+  command = "npm run dev"
+  targetPort = 3000

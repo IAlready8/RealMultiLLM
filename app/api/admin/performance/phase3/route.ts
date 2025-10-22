@@ -267,17 +267,20 @@ export async function POST(request: NextRequest) {
         result = { message: 'Request routing optimization applied', action: 'completed' };
         break;
 
-      case 'scale_database_pool':
+      case 'scale_database_pool': {
         // Action to adjust database pool size
-        const newPoolSize = parameters?.poolSize || 10;
+        const rawPoolSize = parameters?.poolSize;
+        const newPoolSize =
+          typeof rawPoolSize === 'number' ? rawPoolSize : Number.parseInt(String(rawPoolSize ?? ''), 10) || 10;
         result = {
           message: `Database pool scaling to ${newPoolSize} connections`,
           newPoolSize,
           action: 'scheduled'
         };
         break;
+      }
 
-      case 'performance_report':
+      case 'performance_report': {
         // Generate detailed performance report
         const [
           { requestDeduplicator },
@@ -300,6 +303,7 @@ export async function POST(request: NextRequest) {
           action: 'completed'
         };
         break;
+      }
 
       default:
         return NextResponse.json({

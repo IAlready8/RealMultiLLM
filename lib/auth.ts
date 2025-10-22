@@ -1,186 +1,249 @@
+/**
+ * Authentication utilities and configuration for RealMultiLLM
+ * Provides secure session management, user validation, and authorization
+ */
 
-import { NextAuthOptions, getServerSession } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import GitHubProvider from "next-auth/providers/github";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import prisma from "@/lib/prisma";
-import bcrypt from "bcryptjs";
-import { getValidatedEnv, isDemoModeEnabled, getSessionMaxAge } from "@/lib/env";
-import { z } from "zod";
-import { OIDC_PROVIDERS, autoProvisionOIDCUser } from "@/lib/auth/oidc-provider";
+import { getServerSession } from 'next-auth/next';
+import { NextApiRequest } from 'next';
+import { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+import { z } from 'zod';
+import type { AuthOptions } from 'next-auth';
+import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import GoogleProvider from 'next-auth/providers/google';
+import GitHubProvider from 'next-auth/providers/github';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import bcrypt from 'bcryptjs';
 
-// Password validation schema
-const passwordSchema = z.string()
-  .min(12, "Password must be at least 12 characters long")
-  .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, 
-    "Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character");
+// Import this dynamically to avoid circular dependency
+let prisma: any;
+try {
+  prisma = require('@/lib/prisma').default;
+} catch (error) {
+  console.warn('Prisma client not available during auth config');
+}
 
-// Demo users only available in development with explicit flag
-const DEMO_USERS = isDemoModeEnabled() ? [
-  {
-    id: "demo-1",
-    name: "Demo User",
-    email: "demo@example.com",
-    password: "DemoPassword123!@#" // Stronger demo password
-  }
-] : [];
+// Define user role types
+export enum UserRole {
+  ADMIN = 'admin',
+  USER = 'user',
+  MODERATOR = 'moderator',
+}
 
-// Configure OIDC providers based on environment
-const configureOIDCProviders = () => {
-  const providers: any[] = [];
-  const env = getValidatedEnv();
-
-  // Okta
-  if (env.OKTA_DOMAIN && env.OKTA_CLIENT_ID && env.OKTA_CLIENT_SECRET) {
-    providers.push(
-      OIDC_PROVIDERS.okta(env.OKTA_DOMAIN, env.OKTA_CLIENT_ID, env.OKTA_CLIENT_SECRET)
-    );
-  }
-
-  // Auth0
-  if (env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET) {
-    providers.push(
-      OIDC_PROVIDERS.auth0(env.AUTH0_DOMAIN, env.AUTH0_CLIENT_ID, env.AUTH0_CLIENT_SECRET)
-    );
-  }
-
-  // Azure AD
-  if (env.AZURE_AD_TENANT_ID && env.AZURE_AD_CLIENT_ID && env.AZURE_AD_CLIENT_SECRET) {
-    providers.push(
-      OIDC_PROVIDERS.azureAd(
-        env.AZURE_AD_TENANT_ID,
-        env.AZURE_AD_CLIENT_ID,
-        env.AZURE_AD_CLIENT_SECRET
-      )
-    );
-  }
-
-  return providers;
-};
-
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+// NextAuth configuration
+export const authOptions: AuthOptions = {
+  adapter: prisma ? PrismaAdapter(prisma) : undefined,
   providers: [
     GoogleProvider({
-      clientId: getValidatedEnv().GOOGLE_CLIENT_ID || "",
-      clientSecret: getValidatedEnv().GOOGLE_CLIENT_SECRET || "",
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
     GitHubProvider({
-      clientId: getValidatedEnv().GITHUB_CLIENT_ID || "",
-      clientSecret: getValidatedEnv().GITHUB_CLIENT_SECRET || "",
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
-    ...configureOIDCProviders(),
     CredentialsProvider({
-      name: "Credentials",
+      name: 'credentials',
       credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        if (!credentials?.email || !credentials?.password || !prisma) {
           return null;
         }
 
-        // Validate email format
-        const emailSchema = z.string().email();
-        try {
-          emailSchema.parse(credentials.email);
-        } catch {
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        if (!user || !user.password) {
           return null;
         }
 
-        // Rate limiting check (basic implementation)
-        const clientIP = process.env.NODE_ENV === 'test' ? 'test' : 'unknown';
-        
-        // Check demo users first (only in development with flag)
-        if (isDemoModeEnabled() && DEMO_USERS.length > 0) {
-          const demoUser = DEMO_USERS.find(
-            (user) => user.email === credentials.email && user.password === credentials.password
-          );
-          
-          if (demoUser) {
-            return {
-              id: demoUser.id,
-              name: demoUser.name,
-              email: demoUser.email
-            };
-          }
-        }
-        
-        // Check database users
-        try {
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email }
-          });
-          
-          if (user && user.password) {
-            const isValidPassword = await bcrypt.compare(credentials.password, user.password);
-            
-            if (isValidPassword) {
-              return {
-                id: user.id,
-                name: user.name,
-                email: user.email
-              };
-            }
-          }
-        } catch (error) {
-          console.error("Auth error:", error);
-          // Don't expose internal errors to client
+        const isValid = await bcrypt.compare(credentials.password, user.password);
+        if (!isValid) {
           return null;
         }
-        
-        return null;
-      }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role || UserRole.USER,
+        };
+      },
     }),
   ],
-  pages: {
-    signIn: '/auth/signin',
-    signOut: '/auth/signout',
-    error: '/auth/error',
+  session: {
+    strategy: 'jwt',
+    maxAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = user.role || UserRole.USER;
+      }
+      return token;
+    },
     async session({ session, token }) {
-      if (token && session.user) {
+      if (session.user) {
         session.user.id = token.sub!;
-        (session.user as any).role = token.role;
+        session.user.role = token.role as UserRole;
       }
       return session;
     },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-        });
-        (token as any).role = dbUser?.role;
-      }
-      return token;
-    }
   },
-  session: {
-    strategy: "jwt",
-    maxAge: getSessionMaxAge(), // 2 hours instead of 30 days
-    updateAge: 30 * 60, // 30 minutes - more frequent session updates for security
+  pages: {
+    signIn: '/auth/signin',
+    signUp: '/auth/signup',
   },
-  secret: getValidatedEnv().NEXTAUTH_SECRET, // No fallback - must be provided
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
-/**
- * Get the current session user from NextAuth
- */
-export async function getSessionUser() {
-  const session = await getServerSession(authOptions);
-  return session?.user || null;
+// Validation schema for session data
+const SessionSchema = z.object({
+  user: z.object({
+    id: z.string(),
+    email: z.string().email(),
+    name: z.string().optional(),
+    role: z.nativeEnum(UserRole).optional().default(UserRole.USER),
+  }),
+  expires: z.string(),
+});
+
+export type SessionData = z.infer<typeof SessionSchema>;
+
+// Authentication result type
+export interface AuthResult {
+  authenticated: boolean;
+  user?: SessionData['user'];
+  error?: string;
+  status: number;
 }
 
 /**
- * Check if user has one or more roles
+ * Authentication service providing utilities for session and user validation
  */
-export function hasRole(user: { role?: string } | undefined | null, roles: string[]): boolean {
-  if (!user || !user.role) {
+class AuthService {
+  private readonly MAX_AGE = 24 * 60 * 60; // 24 hours in seconds
+
+  /**
+   * Get session from Next.js API request
+   */
+  async getSessionFromRequest(req: NextApiRequest): Promise<SessionData | null> {
+    try {
+      const session = await getServerSession(
+        req,
+        { getHeader: () => undefined } as any,
+        authOptions,
+      );
+
+      if (!session?.user?.email) {
+        return null;
+      }
+
+      const validatedSession = SessionSchema.parse({
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name,
+          role: (session.user.role as UserRole) || UserRole.USER,
+        },
+        expires: session.expires,
+      });
+
+      return validatedSession;
+    } catch (error) {
+      console.error('Error getting session from request:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get session from Next.js App Router request
+   */
+  async getSessionFromAppRequest(req: NextRequest): Promise<SessionData | null> {
+    try {
+      // For App Router, we'll use the JWT token
+      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+
+      if (!token?.email) {
+        return null;
+      }
+
+      const validatedSession = SessionSchema.parse({
+        user: {
+          id: token.sub || token.email,
+          email: token.email,
+          name: token.name,
+          role: (token.role as UserRole) || UserRole.USER,
+        },
+        expires: token.exp
+          ? new Date(token.exp * 1000).toISOString()
+          : new Date(Date.now() + this.MAX_AGE * 1000).toISOString(),
+      });
+
+      return validatedSession;
+    } catch (error) {
+      console.error('Error getting session from app request:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if user has required role
+   */
+  hasRole(user: SessionData['user'] | undefined, requiredRole: UserRole): boolean {
+    if (!user) return false;
+
+    // Admins have all permissions
+    if (user.role === UserRole.ADMIN) return true;
+
+    // Check exact role match or if required role is less privileged
+    if (requiredRole === UserRole.USER) return true; // All logged-in users are at least "users"
+    if (requiredRole === UserRole.MODERATOR && user.role === UserRole.MODERATOR) return true;
+
     return false;
   }
-  return roles.includes(user.role);
 }
+
+// Create and export a singleton instance
+export const authService = new AuthService();
+
+// Export helper functions
+export async function getSessionUser(req?: NextApiRequest | NextRequest): Promise<SessionData['user'] | null> {
+  try {
+    if (req) {
+      const session = 'cookies' in req 
+        ? await authService.getSessionFromAppRequest(req as NextRequest)
+        : await authService.getSessionFromRequest(req as NextApiRequest);
+      return session?.user || null;
+    }
+    
+    // For server components, use getServerSession
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) return null;
+    
+    return {
+      id: session.user.id || session.user.email,
+      email: session.user.email,
+      name: session.user.name,
+      role: (session.user.role as UserRole) || UserRole.USER,
+    };
+  } catch (error) {
+    console.error('Error getting session user:', error);
+    return null;
+  }
+}
+
+export function hasRole(user: SessionData['user'] | undefined | null, requiredRole: UserRole): boolean {
+  return authService.hasRole(user, requiredRole);
+}
+
+// Re-export NextAuth functions for convenience
+export { getServerSession } from 'next-auth/next';
+export type { Session } from 'next-auth';
+
+// Export the service class as default
+export default AuthService;

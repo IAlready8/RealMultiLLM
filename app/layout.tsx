@@ -1,12 +1,12 @@
 
-import type { Metadata } from "next";
-import "./globals.css";
-import Navbar from "@/components/navbar";
-import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/components/auth-provider";
-import { AuthGuard } from "@/components/auth-guard";
-import { SettingsProvider } from "@/components/settings-provider";
-import ConsentBanner from "@/components/consent-banner";
+import './globals.css';
+import { AuthGuard } from '@/components/auth-guard';
+import { AuthProvider } from '@/components/auth-provider';
+import ConsentBanner from '@/components/consent-banner';
+import Navbar from '@/components/navbar';
+import { SettingsProvider } from '@/components/settings-provider';
+import { ThemeProvider } from '@/components/theme-provider';
+import type { Metadata } from 'next';
 
 const inter = { className: 'font-sans' };
 

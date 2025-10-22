@@ -1,11 +1,10 @@
-import { PrismaClient } from "@prisma/client";
-import { encrypt, decrypt, encryptApiKey, decryptApiKey } from "./crypto";
-// import { encryptApiKey, decryptApiKey } from "./crypto-enterprise";
-import { isServer } from "./runtime";
+import type { PrismaClient } from '@prisma/client';
+import { encryptApiKey, decryptApiKey } from './crypto';
+import { isServer } from './runtime';
 
 /**
- * Integration layer connecting enterprise encryption to database operations
- * Provides seamless encryption/decryption for API keys and sensitive data
+ * Integration layer connecting enterprise encryption to database operations.
+ * Provides consistent API key storage, retrieval, and metadata handling.
  */
 
 export interface EncryptedApiKey {
@@ -26,129 +25,91 @@ export interface ApiKeyMetadata {
   permissions?: string[];
   rateLimit?: {
     requests: number;
-    window: number; // seconds
+    window: number;
   };
 }
 
 export class EncryptionIntegration {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
-   * Store an encrypted API key in the database
+   * Store an encrypted API key in the database.
    */
   async storeApiKey(
     userId: string,
     provider: string,
     apiKey: string,
-    metadata?: ApiKeyMetadata
+    metadata?: ApiKeyMetadata,
   ): Promise<EncryptedApiKey> {
-    if (!isServer) {
-      throw new Error("API key storage must be performed on the server");
-    }
+    this.assertServerEnvironment('storeApiKey');
 
-    try {
-      // Encrypt the API key with provider binding
-      const encryptedValue = await encryptApiKey(apiKey, provider);
-      
-      // Extract key prefix for display (e.g., "sk-...abc" -> "sk-...abc")
-      const keyPrefix = this.extractKeyPrefix(apiKey);
-      
-      // Store in database with metadata
-      const stored = await this.prisma.providerConfig.create({
-        data: {
-          userId,
-          provider,
-          apiKey: encryptedValue, // Use apiKey field instead of encryptedApiKey
-          settings: JSON.stringify({
-            keyType: metadata?.keyType || 'api_key',
-            keyPrefix,
-            expiresAt: metadata?.expiresAt,
-            permissions: metadata?.permissions,
-            rateLimit: metadata?.rateLimit,
-          }),
-          isActive: true,
-          lastUsedAt: null,
-        },
-      });
+    const encryptedValue = await encryptApiKey(apiKey, provider);
+    const keyPrefix = this.extractKeyPrefix(apiKey);
 
-      return {
-        id: stored.id,
-        provider: stored.provider,
-        encryptedValue: stored.apiKey!,
-        userId: stored.userId,
-        createdAt: stored.createdAt,
-        updatedAt: stored.updatedAt,
-        lastUsed: stored.lastUsedAt ?? undefined,
-        isActive: stored.isActive,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to store API key: ${error.message}`);
-    }
+    const stored = await this.prisma.providerConfig.create({
+      data: {
+        userId,
+        provider,
+        apiKey: encryptedValue,
+        settings: JSON.stringify({
+          keyType: metadata?.keyType ?? 'api_key',
+          keyPrefix,
+          expiresAt: metadata?.expiresAt,
+          permissions: metadata?.permissions,
+          rateLimit: metadata?.rateLimit,
+        }),
+        isActive: true,
+        lastUsedAt: null,
+      },
+    });
+
+    return this.normalizeStoredConfig(stored);
   }
 
   /**
-   * Retrieve and decrypt an API key from the database
+   * Retrieve and decrypt an API key for a provider.
    */
   async getApiKey(userId: string, provider: string): Promise<string | null> {
-    if (!isServer) {
-      throw new Error("API key retrieval must be performed on the server");
-    }
+    this.assertServerEnvironment('getApiKey');
 
-    try {
-      const config = await this.prisma.providerConfig.findFirst({
-        where: {
-          userId,
-          provider,
-          isActive: true,
-        },
-        orderBy: {
-          updatedAt: 'desc',
-        },
-      });
+    const config = await this.prisma.providerConfig.findFirst({
+      where: { userId, provider, isActive: true },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-      if (!config || !config.apiKey) {
-        return null;
-      }
-
-      // Decrypt the API key
-      const decryptedKey = await decryptApiKey(config.apiKey, provider);
-      
-      // Update last used timestamp
-      await this.updateLastUsed(config.id);
-      
-      return decryptedKey;
-    } catch (error) {
-      console.error(`Failed to retrieve API key for ${provider}:`, error);
+    if (!config?.apiKey) {
       return null;
     }
+
+    const decrypted = await decryptApiKey(config.apiKey, provider);
+    await this.updateLastUsed(config.id);
+    return decrypted;
   }
 
   /**
-   * List all encrypted API keys for a user
+   * List active API keys for a user (without decrypting).
    */
-  async listApiKeys(userId: string): Promise<Array<Omit<EncryptedApiKey, 'encryptedValue'> & { keyPrefix: string }>> {
-    try {
-      const configs = await this.prisma.providerConfig.findMany({
-        where: {
-          userId,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          provider: true,
-          userId: true,
-          settings: true,
-          createdAt: true,
-          updatedAt: true,
-          lastUsedAt: true,
-          isActive: true,
-        },
-        orderBy: {
-          updatedAt: 'desc',
-        },
-      });
+  async listApiKeys(
+    userId: string,
+  ): Promise<Array<Omit<EncryptedApiKey, 'encryptedValue'> & { keyPrefix: string }>> {
+    const configs = await this.prisma.providerConfig.findMany({
+      where: { userId, isActive: true },
+      select: {
+        id: true,
+        provider: true,
+        userId: true,
+        settings: true,
+        createdAt: true,
+        updatedAt: true,
+        lastUsedAt: true,
+        isActive: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
 
-      return configs.map(config => ({
+    return configs.map((config) => {
+      const settings = this.parseSettings(config.settings);
+      return {
         id: config.id,
         provider: config.provider,
         userId: config.userId,
@@ -156,224 +117,147 @@ export class EncryptionIntegration {
         updatedAt: config.updatedAt,
         lastUsed: config.lastUsedAt ?? undefined,
         isActive: config.isActive,
-        keyPrefix: '', // This field doesn't exist in the database schema, using empty string
-      }));
-    } catch (error: any) {
-      throw new Error(`Failed to list API keys: ${error.message}`);
-    }
+        keyPrefix: typeof settings.keyPrefix === 'string' ? settings.keyPrefix : '',
+      };
+    });
   }
 
   /**
-   * Update an existing API key
+   * Encrypt and persist a new API key for an existing provider.
    */
   async updateApiKey(
     userId: string,
     provider: string,
     newApiKey: string,
-    metadata?: Partial<ApiKeyMetadata>
+    metadata?: Partial<ApiKeyMetadata>,
   ): Promise<EncryptedApiKey> {
-    if (!isServer) {
-      throw new Error("API key update must be performed on the server");
+    this.assertServerEnvironment('updateApiKey');
+
+    const existing = await this.prisma.providerConfig.findFirst({
+      where: { userId, provider, isActive: true },
+    });
+
+    if (!existing) {
+      throw new Error(`No active API key found for provider: ${provider}`);
     }
 
-    try {
-      // Find existing config
-      const existing = await this.prisma.providerConfig.findFirst({
-        where: {
-          userId,
-          provider,
-          isActive: true,
-        },
-      });
+    const encryptedValue = await encryptApiKey(newApiKey, provider);
+    const keyPrefix = this.extractKeyPrefix(newApiKey);
+    const currentSettings = this.parseSettings(existing.settings);
+    const updatedSettings = JSON.stringify({
+      ...currentSettings,
+      keyPrefix,
+      keyType: metadata?.keyType ?? currentSettings.keyType,
+      expiresAt: metadata?.expiresAt ?? currentSettings.expiresAt,
+      permissions: metadata?.permissions ?? currentSettings.permissions,
+      rateLimit: metadata?.rateLimit ?? currentSettings.rateLimit,
+    });
 
-      if (!existing) {
-        throw new Error(`No active API key found for provider: ${provider}`);
-      }
+    const updated = await this.prisma.providerConfig.update({
+      where: { id: existing.id },
+      data: {
+        apiKey: encryptedValue,
+        settings: updatedSettings,
+        updatedAt: new Date(),
+      },
+    });
 
-      // Encrypt new API key
-      const encryptedValue = await encryptApiKey(newApiKey, provider);
-      const keyPrefix = this.extractKeyPrefix(newApiKey);
-
-      const existingSettings = existing.settings ? JSON.parse(existing.settings) : {};
-      const newSettings = {
-        ...existingSettings,
-        keyPrefix,
-        keyType: metadata?.keyType || existingSettings.keyType,
-        expiresAt: metadata?.expiresAt !== undefined ? metadata.expiresAt : existingSettings.expiresAt,
-        permissions: metadata?.permissions || existingSettings.permissions,
-        rateLimit: metadata?.rateLimit || existingSettings.rateLimit,
-      };
-
-      // Update in database
-      const updated = await this.prisma.providerConfig.update({
-        where: { id: existing.id },
-        data: {
-          apiKey: encryptedValue,
-          settings: JSON.stringify(newSettings),
-          updatedAt: new Date(),
-        },
-      });
-
-      return {
-        id: updated.id,
-        provider: updated.provider,
-        encryptedValue: updated.apiKey!,
-        userId: updated.userId,
-        createdAt: updated.createdAt,
-        updatedAt: updated.updatedAt,
-        lastUsed: updated.lastUsedAt ?? undefined,
-        isActive: updated.isActive,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to update API key: ${error.message}`);
-    }
+    return this.normalizeStoredConfig(updated);
   }
 
   /**
-   * Deactivate an API key (soft delete)
+   * Soft-delete an API key.
    */
   async deactivateApiKey(userId: string, provider: string): Promise<boolean> {
-    try {
-      const result = await this.prisma.providerConfig.updateMany({
-        where: {
-          userId,
-          provider,
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-          updatedAt: new Date(),
-        },
-      });
-
-      return result.count > 0;
-    } catch (error) {
-      console.error(`Failed to deactivate API key for ${provider}:`, error);
-      return false;
-    }
+    const result = await this.prisma.providerConfig.updateMany({
+      where: { userId, provider, isActive: true },
+      data: { isActive: false, updatedAt: new Date() },
+    });
+    return result.count > 0;
   }
 
   /**
-   * Permanently delete an API key
+   * Permanently remove an API key.
    */
   async deleteApiKey(userId: string, provider: string): Promise<boolean> {
-    if (!isServer) {
-      throw new Error("API key deletion must be performed on the server");
-    }
+    this.assertServerEnvironment('deleteApiKey');
 
-    try {
-      const result = await this.prisma.providerConfig.deleteMany({
-        where: {
-          userId,
-          provider,
-        },
-      });
-
-      return result.count > 0;
-    } catch (error) {
-      console.error(`Failed to delete API key for ${provider}:`, error);
-      return false;
-    }
+    const result = await this.prisma.providerConfig.deleteMany({
+      where: { userId, provider },
+    });
+    return result.count > 0;
   }
 
   /**
-   * Migrate existing plaintext API keys to encrypted format
+   * Encrypt any legacy plaintext API keys in the database.
    */
   async migrateToEncrypted(): Promise<{ migrated: number; errors: number }> {
-    if (!isServer) {
-      throw new Error("Migration must be performed on the server");
-    }
+    this.assertServerEnvironment('migrateToEncrypted');
+
+    const configs = await this.prisma.providerConfig.findMany({
+      where: {
+        apiKey: { not: null },
+        NOT: { apiKey: { startsWith: 'v3:AES-256-GCM:' } },
+      },
+      select: { id: true, provider: true, apiKey: true },
+    });
 
     let migrated = 0;
     let errors = 0;
 
-    try {
-      // Find all configs with unencrypted API keys
-      const configs = await this.prisma.providerConfig.findMany({
-        where: {
-          apiKey: {
-            not: null,
-          },
-          // Identify unencrypted keys by checking format
-          NOT: {
-            apiKey: {
-              startsWith: 'v3:AES-256-GCM:',
-            },
-          },
-        },
-      });
-
-      for (const config of configs) {
-        try {
-          if (config.apiKey && !config.apiKey.startsWith('v3:AES-256-GCM:')) {
-            // This appears to be a plaintext key, encrypt it
-            const encryptedValue = await encryptApiKey(config.apiKey, config.provider);
-            
-            await this.prisma.providerConfig.update({
-              where: { id: config.id },
-              data: {
-                apiKey: encryptedValue,
-                updatedAt: new Date(),
-              },
-            });
-            
-            migrated++;
-          }
-        } catch (error: any) {
-          console.error(`Failed to migrate key for ${config.provider}:`, error);
-          errors++;
-        }
+    for (const config of configs) {
+      if (!config.apiKey) continue;
+      try {
+        const encryptedValue = await encryptApiKey(config.apiKey, config.provider);
+        await this.prisma.providerConfig.update({
+          where: { id: config.id },
+          data: { apiKey: encryptedValue, updatedAt: new Date() },
+        });
+        migrated += 1;
+      } catch (error) {
+        console.error(`Failed to migrate key for ${config.provider}:`, error);
+        errors += 1;
       }
-
-      return { migrated, errors };
-    } catch (error: any) {
-      throw new Error(`Migration failed: ${error.message}`);
     }
+
+    return { migrated, errors };
   }
 
   /**
-   * Validate all encrypted API keys can be decrypted
+   * Verify all encrypted keys can be decrypted.
    */
   async validateEncryptedKeys(): Promise<{ valid: number; invalid: string[] }> {
-    if (!isServer) {
-      throw new Error("Validation must be performed on the server");
-    }
+    this.assertServerEnvironment('validateEncryptedKeys');
+
+    const configs = await this.prisma.providerConfig.findMany({
+      where: {
+        apiKey: { not: null },
+        isActive: true,
+      },
+      select: { id: true, provider: true, apiKey: true },
+    });
 
     let valid = 0;
     const invalid: string[] = [];
 
-    try {
-      const configs = await this.prisma.providerConfig.findMany({
-        where: {
-          apiKey: {
-            not: null,
-          },
-          isActive: true,
-        },
-      });
-
-      for (const config of configs) {
-        try {
-          if (config.apiKey) {
-            await decryptApiKey(config.apiKey, config.provider);
-            valid++;
-          }
-        } catch (error: any) {
-          invalid.push(`${config.provider} (${config.id}): ${error.message}`);
-        }
+    for (const config of configs) {
+      if (!config.apiKey) continue;
+      try {
+        await decryptApiKey(config.apiKey, config.provider);
+        valid += 1;
+      } catch (error) {
+        invalid.push(`${config.provider} (${config.id}): ${error instanceof Error ? error.message : 'unknown error'}`);
       }
-
-      return { valid, invalid };
-    } catch (error: any) {
-      throw new Error(`Validation failed: ${error.message}`);
     }
+
+    return { valid, invalid };
   }
 
   /**
-   * Batch encrypt multiple API keys
+   * Encrypt and store multiple API keys.
    */
   async batchEncryptApiKeys(
-    entries: Array<{ userId: string; provider: string; apiKey: string; metadata?: ApiKeyMetadata }>
+    entries: Array<{ userId: string; provider: string; apiKey: string; metadata?: ApiKeyMetadata }>,
   ): Promise<{ success: number; errors: Array<{ provider: string; error: string }> }> {
     let success = 0;
     const errors: Array<{ provider: string; error: string }> = [];
@@ -381,7 +265,7 @@ export class EncryptionIntegration {
     for (const entry of entries) {
       try {
         await this.storeApiKey(entry.userId, entry.provider, entry.apiKey, entry.metadata);
-        success++;
+        success += 1;
       } catch (error) {
         errors.push({
           provider: entry.provider,
@@ -394,7 +278,7 @@ export class EncryptionIntegration {
   }
 
   /**
-   * Get encryption statistics
+   * Collect statistics about encrypted keys.
    */
   async getEncryptionStats(): Promise<{
     totalKeys: number;
@@ -402,48 +286,57 @@ export class EncryptionIntegration {
     legacyKeys: number;
     providerBreakdown: Record<string, { total: number; encrypted: number }>;
   }> {
-    try {
-      const allConfigs = await this.prisma.providerConfig.findMany({
-        where: {
-          apiKey: {
-            not: null,
-          },
-        },
-        select: {
-          provider: true,
-          apiKey: true,
-        },
-      });
+    const configs = await this.prisma.providerConfig.findMany({
+      where: { apiKey: { not: null } },
+      select: { provider: true, apiKey: true },
+    });
 
-      const totalKeys = allConfigs.length;
-      let encryptedKeys = 0;
-      let legacyKeys = 0;
-      const providerBreakdown: Record<string, { total: number; encrypted: number }> = {};
+    let encryptedKeys = 0;
+    let legacyKeys = 0;
+    const providerBreakdown: Record<string, { total: number; encrypted: number }> = {};
 
-      for (const config of allConfigs) {
-        if (!providerBreakdown[config.provider]) {
-          providerBreakdown[config.provider] = { total: 0, encrypted: 0 };
-        }
-        
-        providerBreakdown[config.provider].total++;
-        
-        if (config.apiKey?.startsWith('v3:AES-256-GCM:')) {
-          encryptedKeys++;
-          providerBreakdown[config.provider].encrypted++;
-        } else {
-          legacyKeys++;
-        }
+    for (const config of configs) {
+      if (!providerBreakdown[config.provider]) {
+        providerBreakdown[config.provider] = { total: 0, encrypted: 0 };
       }
 
-      return {
-        totalKeys,
-        encryptedKeys,
-        legacyKeys,
-        providerBreakdown,
-      };
-    } catch (error: any) {
-      throw new Error(`Failed to get encryption stats: ${error.message}`);
+      providerBreakdown[config.provider].total += 1;
+      if (config.apiKey?.startsWith('v3:AES-256-GCM:')) {
+        encryptedKeys += 1;
+        providerBreakdown[config.provider].encrypted += 1;
+      } else {
+        legacyKeys += 1;
+      }
     }
+
+    return {
+      totalKeys: configs.length,
+      encryptedKeys,
+      legacyKeys,
+      providerBreakdown,
+    };
+  }
+
+  private normalizeStoredConfig(stored: {
+    id: string;
+    provider: string;
+    apiKey: string | null;
+    userId: string;
+    createdAt: Date;
+    updatedAt: Date;
+    lastUsedAt: Date | null;
+    isActive: boolean;
+  }): EncryptedApiKey {
+    return {
+      id: stored.id,
+      provider: stored.provider,
+      encryptedValue: stored.apiKey ?? '',
+      userId: stored.userId,
+      createdAt: stored.createdAt,
+      updatedAt: stored.updatedAt,
+      lastUsed: stored.lastUsedAt ?? undefined,
+      isActive: stored.isActive,
+    };
   }
 
   private async updateLastUsed(configId: string): Promise<void> {
@@ -452,9 +345,8 @@ export class EncryptionIntegration {
         where: { id: configId },
         data: { lastUsedAt: new Date() },
       });
-    } catch (error: any) {
-      // Don't fail the main operation if we can't update the timestamp
-      console.warn(`Failed to update last used timestamp: ${error.message}`);
+    } catch (error) {
+      console.warn('Failed to update provider key last-used timestamp', error);
     }
   }
 
@@ -462,41 +354,45 @@ export class EncryptionIntegration {
     if (apiKey.length <= 8) {
       return apiKey;
     }
-    
-    // Show first 8 characters + "..."
-    return `${apiKey.substring(0, 8)}...`;
+    return `${apiKey.slice(0, 8)}...`;
   }
-}
 
-// Singleton instance
-let encryptionIntegration: EncryptionIntegration | null = null;
-
-/**
- * Get the singleton encryption integration instance
- */
-export function getEncryptionIntegration(prisma?: PrismaClient): EncryptionIntegration {
-  if (!isServer) {
-    throw new Error("Encryption integration is only available on the server");
-  }
-  
-  if (!encryptionIntegration) {
-    if (!prisma) {
-      throw new Error("Prisma client is required to initialize encryption integration");
+  private parseSettings(settings: string | null): Record<string, unknown> {
+    if (!settings) {
+      return {};
     }
-    encryptionIntegration = new EncryptionIntegration(prisma);
+    try {
+      return JSON.parse(settings) as Record<string, unknown>;
+    } catch (error) {
+      console.warn('Failed to parse provider configuration settings', error);
+      return {};
+    }
   }
-  
-  return encryptionIntegration;
+
+  private assertServerEnvironment(operation: string): void {
+    if (!isServer) {
+      throw new Error(`${operation} must be performed on the server`);
+    }
+  }
 }
 
-/**
- * Helper functions for common operations
- */
+let singleton: EncryptionIntegration | null = null;
+
+export function getEncryptionIntegration(prisma?: PrismaClient): EncryptionIntegration {
+  if (!singleton) {
+    if (!prisma) {
+      throw new Error('Prisma client is required to initialize encryption integration');
+    }
+    singleton = new EncryptionIntegration(prisma);
+  }
+  return singleton;
+}
+
 export async function secureStoreApiKey(
   prisma: PrismaClient,
   userId: string,
   provider: string,
-  apiKey: string
+  apiKey: string,
 ): Promise<EncryptedApiKey> {
   const integration = getEncryptionIntegration(prisma);
   return integration.storeApiKey(userId, provider, apiKey);
@@ -505,14 +401,14 @@ export async function secureStoreApiKey(
 export async function secureGetApiKey(
   prisma: PrismaClient,
   userId: string,
-  provider: string
+  provider: string,
 ): Promise<string | null> {
   const integration = getEncryptionIntegration(prisma);
   return integration.getApiKey(userId, provider);
 }
 
 export async function migrateAllApiKeysToEncrypted(
-  prisma: PrismaClient
+  prisma: PrismaClient,
 ): Promise<{ migrated: number; errors: number }> {
   const integration = getEncryptionIntegration(prisma);
   return integration.migrateToEncrypted();
