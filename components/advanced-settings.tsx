@@ -22,7 +22,8 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { hasRole, getSessionUser } from '@/lib/auth';
+import { hasRole, getSessionUser, UserRole } from '@/lib/auth';
+import type { SessionData } from '@/lib/auth';
 
 interface SecuritySettings {
   encryptionEnabled: boolean;
@@ -47,7 +48,7 @@ interface NotificationSettings {
 
 export default function AdvancedSettings() {
   const [activeTab, setActiveTab] = useState('appearance');
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [sessionUser, setSessionUser] = useState<SessionData['user'] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,11 +70,7 @@ export default function AdvancedSettings() {
     const loadUserRole = async () => {
       try {
         const user = await getSessionUser();
-        if (user) {
-          setUserRole(user.role || null);
-        } else {
-          setUserRole(null);
-        }
+        setSessionUser(user);
       } catch (err) {
         console.error('Error loading user role:', err);
         setError('Failed to load user information');
@@ -138,7 +135,7 @@ export default function AdvancedSettings() {
   };
 
   // Check if user has admin role
-  const isAdmin = userRole && hasRole({ role: userRole }, ['admin']);
+  const isAdmin = hasRole(sessionUser, UserRole.ADMIN);
 
   if (loading) {
     return (

@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
       testApiKey = apiKey;
     } else {
       // Get the user's provider configuration
-      testApiKey = await getUserApiKey(session.user.id, provider);
+      const storedApiKey = await getUserApiKey(session.user.id, provider);
+      testApiKey = storedApiKey ?? undefined;
       if (!testApiKey) {
         return NextResponse.json({ 
           success: false, 
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input data', details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid input data', details: error.issues }, { status: 400 });
     }
 
     console.error('Error testing provider config:', error);
