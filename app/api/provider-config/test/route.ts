@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getUserApiKey } from '@/lib/api-key-service';
-import { providerTestService } from '@/services/provider-test-service';
+import { testProviderConnection } from '@/services/llm-providers/registry';
 import { z } from 'zod';
 
 const testSchema = z.object({
@@ -45,13 +45,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Test the API key with real provider
-    const testResult = await providerTestService.testProvider(provider, { apiKey: testApiKey });
+    const testResult = await testProviderConnection(provider, testApiKey);
 
     return NextResponse.json({
       provider,
       success: testResult.success,
-      message: testResult.message,
-      latency: testResult.latency,
+      message: testResult.error || (testResult.success ? 'Connection successful' : 'Connection failed'),
+      details: testResult.details,
+      latency: testResult.latencyMs,
       error: testResult.error,
       timestamp: new Date().toISOString(),
       testedAt: new Date().toISOString(),
