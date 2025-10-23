@@ -13,6 +13,8 @@ import {
   createErrorContext 
 } from '@/lib/error-system'
 import type { ProviderConfig } from '@/lib/config-schemas'
+import { ILLMProvider, ProviderMetadata, ConnectionTestResult, ModelInfo, ChatRequest, ChatChunk, ChatResponse } from './base-provider';
+
 
 interface OpenAIRequest {
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
@@ -40,35 +42,66 @@ interface OpenAIStreamChunk {
   }>
 }
 
-export class OpenAIService {
-  private static instance: OpenAIService
+class OpenAIService implements ILLMProvider { // Removed export, implemented ILLMProvider
   private baseUrl = 'https://api.openai.com/v1'
+  private metadata: ProviderMetadata; // Added metadata property
 
-  private constructor() {}
-
-  public static getInstance(): OpenAIService {
-    if (!OpenAIService.instance) {
-      OpenAIService.instance = new OpenAIService()
-    }
-    return OpenAIService.instance
+  constructor(private apiKey: string) { // Added constructor
+    this.metadata = { // Initialize metadata
+      id: 'openai',
+      name: 'OpenAI',
+      label: 'ChatGPT',
+      icon: 'Zap',
+      color: 'bg-green-500',
+      description: 'OpenAI GPT models including GPT-4 and GPT-3.5',
+      website: 'https://openai.com',
+      supportsStreaming: true,
+      supportsSystemPrompt: true,
+      maxContextLength: 128000,
+      requiresBaseUrl: false,
+      rateLimitNotes: 'Tier-based rate limits (3-5K RPM standard)',
+      models: [
+        {
+          id: 'gpt-4o',
+          name: 'GPT-4o',
+          maxTokens: 16384,
+          description: 'Most capable multimodal model',
+          contextWindow: 128000,
+          pricing: { input: 2.5, output: 10 }
+        },
+        {
+          id: 'gpt-4o-mini',
+          name: 'GPT-4o Mini',
+          maxTokens: 16384,
+          description: 'Fast and cost-effective',
+          contextWindow: 128000,
+          pricing: { input: 0.15, output: 0.6 }
+        },
+        {
+          id: 'gpt-4-turbo',
+          name: 'GPT-4 Turbo',
+          maxTokens: 4096,
+          description: 'High-performance GPT-4',
+          contextWindow: 128000,
+          pricing: { input: 10, output: 30 }
+        },
+        {
+          id: 'gpt-3.5-turbo',
+          name: 'GPT-3.5 Turbo',
+          maxTokens: 4096,
+          description: 'Fast and efficient',
+          contextWindow: 16385,
+          pricing: { input: 0.5, output: 1.5 }
+        }
+      ]
+    };
   }
 
-  async getConfig(userId: string): Promise<ProviderConfig> {
-    try {
-      const config = await configManager.getProviderConfig(userId, 'openai')
-      if (!config) {
-        const context = createErrorContext('/services/openai', userId)
-        throw new ValidationError('OpenAI configuration not found', 'provider_config', context)
-      }
-      return config
-    } catch (error) {
-      const context = createErrorContext('/services/openai', userId, { action: 'get_config' })
-      await errorManager.logError(error as Error, context)
-      throw error
-    }
+  getMetadata(): ProviderMetadata { // Implemented getMetadata
+    return this.metadata;
   }
 
-  async testConnection(apiKey: string, baseUrl?: string): Promise<boolean> {
+  async testConnection(apiKey: string, baseUrl?: string): Promise<ConnectionTestResult> {
     try {
       const url = baseUrl || this.baseUrl
       const response = await fetch(`${url}/models`, {
@@ -93,7 +126,7 @@ export class OpenAIService {
         )
       }
 
-      return true
+      return { success: true };
     } catch (error) {
       if (error instanceof LLMProviderError) {
         throw error
@@ -108,19 +141,17 @@ export class OpenAIService {
     }
   }
 
-  async chat(request: OpenAIRequest): Promise<OpenAIResponse> {
+  async chat(request: ChatRequest): Promise<ChatResponse> {
     const context = createErrorContext('/services/openai/chat', request.userId, {
       model: request.model,
       messages_count: request.messages.length,
     })
 
     try {
-      const config = request.userId ? await this.getConfig(request.userId) : null
-      const apiKey = config?.apiKey
-      const baseUrl = config?.baseUrl || this.baseUrl
+      const baseUrl = request.baseUrl || this.baseUrl // Use request.baseUrl if provided
       const model = request.model || 'gpt-3.5-turbo'
 
-      if (!apiKey) {
+      if (!this.apiKey) { // Use this.apiKey
         throw new ValidationError('OpenAI API key not configured', 'api_key', context)
       }
 
@@ -133,7 +164,7 @@ export class OpenAIService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${this.apiKey}`, // Use this.apiKey
           'User-Agent': 'Personal-LLM-Tool/1.0',
         },
         body: JSON.stringify({
@@ -170,7 +201,7 @@ export class OpenAIService {
 
       return {
         content: data.choices[0].message?.content || '',
-        finish_reason: data.choices[0].finish_reason,
+        finishReason: data.choices[0].finish_reason,
         usage: data.usage,
       }
 
@@ -180,19 +211,17 @@ export class OpenAIService {
     }
   }
 
-  async *streamChat(request: OpenAIRequest): AsyncGenerator<string, void, undefined> {
+  async *streamChat(request: ChatRequest): AsyncGenerator<ChatChunk> {
     const context = createErrorContext('/services/openai/stream', request.userId, {
       model: request.model,
       messages_count: request.messages.length,
     })
 
     try {
-      const config = request.userId ? await this.getConfig(request.userId) : null
-      const apiKey = config?.apiKey
-      const baseUrl = config?.baseUrl || this.baseUrl
+      const baseUrl = request.baseUrl || this.baseUrl
       const model = request.model || 'gpt-3.5-turbo'
 
-      if (!apiKey) {
+      if (!this.apiKey) {
         throw new ValidationError('OpenAI API key not configured', 'api_key', context)
       }
 
@@ -204,7 +233,7 @@ export class OpenAIService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${this.apiKey}`,
           'User-Agent': 'Personal-LLM-Tool/1.0',
         },
         body: JSON.stringify({
@@ -250,10 +279,15 @@ export class OpenAIService {
                 const content = parsed.choices[0]?.delta?.content
                 
                 if (content) {
-                  yield content
+                  yield { content } // Yield ChatChunk
                 }
 
                 if (parsed.choices[0]?.finish_reason) {
+                  yield { // Yield final chunk with finishReason
+                    content: '',
+                    done: true,
+                    finishReason: parsed.choices[0].finish_reason,
+                  }
                   return
                 }
               } catch (parseError) {
@@ -273,45 +307,50 @@ export class OpenAIService {
     }
   }
 
-  async getModels(userId?: string): Promise<string[]> {
-    const context = createErrorContext('/services/openai/models', userId)
+  async getModels(apiKey?: string): Promise<ModelInfo[]> {
+    const context = createErrorContext('/services/openai/models', undefined) // userId is not always available here
 
     try {
-      if (userId) {
-        const config = await this.getConfig(userId)
-        return config.models
+      // If an API key is provided, try to fetch live models
+      if (apiKey) {
+        const url = this.baseUrl;
+        const response = await fetch(`${url}/models`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'User-Agent': 'Personal-LLM-Tool/1.0',
+          },
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => ({}))
+          throw new LLMProviderError(
+            'openai',
+            errorBody.error?.message || `HTTP ${response.status}: ${response.statusText}`,
+            context
+          );
+        }
+
+        const data = await response.json();
+        // Map OpenAI models to ModelInfo interface
+        return data.data.map((model: any) => ({
+          id: model.id,
+          name: model.id, // OpenAI models often use ID as name
+          maxTokens: 4096, // Default or fetch from a more detailed endpoint if available
+          description: model.id,
+        }));
       }
       
-      // Return default models
-      return configManager.getDefaultModels('openai')
+      // Return default models from metadata if no API key or fetch fails
+      return this.metadata.models;
     } catch (error) {
-      await errorManager.logError(error as Error, context)
-      throw error
+      console.warn(`Failed to fetch live models for OpenAI, falling back to static list:`, error);
+      await errorManager.logError(error as Error, context);
+      return this.metadata.models;
     }
   }
 }
 
-// Legacy function for backward compatibility
-export async function callOpenAI(request: {
-  apiKey: string;
-  model: string;
-  prompt: string;
-  temperature?: number;
-  max_tokens?: number;
-}): Promise<{ text: string; finish_reason: string }> {
-  const service = OpenAIService.getInstance()
-  
-  const messages = [{ role: 'user' as const, content: request.prompt }]
-  
-  const response = await service.chat({
-    messages,
-    model: request.model,
-    temperature: request.temperature,
-    max_tokens: request.max_tokens,
-  })
-
-  return {
-    text: response.content,
-    finish_reason: response.finish_reason,
-  }
-}
+// Export as default
+export default OpenAIService;

@@ -5,21 +5,27 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+// Guard: Skip Prisma initialization during Next.js build phase
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' || 
+                      process.env.npm_lifecycle_event === 'build';
+
 // Enhanced Prisma configuration with better logging and optimization
-const prisma = global.prisma || new PrismaClient({
-  log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-  // Connection pool optimization via DATABASE_URL parameters:
-  // PostgreSQL: postgresql://user:password@localhost:5432/db?connection_limit=20&pool_timeout=20&connect_timeout=60
-  // SQLite: file:./dev.db?connection_limit=1 (SQLite only supports 1 connection)
-});
+const prisma = isBuildPhase 
+  ? ({} as PrismaClient) 
+  : (global.prisma || new PrismaClient({
+      log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+      datasources: {
+        db: {
+          url: process.env.DATABASE_URL,
+        },
+      },
+      // Connection pool optimization via DATABASE_URL parameters:
+      // PostgreSQL: postgresql://user:password@localhost:5432/db?connection_limit=20&pool_timeout=20&connect_timeout=60
+      // SQLite: file:./dev.db?connection_limit=1 (SQLite only supports 1 connection)
+    }));
 
 // Add query monitoring for performance optimization (non-breaking)
-if (process.env.NODE_ENV !== "test" && typeof window === "undefined") {
+if (!isBuildPhase && process.env.NODE_ENV !== "test" && typeof window === "undefined") {
   import('./prisma-pool-monitor').then(({ prismaPoolMonitor }) => {
     // Wrap critical query methods with monitoring
     const originalFindMany = prisma.$queryRaw.bind(prisma);
@@ -47,7 +53,7 @@ if (process.env.NODE_ENV !== "test" && typeof window === "undefined") {
 }
 
 // Enhanced connection management
-if (!global.prisma && typeof window === "undefined") {
+if (!isBuildPhase && !global.prisma && typeof window === "undefined") {
   const connectWithRetry = async (maxRetries = 3, delay = 1000) => {
     for (let i = 0; i < maxRetries; i++) {
       try {
@@ -69,7 +75,7 @@ if (!global.prisma && typeof window === "undefined") {
 }
 
 // Graceful shutdown handling
-if (typeof window === "undefined") {
+if (!isBuildPhase && typeof window === "undefined") {
   const gracefulShutdown = async () => {
     console.log("🔄 Gracefully shutting down database connection...");
     await prisma.$disconnect();
@@ -81,6 +87,7 @@ if (typeof window === "undefined") {
   process.on("beforeExit", gracefulShutdown);
 }
 
-if (process.env.NODE_ENV === "development") global.prisma = prisma;
+if (!isBuildPhase && process.env.NODE_ENV === "development") global.prisma = prisma;
 
+export { prisma };
 export default prisma;
