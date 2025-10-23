@@ -3,9 +3,9 @@
  * Provides comprehensive data export/import with multiple formats and validation
  */
 
-import { Logger } from '../../lib/logger';
-import { Cache } from '../../lib/cache';
-import { LLMManager } from '../../lib/llm-manager';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
+import { LLMManager } from '../../../lib/llm-manager';
 import { v4 as uuidv4 } from 'uuid';
 import JSZip from 'jszip';
 import { Readable } from 'stream';

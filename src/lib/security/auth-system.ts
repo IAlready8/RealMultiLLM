@@ -3,9 +3,9 @@
  * Provides enterprise-grade security with MFA, API keys, and permissions
  */
 
-import { Logger } from '../../lib/logger';
-import { Cache } from '../../lib/cache';
-import { Crypto } from '../../lib/crypto';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
+import { Crypto } from '../../../lib/crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';

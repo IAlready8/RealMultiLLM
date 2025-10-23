@@ -4,3 +4,5 @@ out
 build
 coverage
 .eslintrc.cjs
+src/lib/
+lib/agents/

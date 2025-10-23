@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { GET, POST } from '@/api/analytics/route'
 import { NextRequest } from 'next/server'
 
+// Mock authentication
+const mockAuth = {
+  getServerSession: vi.fn(),
+}
+
+vi.mock('next-auth', () => ({
+  getServerSession: mockAuth.getServerSession,
+}))
+
 // Mock analytics service
 const mockAnalyticsService = {
   trackEvent: vi.fn(),
@@ -12,15 +21,6 @@ const mockAnalyticsService = {
 
 vi.mock('@/services/analytics-service', () => ({
   AnalyticsService: vi.fn().mockImplementation(() => mockAnalyticsService),
-}))
-
-// Mock authentication
-const mockAuth = {
-  getServerSession: vi.fn(),
-}
-
-vi.mock('next-auth', () => ({
-  getServerSession: mockAuth.getServerSession,
 }))
 
 describe('/api/analytics', () => {

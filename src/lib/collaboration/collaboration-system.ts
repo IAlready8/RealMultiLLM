@@ -3,9 +3,9 @@
  * Provides real-time collaboration with operational transformation
  */
 
-import { Logger } from '../../lib/logger';
-import { Cache } from '../../lib/cache';
-import { LLMManager } from '../../lib/llm-manager';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
+import { LLMManager } from '../../../lib/llm-manager';
 
 // Type definitions
 export interface CollaborationRoom {

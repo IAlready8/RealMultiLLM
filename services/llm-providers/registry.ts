@@ -6,20 +6,23 @@
  */
 
 import type { ILLMProvider, ProviderMetadata, ChatRequest, ChatChunk, ChatResponse, ModelInfo, ConnectionTestResult } from './base-provider'
-import { OpenAIService } from './openai-service'
+import { OpenAIProvider } from './openai-service' // Changed import
 
-// Lazy-loaded provider imports for optimization
-let anthropicService: any = null
-let googleAIService: any = null
-let grokService: any = null
-let openRouterService: any = null
+// Lazy-loaded provider instances (singletons per API key)
+// Note: These should ideally be managed per user session or context,
+// but for simplicity, we'll use a basic caching mechanism here.
+const anthropicServiceCache: Record<string, ILLMProvider> = {};
+const googleAIServiceCache: Record<string, ILLMProvider> = {};
+const grokServiceCache: Record<string, ILLMProvider> = {};
+const openRouterServiceCache: Record<string, ILLMProvider> = {};
+
 
 /**
  * Provider factory pattern for singleton instances
  */
 interface ProviderFactory {
-  getInstance: () => Promise<ILLMProvider>
-  metadata: ProviderMetadata
+  getInstance: (apiKey: string) => Promise<ILLMProvider>; // Added apiKey parameter
+  metadata: ProviderMetadata;
 }
 
 /**
@@ -241,48 +244,48 @@ const PROVIDER_METADATA: Record<string, ProviderMetadata> = {
 const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
   openai: {
     metadata: PROVIDER_METADATA.openai,
-    getInstance: async () => {
-      return OpenAIService.getInstance() as unknown as ILLMProvider
+    getInstance: async (apiKey: string) => { // Added apiKey parameter
+      return new OpenAIProvider(apiKey) as unknown as ILLMProvider; // Instantiate with apiKey
     }
   },
   anthropic: {
     metadata: PROVIDER_METADATA.anthropic,
-    getInstance: async () => {
-      if (!anthropicService) {
-        const module = await import('./anthropic-service')
-        anthropicService = new module.default()
+    getInstance: async (apiKey: string) => { // Added apiKey parameter
+      if (!anthropicServiceCache[apiKey]) { // Cache by apiKey
+        const module = await import('./anthropic-service');
+        anthropicServiceCache[apiKey] = new module.default(apiKey); // Pass apiKey to constructor
       }
-      return anthropicService
+      return anthropicServiceCache[apiKey];
     }
   },
   'google-ai': {
     metadata: PROVIDER_METADATA['google-ai'],
-    getInstance: async () => {
-      if (!googleAIService) {
-        const module = await import('./google-ai-service')
-        googleAIService = new module.default()
+    getInstance: async (apiKey: string) => { // Added apiKey parameter
+      if (!googleAIServiceCache[apiKey]) { // Cache by apiKey
+        const module = await import('./google-ai-service');
+        googleAIServiceCache[apiKey] = new module.default(apiKey); // Pass apiKey to constructor
       }
-      return googleAIService
+      return googleAIServiceCache[apiKey];
     }
   },
   grok: {
     metadata: PROVIDER_METADATA.grok,
-    getInstance: async () => {
-      if (!grokService) {
-        const module = await import('./grok-service')
-        grokService = new module.default()
+    getInstance: async (apiKey: string) => { // Added apiKey parameter
+      if (!grokServiceCache[apiKey]) { // Cache by apiKey
+        const module = await import('./grok-service');
+        grokServiceCache[apiKey] = new module.default(apiKey); // Pass apiKey to constructor
       }
-      return grokService
+      return grokServiceCache[apiKey];
     }
   },
   openrouter: {
     metadata: PROVIDER_METADATA.openrouter,
-    getInstance: async () => {
-      if (!openRouterService) {
-        const module = await import('./openrouter-service')
-        openRouterService = new module.default()
+    getInstance: async (apiKey: string) => { // Added apiKey parameter
+      if (!openRouterServiceCache[apiKey]) { // Cache by apiKey
+        const module = await import('./openrouter-service');
+        openRouterServiceCache[apiKey] = new module.default(apiKey); // Pass apiKey to constructor
       }
-      return openRouterService
+      return openRouterServiceCache[apiKey];
     }
   }
 }
@@ -290,20 +293,21 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
 /**
  * Get provider instance by ID
  * @param providerId - Provider identifier (openai, anthropic, etc.)
+ * @param apiKey - The API key for the provider
  * @returns Provider instance or null if not found
  */
-export async function getProvider(providerId: string): Promise<ILLMProvider | null> {
-  const factory = PROVIDER_FACTORIES[providerId]
+export async function getProvider(providerId: string, apiKey: string): Promise<ILLMProvider | null> { // Added apiKey parameter
+  const factory = PROVIDER_FACTORIES[providerId];
   if (!factory) {
-    console.error(`Provider not found: ${providerId}`)
-    return null
+    console.error(`Provider not found: ${providerId}`);
+    return null;
   }
 
   try {
-    return await factory.getInstance()
+    return await factory.getInstance(apiKey); // Pass apiKey
   } catch (error) {
-    console.error(`Failed to instantiate provider ${providerId}:`, error)
-    return null
+    console.error(`Failed to instantiate provider ${providerId}:`, error);
+    return null;
   }
 }
 
@@ -353,7 +357,7 @@ export async function getProviderModels(
   // If API key provided, try to fetch live models
   if (apiKey) {
     try {
-      const provider = await getProvider(providerId)
+      const provider = await getProvider(providerId, apiKey) // Pass apiKey
       if (provider) {
         const models = await provider.getModels(apiKey)
         if (models && models.length > 0) {
@@ -377,7 +381,7 @@ export async function testProviderConnection(
   apiKey: string,
   baseUrl?: string
 ): Promise<ConnectionTestResult> {
-  const provider = await getProvider(providerId)
+  const provider = await getProvider(providerId, apiKey) // Pass apiKey
   if (!provider) {
     return {
       success: false,
@@ -404,7 +408,7 @@ export async function streamChatWithProvider(
   apiKey: string,
   baseUrl?: string
 ): Promise<AsyncGenerator<ChatChunk>> {
-  const provider = await getProvider(providerId)
+  const provider = await getProvider(providerId, apiKey) // Pass apiKey
   if (!provider) {
     throw new Error(`Provider ${providerId} not found`)
   }
@@ -421,7 +425,7 @@ export async function chatWithProvider(
   apiKey: string,
   baseUrl?: string
 ): Promise<ChatResponse> {
-  const provider = await getProvider(providerId)
+  const provider = await getProvider(providerId, apiKey) // Pass apiKey
   if (!provider) {
     throw new Error(`Provider ${providerId} not found`)
   }
@@ -461,7 +465,11 @@ class ProviderRegistry {
   }
   
   get(providerId: string) {
-    return PROVIDER_FACTORIES[providerId] || null;
+    // This method cannot return a fully instantiated provider without an API key.
+    // It should probably return metadata only, or require an API key.
+    // For now, returning null as it's not safe to instantiate without a key.
+    console.warn(`Attempted to get provider instance for ${providerId} without API key. Returning null.`);
+    return null;
   }
   
   has(providerId: string) {

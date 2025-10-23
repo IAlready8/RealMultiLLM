@@ -1,22 +1,34 @@
 import React, { ReactElement } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { SessionProvider } from 'next-auth/react';
+import type { Session } from 'next-auth';
 import { ThemeProvider } from 'next-themes';
 
-const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
-  return (
-    <SessionProvider session={null}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-        {children}
-      </ThemeProvider>
-    </SessionProvider>
-  );
+interface ProviderProps {
+  children: React.ReactNode;
+  session: Session | null;
+}
+
+const AllTheProviders = ({ children, session }: ProviderProps) => (
+  <SessionProvider session={session}>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      {children}
+    </ThemeProvider>
+  </SessionProvider>
+);
+
+type ExtendedRenderOptions = Omit<RenderOptions, 'wrapper'> & {
+  session?: Session | null;
 };
 
 const customRender = (
   ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>,
-) => render(ui, { wrapper: AllTheProviders, ...options });
+  { session = null, ...options }: ExtendedRenderOptions = {},
+) =>
+  render(ui, {
+    wrapper: (props) => <AllTheProviders session={session} {...props} />,
+    ...options,
+  });
 
 export * from '@testing-library/react';
 export { customRender as render };

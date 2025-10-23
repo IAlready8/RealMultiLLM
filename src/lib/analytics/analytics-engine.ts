@@ -3,9 +3,9 @@
  * Provides real-time analytics with dashboard creation and insight generation
  */
 
-import { Logger } from '../../lib/logger';
-import { Cache } from '../../lib/cache';
-import { LLMManager } from '../../lib/llm-manager';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
+import { LLMManager } from '../../../lib/llm-manager';
 
 // Type definitions
 export interface AnalyticsEvent {

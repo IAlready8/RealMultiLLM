@@ -24,7 +24,12 @@ export default defineConfig({
       'test/e2e/**',
     ],
     // Reduce flakiness in CI runners; can be overridden via CLI flags
-    pool: process.env.CI ? 'forks' : 'threads',
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

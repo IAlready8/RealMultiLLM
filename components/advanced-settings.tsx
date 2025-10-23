@@ -22,29 +22,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { hasRole, getSessionUser, UserRole } from '@/lib/auth';
-import type { SessionData } from '@/lib/auth';
-
-interface SecuritySettings {
-  encryptionEnabled: boolean;
-  twoFactorAuth: boolean;
-  sessionTimeout: number;
-  loginAttempts: number;
-  ipWhitelist: string[];
-}
-
-interface NotificationSettings {
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-  soundEnabled: boolean;
-  notificationFrequency: 'realtime' | 'hourly' | 'daily' | 'weekly';
-  notificationTypes: {
-    modelUpdates: boolean;
-    usageAlerts: boolean;
-    securityAlerts: boolean;
-    featureAnnouncements: boolean;
-  };
-}
+import { hasRole, getSessionUser, UserRole, type SessionData } from '@/lib/auth';
 
 export default function AdvancedSettings() {
   const [activeTab, setActiveTab] = useState('appearance');
@@ -79,7 +57,7 @@ export default function AdvancedSettings() {
       }
     };
 
-    void loadUserRole();
+    loadUserRole();
   }, []);
 
   // Handle saving settings changes
@@ -96,14 +74,13 @@ export default function AdvancedSettings() {
   // Handle theme change
   const handleThemeChange = (newTheme: string) => {
     setTheme(newTheme);
-    updateDisplaySettings({ theme: newTheme as 'light' | 'dark' | 'system' });
+    updateDisplaySettings({ theme: newTheme as any });
   };
 
   // Handle font size change
   const handleFontSizeChange = (newSize: string) => {
-    const size = newSize as 'sm' | 'md' | 'lg';
-    updateDisplaySettings({ fontSize: size });
-    updateThemeSettings({ fontSize: size });
+    updateDisplaySettings({ fontSize: newSize as any });
+    updateThemeSettings({ fontSize: newSize as any });
   };
 
   // Handle primary color change
@@ -112,20 +89,17 @@ export default function AdvancedSettings() {
   };
 
   // Handle security settings change
-  const handleSecurityChange = (key: keyof SecuritySettings, value: unknown) => {
-    updateSecuritySettings({ [key]: value } as Partial<SecuritySettings>);
+  const handleSecurityChange = (key: string, value: any) => {
+    updateSecuritySettings({ [key]: value });
   };
 
   // Handle notification settings change
-  const handleNotificationChange = (key: keyof NotificationSettings, value: unknown) => {
-    updateNotificationSettings({ [key]: value } as Partial<NotificationSettings>);
+  const handleNotificationChange = (key: string, value: any) => {
+    updateNotificationSettings({ [key]: value });
   };
 
   // Handle notification type changes
-  const handleNotificationTypeChange = (
-    type: keyof NotificationSettings['notificationTypes'],
-    value: boolean,
-  ) => {
+  const handleNotificationTypeChange = (type: string, value: boolean) => {
     updateNotificationSettings({
       notificationTypes: {
         ...notificationSettings.notificationTypes,
@@ -215,7 +189,10 @@ export default function AdvancedSettings() {
 
               <div className="space-y-2">
                 <Label>Font Size</Label>
-                <Select value={displaySettings.fontSize} onValueChange={handleFontSizeChange}>
+                <Select
+                  value={displaySettings.fontSize}
+                  onValueChange={handleFontSizeChange}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -265,7 +242,10 @@ export default function AdvancedSettings() {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label>Theme</Label>
-                <Select value={displaySettings.theme} onValueChange={handleThemeChange}>
+                <Select
+                  value={displaySettings.theme}
+                  onValueChange={handleThemeChange}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -354,9 +334,7 @@ export default function AdvancedSettings() {
                   onValueChange={(value) => handleSecurityChange('sessionTimeout', value[0])}
                   className="w-full"
                 />
-                <div className="text-sm text-gray-500">
-                  {securitySettings.sessionTimeout} minutes
-                </div>
+                <div className="text-sm text-gray-500">{securitySettings.sessionTimeout} minutes</div>
               </div>
 
               <div className="space-y-2">
@@ -366,9 +344,7 @@ export default function AdvancedSettings() {
                   min="1"
                   max="10"
                   value={securitySettings.loginAttempts}
-                  onChange={(e) =>
-                    handleSecurityChange('loginAttempts', parseInt(e.target.value, 10))
-                  }
+                  onChange={(e) => handleSecurityChange('loginAttempts', parseInt(e.target.value))}
                   className="max-w-[150px]"
                 />
               </div>
@@ -388,17 +364,10 @@ export default function AdvancedSettings() {
                 <div className="space-y-4">
                   <div>
                     <Label>IP Whitelist</Label>
-                    <p className="text-sm text-gray-400 mb-2">
-                      Comma-separated list of allowed IP addresses
-                    </p>
+                    <p className="text-sm text-gray-400 mb-2">Comma-separated list of allowed IP addresses</p>
                     <Input
                       value={securitySettings.ipWhitelist.join(', ')}
-                      onChange={(e) =>
-                        handleSecurityChange(
-                          'ipWhitelist',
-                          e.target.value.split(',').map((ip) => ip.trim()),
-                        )
-                      }
+                      onChange={(e) => handleSecurityChange('ipWhitelist', e.target.value.split(',').map(ip => ip.trim()))}
                       placeholder="e.g., 192.168.1.1, 10.0.0.0/8"
                     />
                   </div>
@@ -408,7 +377,11 @@ export default function AdvancedSettings() {
                       <Label>Activity Logging</Label>
                       <p className="text-sm text-gray-400">Log user activities</p>
                     </div>
-                    <Switch checked={true} onCheckedChange={() => {}} disabled />
+                    <Switch
+                      checked={true}
+                      onCheckedChange={() => {}}
+                      disabled
+                    />
                   </div>
                 </div>
               </CardContent>
@@ -432,9 +405,7 @@ export default function AdvancedSettings() {
                 </div>
                 <Switch
                   checked={notificationSettings.emailNotifications}
-                  onCheckedChange={(checked) =>
-                    handleNotificationChange('emailNotifications', checked)
-                  }
+                  onCheckedChange={(checked) => handleNotificationChange('emailNotifications', checked)}
                 />
               </div>
 
@@ -445,9 +416,7 @@ export default function AdvancedSettings() {
                 </div>
                 <Switch
                   checked={notificationSettings.pushNotifications}
-                  onCheckedChange={(checked) =>
-                    handleNotificationChange('pushNotifications', checked)
-                  }
+                  onCheckedChange={(checked) => handleNotificationChange('pushNotifications', checked)}
                 />
               </div>
 
@@ -466,9 +435,7 @@ export default function AdvancedSettings() {
                 <Label>Notification Frequency</Label>
                 <Select
                   value={notificationSettings.notificationFrequency}
-                  onValueChange={(value) =>
-                    handleNotificationChange('notificationFrequency', value)
-                  }
+                  onValueChange={(value) => handleNotificationChange('notificationFrequency', value)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -492,9 +459,7 @@ export default function AdvancedSettings() {
                     </div>
                     <Switch
                       checked={notificationSettings.notificationTypes.modelUpdates}
-                      onCheckedChange={(checked) =>
-                        handleNotificationTypeChange('modelUpdates', checked)
-                      }
+                      onCheckedChange={(checked) => handleNotificationTypeChange('modelUpdates', checked)}
                     />
                   </div>
 
@@ -505,9 +470,7 @@ export default function AdvancedSettings() {
                     </div>
                     <Switch
                       checked={notificationSettings.notificationTypes.usageAlerts}
-                      onCheckedChange={(checked) =>
-                        handleNotificationTypeChange('usageAlerts', checked)
-                      }
+                      onCheckedChange={(checked) => handleNotificationTypeChange('usageAlerts', checked)}
                     />
                   </div>
 
@@ -518,9 +481,7 @@ export default function AdvancedSettings() {
                     </div>
                     <Switch
                       checked={notificationSettings.notificationTypes.securityAlerts}
-                      onCheckedChange={(checked) =>
-                        handleNotificationTypeChange('securityAlerts', checked)
-                      }
+                      onCheckedChange={(checked) => handleNotificationTypeChange('securityAlerts', checked)}
                     />
                   </div>
 
@@ -531,9 +492,7 @@ export default function AdvancedSettings() {
                     </div>
                     <Switch
                       checked={notificationSettings.notificationTypes.featureAnnouncements}
-                      onCheckedChange={(checked) =>
-                        handleNotificationTypeChange('featureAnnouncements', checked)
-                      }
+                      onCheckedChange={(checked) => handleNotificationTypeChange('featureAnnouncements', checked)}
                     />
                   </div>
                 </div>

@@ -3,9 +3,9 @@
  * Provides extensible plugin architecture with hooks and dependency management
  */
 
-import { Logger } from '../../lib/logger';
-import { Cache } from '../../lib/cache';
-import { LLMManager } from '../../lib/llm-manager';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
+import { LLMManager } from '../../../lib/llm-manager';
 
 // Type definitions
 export interface Plugin {

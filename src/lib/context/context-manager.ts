@@ -3,9 +3,9 @@
  * Provides intelligent context windowing with compression and semantic search
  */
 
-import { Logger } from '../../lib/logger';
-import { Cache } from '../../lib/cache';
-import { LLMManager } from '../../lib/llm-manager';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
+import { LLMManager } from '../../../lib/llm-manager';
 
 // Type definitions
 export interface ContextMessage {

@@ -3,9 +3,9 @@
  * Provides statistical analysis of model performance with significance testing
  */
 
-import { Logger } from '../../lib/logger';
-import { LLMManager } from '../../lib/llm-manager';
-import { Cache } from '../../lib/cache';
+import { Logger } from '../../../lib/logger';
+import { LLMManager } from '../../../lib/llm-manager';
+import { Cache } from '../../../lib/cache';
 
 // Type definitions
 export interface ComparisonTest {

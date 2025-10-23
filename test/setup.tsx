@@ -66,6 +66,21 @@ vi.mock('next/navigation', () => ({
   useSearchParams: mockUseSearchParams,
 }))
 
+// Mock Next.js headers and cookies
+vi.mock('next/headers', () => ({
+  headers: vi.fn(() => ({
+    get: vi.fn((name) => {
+      if (name === 'x-forwarded-for') {
+        return '127.0.0.1'; // Mock IP address for rate limiting tests
+      }
+      return null;
+    }),
+  })),
+  cookies: vi.fn(() => ({
+    getAll: vi.fn(() => []),
+  })),
+}));
+
 // Mock next-auth
 vi.mock('next-auth/react', async (importOriginal) => {
   const actual = await importOriginal<typeof import('next-auth/react')>()

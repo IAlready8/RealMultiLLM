@@ -3,10 +3,9 @@
  * Provides personality-driven AI agents with memory, capabilities, and tools
  */
 
-import { LLMManager } from '@/lib/llm-manager';
-import { Logger } from '@/lib/observability/logger';
-import { Cache, CacheConfigs } from '@/lib/cache';
-import type { Message } from '@/types';
+import { LLMManager } from '../../../lib/llm-manager';
+import { Logger } from '../../../lib/logger';
+import { Cache } from '../../../lib/cache';
 
 // Type definitions
 export interface AgentCapability {
