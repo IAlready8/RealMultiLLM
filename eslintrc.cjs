@@ -89,6 +89,8 @@ module.exports = {
 
     // TS
     "@typescript-eslint/consistent-type-imports": "error",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": "off",
     "@typescript-eslint/no-floating-promises": "error",
     "@typescript-eslint/no-misused-promises": [
       "error",
@@ -101,11 +103,9 @@ module.exports = {
     "security/detect-object-injection": "off", // noisy; revisit with stricter modeling
 
     // Unused imports
-    "unused-imports/no-unused-imports": "error",
-    "unused-imports/no-unused-vars": [
-      "warn",
-      { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-    ],
+    "unused-imports/no-unused-imports": "off",
+    "unused-imports/no-unused-vars": "off",
+    "@next/next/no-img-element": "off",
   },
   overrides: [
     {

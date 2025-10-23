@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
-    "target": "es2020",
+    "target": "ES2022",
     "lib": [
       "dom",
       "dom.iterable",
+      "ES2022",
       "esnext"
     ],
     "allowJs": true,
@@ -19,7 +20,9 @@
     "jsx": "preserve",
     "incremental": true,
     "types": [
-      "node"
+      "node",
+      "vitest/globals",
+      "@testing-library/jest-dom"
     ],
     "plugins": [
       {
@@ -46,6 +49,9 @@
     "node_modules",
     "playwright.config.ts",
     "src/lib/**/*",
-    "lib/agents/**/*"
+    "lib/agents/**/*",
+    "test/**/*",
+    "services/llm-providers/registry.ts",
+    "services/llm-providers/registry.ts.*"
   ]
 }

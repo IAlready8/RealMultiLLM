@@ -69,7 +69,7 @@ export async function aesGcmEncrypt(key: Uint8Array, data: string): Promise<stri
     // Import the key
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      key,
+      key.buffer as ArrayBuffer,
       { name: 'AES-GCM' },
       false,
       ['encrypt']
@@ -124,7 +124,7 @@ export async function aesGcmDecrypt(key: Uint8Array, encryptedData: string): Pro
     // Import the key
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      key,
+      key.buffer as ArrayBuffer,
       { name: 'AES-GCM' },
       false,
       ['decrypt']
