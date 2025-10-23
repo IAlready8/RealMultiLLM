@@ -11,6 +11,11 @@ if (typeof global.crypto === 'undefined') {
   });
 }
 
+// Polyfill URL for NextRequest in JSDOM environment
+if (typeof global.URL === 'undefined') {
+  global.URL = require('url').URL;
+}
+
 
 // Cleanup after each test case
 afterEach(() => {

@@ -6,7 +6,7 @@
  */
 
 import type { ILLMProvider, ProviderMetadata, ChatRequest, ChatChunk, ChatResponse, ModelInfo, ConnectionTestResult } from './base-provider'
-import { OpenAIProvider } from './openai-service' // Changed import
+import { OpenAIService } from './openai-service'
 
 // Lazy-loaded provider instances (singletons per API key)
 // Note: These should ideally be managed per user session or context,

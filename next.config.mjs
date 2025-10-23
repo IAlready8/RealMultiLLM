@@ -13,11 +13,6 @@ const nextConfig = {
   },
   
   // Performance optimizations for Vercel deployment
-  experimental: {
-    // Enable SWC transforms for better performance
-    swcPlugins: [],
-  },
-  
   // Output file tracing root
   outputFileTracingRoot: __dirname,
   

@@ -171,7 +171,7 @@ interface LogEntry {
   details?: string;
 }
 
-export default function Settings() {
+export default function EnhancedSettings() {
   const { data: session } = useSession();
   const { toast } = useToast();
 
