@@ -1,214 +1,194 @@
-// Anthropic (Claude) Provider Service
-// This service handles communication with Anthropic's Claude models
+// Anthropic Provider Service
+// Lightweight wrapper around the Anthropic SDK that aligns with the shared LLMProvider contract.
 
-import Anthropic from '@anthropic-ai/sdk';
-import { LLMProvider, Message, StreamResponse, ChatOptions } from '@/types/llm';
+import Anthropic from '@anthropic-ai/sdk'
+
+import type { LLMProvider, Message, ChatOptions, StreamResponse } from '@/types/llm'
+
+type AnthropicRole = 'user' | 'assistant'
 
 class AnthropicProvider implements LLMProvider {
-  id = 'anthropic';
-  name = 'Anthropic';
-  label = 'Claude';
-  icon = 'Zap';
-  color = 'bg-purple-500';
-  description = 'Anthropic Claude models';
-  model = 'claude-3-5-sonnet-20241022';
-  maxTokens = 8192;
-  supportsStreaming = true;
-  supportsSystemPrompt = true;
-  maxContextLength = 200000;
+  id = 'anthropic'
+  name = 'Anthropic'
+  label = 'Claude'
+  icon = 'Zap'
+  color = 'bg-purple-500'
+  description = 'Anthropic Claude models'
+  model = 'claude-3-haiku-20240307'
+  maxTokens = 4096
+  supportsStreaming = true
+  supportsSystemPrompt = true
+  maxContextLength = 200000
   availableModels = [
-    { 
-      id: 'claude-3-5-sonnet-20241022', 
-      name: 'Claude 3.5 Sonnet', 
+    {
+      id: 'claude-3-5-sonnet-20241022',
+      name: 'Claude 3.5 Sonnet',
       maxTokens: 8192,
-      description: 'Most capable model'
+      description: 'Most capable model',
     },
-    { 
-      id: 'claude-3-opus-20240229', 
-      name: 'Claude 3 Opus', 
+    {
+      id: 'claude-3-opus-20240229',
+      name: 'Claude 3 Opus',
       maxTokens: 4096,
-      description: 'High-level reasoning'
+      description: 'Advanced reasoning',
     },
-    { 
-      id: 'claude-3-sonnet-20240229', 
-      name: 'Claude 3 Sonnet', 
+    {
+      id: 'claude-3-sonnet-20240229',
+      name: 'Claude 3 Sonnet',
       maxTokens: 4096,
-      description: 'Balanced performance'
+      description: 'Balanced performance',
     },
-    { 
-      id: 'claude-3-haiku-20240307', 
-      name: 'Claude 3 Haiku', 
+    {
+      id: 'claude-3-haiku-20240307',
+      name: 'Claude 3 Haiku',
       maxTokens: 4096,
-      description: 'Fastest model'
-    }
-  ];
+      description: 'Fastest model',
+    },
+  ]
 
-  private client: Anthropic | null = null;
+  private client: Anthropic | null = null
 
   constructor() {
-    this.initializeClient();
+    this.initializeClient()
   }
 
   private initializeClient() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (apiKey) {
-      this.client = new Anthropic({ apiKey });
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      this.client = null
+      return
     }
+
+    this.client = new Anthropic({
+      apiKey,
+      dangerouslyAllowBrowser: true,
+    })
+  }
+
+  private getClient(overrideKey?: string): Anthropic {
+    if (overrideKey) {
+      return new Anthropic({
+        apiKey: overrideKey,
+        dangerouslyAllowBrowser: true,
+      })
+    }
+
+    if (!this.client) {
+      throw new Error('Anthropic API key is not configured')
+    }
+
+    return this.client
   }
 
   async validateConfig(config: { apiKey: string }): Promise<boolean> {
     try {
-      if (!config.apiKey || !config.apiKey.startsWith('sk-ant-')) {
-        return false;
+      if (!config.apiKey) {
+        return false
       }
 
-      // Test API connectivity
-      const testClient = new Anthropic({ apiKey: config.apiKey });
-      await testClient.models.list({ limit: 1 });
-      return true;
+      const client = this.getClient(config.apiKey)
+
+      await client.models.list({ limit: 1 })
+      return true
     } catch (error) {
-      console.error('Anthropic config validation error:', error);
-      return false;
+      console.error('Anthropic config validation error:', error)
+      return false
     }
   }
 
   async getModels(): Promise<any[]> {
     try {
-      if (!this.client) {
-        throw new Error('Anthropic client not initialized');
-      }
+      const client = this.getClient()
+      const models = await client.models.list({ limit: 20 })
+      const items = Array.isArray(models) ? models : (models as any).data ?? []
 
-      // Get available models from Anthropic API
-      const models = await this.client.models.list();
-      // Handle both array and object with data property
-      const modelList = Array.isArray(models) ? models : (models as any).data || [];
-      return modelList
-        .filter((model: any) => model.id.startsWith('claude'))
+      return items
+        .filter((model: any) => typeof model?.id === 'string' && model.id.startsWith('claude'))
         .map((model: any) => ({
           id: model.id,
-          name: model.id.replace('claude-', 'Claude ').replace(/-/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()),
-          maxTokens: this.getMaxTokensForModel(model.id),
-          description: `Anthropic ${model.id} model`
-        }));
+          name: model.id.replace('claude-', 'Claude ').replace(/-/g, ' '),
+          maxTokens: this.getMaxTokens(model.id),
+          description: `Anthropic ${model.id}`,
+        }))
     } catch (error) {
-      console.error('Error fetching Anthropic models:', error);
-      
-      // Return default models as fallback
-      return this.availableModels;
+      console.warn('Falling back to static Anthropic model list:', error)
+      return this.availableModels
     }
   }
 
-  private getMaxTokensForModel(model: string): number {
-    switch (model) {
-      case 'claude-3-5-sonnet-20241022':
-        return 8192;
-      case 'claude-3-opus-20240229':
-        return 4096;
-      case 'claude-3-sonnet-20240229':
-        return 4096;
-      case 'claude-3-haiku-20240307':
-        return 4096;
-      default:
-        return 4096;
-    }
-  }
-
-  async chat(options: ChatOptions): Promise<any> {
-    if (!this.client) {
-      throw new Error('Anthropic client not initialized');
-    }
-
-    const model = options.model || this.model;
-    const temperature = options.temperature ?? 0.7;
-    const maxTokens = options.maxTokens || this.maxTokens;
-
-    // Separate system prompt from other messages
-    const systemMessage = options.messages.find(msg => msg.role === 'system');
-    const otherMessages = options.messages.filter(msg => msg.role !== 'system');
-
-    // Convert messages to Anthropic format
-    const anthropicMessages = otherMessages.map(msg => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content
-    }));
-
-    const params: any = {
-      model,
-      messages: anthropicMessages,
-      max_tokens: maxTokens,
-      temperature,
-    };
-
-    if (systemMessage) {
-      params.system = systemMessage.content;
-    }
+  async chat(options: ChatOptions): Promise<StreamResponse> {
+    const client = this.getClient()
+    const messages = this.buildMessages(options.messages)
 
     try {
-      const response = await this.client.messages.create(params);
-      
+      const response = await client.messages.create({
+        model: options.model || this.model,
+        max_tokens: options.maxTokens ?? this.maxTokens,
+        temperature: options.temperature ?? 0.7,
+        messages,
+        system: this.getSystemPrompt(options.messages),
+      })
+
+      const firstContent = response.content?.[0]
+      const text = typeof firstContent === 'object' && 'text' in firstContent ? firstContent.text : ''
+
       return {
-        content: (response as any).content[0].text,
-        finish_reason: (response as any).stop_reason,
+        content: text,
+        finish_reason: response.stop_reason ?? 'stop',
         usage: {
-          prompt_tokens: (response as any).usage.input_tokens,
-          completion_tokens: (response as any).usage.output_tokens,
-          total_tokens: (response as any).usage.input_tokens + (response as any).usage.output_tokens
-        }
-      };
+          prompt_tokens: response.usage?.input_tokens ?? 0,
+          completion_tokens: response.usage?.output_tokens ?? 0,
+          total_tokens:
+            (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0),
+        },
+      }
     } catch (error) {
-      console.error('Anthropic API error:', error);
-      throw error;
+      console.error('Anthropic chat error:', error)
+      throw error
     }
   }
 
   async streamChat(options: ChatOptions): Promise<AsyncGenerator<string, void, undefined>> {
-    if (!this.client) {
-      throw new Error('Anthropic client not initialized');
-    }
+    const client = this.getClient()
+    const messages = this.buildMessages(options.messages)
+    const systemPrompt = this.getSystemPrompt(options.messages)
 
-    const model = options.model || this.model;
-    const temperature = options.temperature ?? 0.7;
-    const maxTokens = options.maxTokens || this.maxTokens;
+    const stream = await client.messages.stream({
+      model: options.model || this.model,
+      max_tokens: options.maxTokens ?? this.maxTokens,
+      temperature: options.temperature ?? 0.7,
+      messages,
+      system: systemPrompt,
+    })
 
-    // Separate system prompt from other messages
-    const systemMessage = options.messages.find(msg => msg.role === 'system');
-    const otherMessages = options.messages.filter(msg => msg.role !== 'system');
-
-    // Convert messages to Anthropic format
-    const anthropicMessages = otherMessages.map(msg => ({
-      role: msg.role as 'user' | 'assistant',
-      content: msg.content
-    }));
-
-    const params: any = {
-      model,
-      messages: anthropicMessages,
-      max_tokens: maxTokens,
-      temperature,
-      stream: true
-    };
-
-    if (systemMessage) {
-      params.system = systemMessage.content;
-    }
-
-    try {
-      const stream = await this.client.messages.create(params);
-      
-      async function* generator(): AsyncGenerator<string, void, undefined> {
-        for await (const chunk of (stream as any)) {
-          if ((chunk as any).type === 'content_block_delta' && (chunk as any).delta.type === 'text_delta') {
-            yield (chunk as any).delta.text;
-          }
+    async function* iterator(): AsyncGenerator<string, void, undefined> {
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+          yield chunk.delta.text ?? ''
         }
       }
-
-      return generator();
-    } catch (error) {
-      console.error('Anthropic streaming API error:', error);
-      throw error;
     }
+
+    return iterator()
+  }
+
+  private buildMessages(messages: Message[]) {
+    return messages
+      .filter((msg) => msg.role !== 'system')
+      .map((msg) => ({
+        role: msg.role as AnthropicRole,
+        content: msg.content,
+      }))
+  }
+
+  private getSystemPrompt(messages: Message[]): string | undefined {
+    const systemMessage = messages.find((msg) => msg.role === 'system')
+    return systemMessage?.content
+  }
+
+  private getMaxTokens(model: string): number {
+    return this.availableModels.find((item) => item.id === model)?.maxTokens ?? this.maxTokens
   }
 }
 
-export default AnthropicProvider;
+export default AnthropicProvider

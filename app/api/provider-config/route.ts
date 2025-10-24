@@ -308,10 +308,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error deleting provider configuration';
-    console.error('Failed to delete provider configuration', {
-      userId: session.user.id,
-      error: message,
-    });
+    
     return NextResponse.json(
       { error: 'Failed to delete provider configuration' }, 
       { status: 500 }

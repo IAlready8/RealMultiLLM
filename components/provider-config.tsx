@@ -48,7 +48,7 @@ const PROVIDER_CONFIGS = {
   },
   grok: {
     name: 'Grok',
-    description: 'xAI\'s Grok models',
+    description: 'xAI Grok models',
     icon: '⚡',
     placeholder: 'xai-...',
     docsUrl: 'https://console.x.ai/',

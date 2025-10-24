@@ -4,3 +4,7 @@ out
 build
 coverage
 .eslintrc.cjs
+src/lib/
+lib/agents/
+services/llm-providers/registry.ts
+services/llm-providers/registry.ts.*

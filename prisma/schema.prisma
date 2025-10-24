@@ -53,6 +53,7 @@ model User {
   accounts                 Account[]
   sessions                 Session[]
   providerConfigs          ProviderConfig[]
+  apiKeys                  ApiKey[]
   conversations            Conversation[]
   messages                 Message[]
   teamMemberships          TeamMembership[]         @relation("UserTeamMembership")
@@ -94,6 +95,60 @@ model ProviderConfig {
 
   @@unique([userId, provider])
   @@index([lastUsedAt]) // Index for lifecycle queries
+}
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  provider        String
+  encryptedKey    String    // AES-256 encrypted
+  keyName         String?
+  isActive        Boolean   @default(true)
+  availableModels String[]  // JSON array of available models
+  createdAt       DateTime  @default(now())
+  lastUsed        DateTime?
+  usageCount      Int       @default(0)
+  monthlyUsage    Int       @default(0)
+  
+  // Relations
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  costTracking    CostTracking?
+  usageLogs       ApiUsage[]
+  
+  @@map("api_keys")
+}
+
+model CostTracking {
+  id           String   @id @default(cuid())
+  totalCost    Float    @default(0)
+  monthlyCost  Float    @default(0)
+  requestCount Int      @default(0)
+  lastReset    DateTime @default(now())
+  
+  // Relations
+  apiKeyId     String   @unique
+  apiKey       ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  
+  @@map("cost_tracking")
+}
+
+model ApiUsage {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  model       String
+  promptTokens Int?
+  completionTokens Int?
+  totalTokens Int?
+  cost        Float?
+  latency     Int?     // Response time in ms
+  success     Boolean  @default(true)
+  errorMessage String?
+  
+  // Relations
+  apiKeyId    String
+  apiKey      ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  
+  @@map("api_usage")
 }
 
 model Conversation {

@@ -32,31 +32,32 @@ ERROR_COUNT=0
 WARNING_COUNT=0
 INFO_COUNT=0
 
-# Associative arrays for checks
+# Variables for checks
 
-declare -A CHECK_RESULTS
-declare -A CHECK_MESSAGES
+# Use temporary files to simulate associative arrays
+CHECK_RESULTS_FILE=$(mktemp)
+CHECK_MESSAGES_FILE=$(mktemp)
 
 # Logging functions
 
 log_error() {
 echo -e "${RED}[ERROR]${NC} $1"
 ((ERROR_COUNT++))
-CHECK_RESULTS["$2"]="ERROR"
-CHECK_MESSAGES["$2"]="$1"
+echo "$2:ERROR" >> "$CHECK_RESULTS_FILE"
+echo "$2:$1" >> "$CHECK_MESSAGES_FILE"
 }
 
 log_warning() {
 echo -e "${YELLOW}[WARNING]${NC} $1"
 ((WARNING_COUNT++))
-CHECK_RESULTS["$2"]="WARNING"
-CHECK_MESSAGES["$2"]="$1"
+echo "$2:WARNING" >> "$CHECK_RESULTS_FILE"
+echo "$2:$1" >> "$CHECK_MESSAGES_FILE"
 }
 
 log_success() {
 echo -e "${GREEN}[SUCCESS]${NC} $1"
-CHECK_RESULTS["$2"]="SUCCESS"
-CHECK_MESSAGES["$2"]="$1"
+echo "$2:SUCCESS" >> "$CHECK_RESULTS_FILE"
+echo "$2:$1" >> "$CHECK_MESSAGES_FILE"
 }
 
 log_info() {
@@ -477,34 +478,40 @@ log_info "Generating deployment report..."
 ```
 local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-cat > "$REPORT_FILE" << EOF
-```
+# Build checks JSON using temporary files
+local checks_json=""
+local first=true
 
+# Read through results file and build JSON
+while IFS=':' read -r key status; do
+    if [ -n "$key" ] && [ -n "$status" ]; then
+        local message=$(grep "^$key:" "$CHECK_MESSAGES_FILE" | cut -d':' -f2-)
+        if [ "$first" = true ]; then
+            first=false
+            checks_json="    \"$key\": {\"status\": \"$status\", \"message\": \"$message\"}"
+        else
+            checks_json="$checks_json,\n    \"$key\": {\"status\": \"$status\", \"message\": \"$message\"}"
+        fi
+    fi
+done < "$CHECK_RESULTS_FILE"
+
+# Calculate passed count by reading the results file
+local total_results=0
+while IFS= read -r line; do
+    ((total_results++))
+done < "$CHECK_RESULTS_FILE"
+
+cat > "$REPORT_FILE" << EOF
 {
 "timestamp": "$timestamp",
 "projectRoot": "$PROJECT_ROOT",
 "summary": {
 "errors": $ERROR_COUNT,
 "warnings": $WARNING_COUNT,
-"passed": $((${#CHECK_RESULTS[@]} - ERROR_COUNT - WARNING_COUNT))
+"passed": $((total_results - ERROR_COUNT - WARNING_COUNT))
 },
 "checks": {
-EOF
-
-```
-local first=true
-for key in "${!CHECK_RESULTS[@]}"; do
-    if [ "$first" = true ]; then
-        first=false
-    else
-        echo "," >> "$REPORT_FILE"
-    fi
-    echo -n "    \"$key\": {\"status\": \"${CHECK_RESULTS[$key]}\", \"message\": \"${CHECK_MESSAGES[$key]}\"}" >> "$REPORT_FILE"
-done
-
-cat >> "$REPORT_FILE" << EOF
-```
-
+$checks_json
 },
 "recommendations": [
 EOF
@@ -529,6 +536,9 @@ cat >> "$REPORT_FILE" << EOF
 }
 EOF
 
+# Clean up temporary files
+rm -f "$CHECK_RESULTS_FILE" "$CHECK_MESSAGES_FILE"
+
 ```
 log_success "Deployment report generated: $REPORT_FILE" "report"
 ```
@@ -545,6 +555,10 @@ echo -e "${BLUE}╚════════════════════�
 echo ""
 
 ```
+# Create temporary files to store results (macOS compatible)
+CHECK_RESULTS_FILE=$(mktemp)
+CHECK_MESSAGES_FILE=$(mktemp)
+
 # Run all checks
 check_nodejs
 check_npm
@@ -570,7 +584,12 @@ echo -e "${MAGENTA}╔═══════════════════�
 echo -e "${MAGENTA}║  VALIDATION SUMMARY                                    ║${NC}"
 echo -e "${MAGENTA}╚════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "${GREEN}✅ Passed: $((${#CHECK_RESULTS[@]} - ERROR_COUNT - WARNING_COUNT))${NC}"
+# Count total results from the temporary file
+local total_results=0
+while IFS= read -r line; do
+    ((total_results++))
+done < "$CHECK_RESULTS_FILE"
+echo -e "${GREEN}✅ Passed: $((total_results - ERROR_COUNT - WARNING_COUNT))${NC}"
 echo -e "${YELLOW}⚠️  Warnings: $WARNING_COUNT${NC}"
 echo -e "${RED}❌ Errors: $ERROR_COUNT${NC}"
 echo ""

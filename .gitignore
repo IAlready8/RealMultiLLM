@@ -39,3 +39,7 @@ prisma/*.db-journal
 
 # Local Netlify folder
 .netlify
+.env.production
+*.db
+backups/
+security-audit-*.json

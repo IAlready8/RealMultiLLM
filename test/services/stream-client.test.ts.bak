@@ -1,0 +1,87 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import * as streamClient from '../../services/stream-client';
+import { testProviderConnectivity } from '../../services/provider-test-service'; // Keep this import for typing
+
+// Mock the provider connectivity test
+vi.mock('../../services/provider-test-service', () => ({
+  testProviderConnectivity: vi.fn(),
+}));
+
+// Helper to read a stream to completion
+async function streamToString(stream: ReadableStream): Promise<string> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let result = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      return result;
+    }
+    result += decoder.decode(value);
+  }
+}
+
+describe('stream-client error paths', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    // Correctly mock the return value of the mocked function
+    (testProviderConnectivity as vi.Mock).mockResolvedValue({ success: true, message: 'OK' });
+  });
+
+  it('emits error event when provider test fails', async () => {
+    // Arrange
+    (testProviderConnectivity as vi.Mock).mockResolvedValue({
+      success: false,
+      message: 'Invalid API Key',
+    });
+
+    // Act & Assert
+    await expect(streamClient.createStreamingResponse({
+      provider: 'openai',
+      apiKey: 'invalid-key',
+      messages: [{ role: 'user', content: 'hi' }],
+    })).rejects.toThrow('Provider test failed: Invalid API Key');
+  });
+
+  it('emits error event when the fetch response is not ok', async () => {
+    // Arrange
+    const mockError = { error: { message: 'Internal Server Error' } };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => mockError,
+    });
+
+    // Act
+    const stream = await streamClient.createStreamingResponse({
+      provider: 'openai',
+      apiKey: 'valid-key',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    // Assert
+    const result = await streamToString(stream);
+    const expectedJson = `data: {"event":"error","message":"OpenAI API error: ${mockError.error.message}"}\n\n`;
+    expect(result).toBe(expectedJson);
+  });
+
+  it('emits error event when the response body is missing', async () => {
+    // Arrange
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      body: null, // No body
+    });
+
+    // Act
+    const stream = await streamClient.createStreamingResponse({
+      provider: 'openai',
+      apiKey: 'valid-key',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    // Assert
+    const result = await streamToString(stream);
+    const expectedJson = 'data: {"event":"error","message":"No response stream available"}\n\n';
+    expect(result).toBe(expectedJson);
+  });
+});

@@ -3,7 +3,11 @@ import { render, screen, waitFor, within } from '@/test/test-utils'
 import userEvent from '@testing-library/user-event'
 import SettingsPage from './page'
 
-// Mock services\nvi.mock('@/lib/secure-storage', () => ({\n  setStoredApiKey: vi.fn(),\n  getStoredApiKey: vi.fn(),\n}))
+// Mock services
+vi.mock('@/lib/secure-storage', () => ({
+  setStoredApiKey: vi.fn(),
+  getStoredApiKey: vi.fn(),
+}))
 
 vi.mock('@/services/export-import-service', () => ({
   exportAllData: vi.fn(),
@@ -37,6 +41,12 @@ vi.mock('@/components/export-import-dialog', () => ({
     </div>
   ),
 }))
+
+// Mock next-themes
+vi.mock('next-themes', () => ({
+  useTheme: () => ({ theme: 'dark', setTheme: vi.fn() }),
+  ThemeProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 describe('Settings Page', () => {
   let fetchMock: ReturnType<typeof vi.fn>

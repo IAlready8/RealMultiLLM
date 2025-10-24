@@ -1,4 +1,10 @@
-import { errorManager, LLMProviderError, createErrorContext, ValidationError } from '@/lib/error-system'
+import {
+  errorManager,
+  LLMProviderError,
+  createErrorContext,
+  ValidationError,
+} from '@/lib/error-system'
+
 import { OpenAIService } from './llm-providers/openai-service'
 import AnthropicProvider from './llm-providers/anthropic-service'
 import GoogleAIProvider from './llm-providers/google-ai-service'
@@ -6,21 +12,21 @@ import OpenRouterProvider from './llm-providers/openrouter-service'
 import GrokProvider from './llm-providers/grok-service'
 
 export interface ChatMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-  timestamp?: number;
-  metadata?: Record<string, any>;
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp?: number
+  metadata?: Record<string, any>
 }
 
 export interface StreamChatOptions {
-  model?: string;
-  temperature?: number;
-  maxTokens?: number;
-  userId?: string;
-  abortSignal?: AbortSignal;
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  userId?: string
+  abortSignal?: AbortSignal
+  apiKey?: string
 }
 
-// Provider service registry
 const providerServices = {
   openai: () => OpenAIService.getInstance(),
   anthropic: () => new AnthropicProvider(),
@@ -32,7 +38,7 @@ const providerServices = {
 export async function sendChatMessage(
   provider: string,
   messages: ChatMessage[],
-  options: StreamChatOptions = {}
+  options: StreamChatOptions = {},
 ): Promise<ChatMessage> {
   const context = createErrorContext('/services/api-service', options.userId, {
     provider,
@@ -41,7 +47,6 @@ export async function sendChatMessage(
   })
 
   try {
-    // Validate provider
     if (!provider || typeof provider !== 'string') {
       throw new ValidationError('Provider is required and must be a string', 'provider', context)
     }
@@ -50,16 +55,13 @@ export async function sendChatMessage(
       throw new ValidationError(`Unsupported provider: ${provider}`, 'provider', context)
     }
 
-    // Validate messages
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new ValidationError('Messages array is required and cannot be empty', 'messages', context)
     }
 
-    // Get provider service
     const service = providerServices[provider as keyof typeof providerServices]()
 
-    // Convert to provider format
-    const providerMessages = messages.map(msg => ({
+    const providerMessages = messages.map((msg) => ({
       role: msg.role,
       content: msg.content,
     }))
@@ -68,22 +70,21 @@ export async function sendChatMessage(
       messages: providerMessages,
       model: options.model,
       temperature: options.temperature,
-      max_tokens: options.maxTokens,
+      maxTokens: options.maxTokens,
       userId: options.userId,
     })
-    
+
     return {
-      role: "assistant",
+      role: 'assistant',
       content: response.content,
       timestamp: Date.now(),
       metadata: {
         provider,
         model: options.model,
-        finish_reason: response.finish_reason,
+        finishReason: response.finish_reason,
         usage: response.usage,
-      }
+      },
     }
-
   } catch (error) {
     await errorManager.logError(error as Error, context)
     throw error
@@ -94,7 +95,7 @@ export async function streamChatMessage(
   provider: string,
   messages: ChatMessage[],
   onChunk: (chunk: string) => void,
-  options: StreamChatOptions = {}
+  options: StreamChatOptions = {},
 ): Promise<void> {
   const context = createErrorContext('/services/api-service/stream', options.userId, {
     provider,
@@ -103,7 +104,6 @@ export async function streamChatMessage(
   })
 
   try {
-    // Validate provider
     if (!provider || typeof provider !== 'string') {
       throw new ValidationError('Provider is required and must be a string', 'provider', context)
     }
@@ -112,63 +112,45 @@ export async function streamChatMessage(
       throw new ValidationError(`Unsupported provider: ${provider}`, 'provider', context)
     }
 
-    // Validate messages
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       throw new ValidationError('Messages array is required and cannot be empty', 'messages', context)
     }
 
-    // Validate onChunk callback
     if (typeof onChunk !== 'function') {
       throw new ValidationError('onChunk must be a function', 'onChunk', context)
     }
 
-    // Get provider service
     const service = providerServices[provider as keyof typeof providerServices]()
 
-    // Convert to provider format
-    const providerMessages = messages.map(msg => ({
+    const providerMessages = messages.map((msg) => ({
       role: msg.role,
       content: msg.content,
     }))
 
-    // Check for abort signal
     if (options.abortSignal?.aborted) {
       throw new LLMProviderError(provider, 'Request was aborted', context)
     }
 
-    // Stream response
     const streamResult = await service.streamChat({
       messages: providerMessages,
       model: options.model,
       temperature: options.temperature,
-      max_tokens: options.maxTokens,
+      maxTokens: options.maxTokens,
       userId: options.userId,
     })
 
-    const asyncIterableCandidate =
-      typeof (streamResult as any)?.[Symbol.asyncIterator] === 'function'
-        ? (streamResult as AsyncIterable<string>)
-        : (streamResult as { stream?: AsyncIterable<string> }).stream
-
-    if (!asyncIterableCandidate || typeof asyncIterableCandidate[Symbol.asyncIterator] !== 'function') {
-      throw new LLMProviderError(provider, 'Provider did not return a valid async stream', context)
-    }
-
-    const asyncIterable = asyncIterableCandidate
-
-    for await (const chunk of asyncIterable) {
-      // Check for abort signal during streaming
+    for await (const chunk of streamResult) {
       if (options.abortSignal?.aborted) {
         throw new LLMProviderError(provider, 'Request was aborted during streaming', context)
       }
-      
-      onChunk(chunk)
-    }
 
+      if (chunk) {
+        onChunk(chunk)
+      }
+    }
   } catch (error) {
     await errorManager.logError(error as Error, context)
-    
-    // Send error chunk for streaming responses
+
     try {
       if (error instanceof Error) {
         onChunk(`Error: ${error.message}`)
@@ -176,7 +158,6 @@ export async function streamChatMessage(
         onChunk('Error: An unexpected error occurred')
       }
     } catch (chunkError) {
-      // If even the error chunk fails, just log it
       console.error('Failed to send error chunk:', chunkError)
     }
 
@@ -184,26 +165,25 @@ export async function streamChatMessage(
   }
 }
 
-// Legacy compatibility function
 export async function callLLMApi(
-  provider: string, 
-  prompt: string[], 
-  options: any = {}
+  provider: string,
+  prompt: string[],
+  options: any = {},
 ): Promise<any> {
   const messages: ChatMessage[] = prompt.map((p, index) => ({
     role: index === 0 && options.systemPrompt ? 'system' : 'user',
     content: index === 0 && options.systemPrompt ? options.systemPrompt : p,
   }))
 
-  if (options.stream && options.onChunk) {
+  if (options.stream && typeof options.onChunk === 'function') {
     await streamChatMessage(provider, messages, options.onChunk, options)
     return { text: '', usage: {}, metadata: {} }
-  } else {
-    const response = await sendChatMessage(provider, messages, options)
-    return {
-      text: response.content,
-      usage: response.metadata?.usage || {},
-      metadata: response.metadata || {},
-    }
+  }
+
+  const response = await sendChatMessage(provider, messages, options)
+  return {
+    text: response.content,
+    usage: response.metadata?.usage ?? {},
+    metadata: response.metadata ?? {},
   }
 }

@@ -1,0 +1,15 @@
+{
+"timestamp": "2025-10-23T14:42:24Z",
+"projectRoot": "/Users/d3/D3M2SMAC-MAIN/DEVELOPER-GITHUB/RealMultiLLM",
+"summary": {
+"errors": 0,
+"warnings": 0,
+"passed": 16
+},
+"checks": {
+    "nodejs": {"status": "SUCCESS", "message": "Node.js 24.0.2 installed"},\n    "npm": {"status": "SUCCESS", "message": "npm 11.6.0 installed"},\n    "memory": {"status": "WARNING", "message": "Low memory available: 0.017952GB (recommended: 2GB+)"},\n    "disk_space": {"status": "SUCCESS", "message": "Sufficient disk space: 7.0GB"},\n    "env_file": {"status": "SUCCESS", "message": "Environment files present"},\n    "nextauth_secret": {"status": "ERROR", "message": "NEXTAUTH_SECRET must be at least 32 characters"},\n    "database": {"status": "ERROR", "message": "Database connection failed"},\n    "prisma_schema": {"status": "ERROR", "message": "Prisma schema validation failed"},\n    "dependencies": {"status": "SUCCESS", "message": "All critical dependencies installed"},\n    "security": {"status": "SUCCESS", "message": "No critical vulnerabilities found"},\n    "build_config": {"status": "SUCCESS", "message": "Build configuration files present"},\n    "typescript": {"status": "WARNING", "message": "TypeScript compilation has errors (non-blocking)"},\n    "eslint": {"status": "WARNING", "message": "ESLint found issues (non-blocking)"},\n    "api_keys": {"status": "SUCCESS", "message": "2 LLM provider(s) configured"},\n    "ports": {"status": "SUCCESS", "message": "Port 3001 available"},\n    "build": {"status": "ERROR", "message": "Production build failed"}
+},
+"recommendations": [
+    "Run full test suite before deployment",
+    "Ensure database backups are configured",
+    "Set up monitoring and alerting"

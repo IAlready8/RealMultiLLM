@@ -3,16 +3,6 @@ import { POST } from '@/api/auth/register/route'
 import { NextRequest } from 'next/server'
 import bcrypt from 'bcryptjs'
 
-// Mock bcryptjs
-vi.mock('bcryptjs', () => ({
-  default: {
-    hash: vi.fn(),
-    compare: vi.fn(),
-  },
-  hash: vi.fn(),
-  compare: vi.fn(),
-}))
-
 // Mock Prisma client
 const mockPrismaUser = {
   create: vi.fn(),
@@ -27,6 +17,16 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     user: mockPrismaUser,
   }
+}))
+
+// Mock bcryptjs
+vi.mock('bcryptjs', () => ({
+  default: {
+    hash: vi.fn(),
+    compare: vi.fn(),
+  },
+  hash: vi.fn(),
+  compare: vi.fn(),
 }))
 
 describe('/api/auth/register', () => {

@@ -4,7 +4,7 @@
 
 This repository contains the **Personal LLM Tool**, a comprehensive multi-LLM chat assistant built with Next.js, TypeScript, and Tailwind CSS. It provides a rich interface for interacting with various Large Language Models (LLMs) simultaneously and includes advanced features for comparing models, managing AI personas, tracking goals, and analyzing usage.
 
-The core application logic resides within the `Multi-LLM-Platform/` directory.
+The core application logic resides in this repository.
 
 **Key Technologies:**
 - **Framework:** Next.js 14
@@ -29,21 +29,16 @@ The core application logic resides within the `Multi-LLM-Platform/` directory.
 
 ## 2. Building and Running
 
-The main project is located in the `Multi-LLM-Platform/` directory. All commands should be run from within that subdirectory.
+The main project is located in this repository. All commands should be run from the root of the repository.
 
 **Prerequisites:**
 - Node.js (version 20 or higher recommended)
 - npm or yarn
 
 **Installation:**
-1. Navigate to the project's subdirectory:
-   ```bash
-   cd Multi-LLM-Platform
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 **Running the Development Server:**
 To run the application in development mode with hot-reloading:
@@ -88,10 +83,10 @@ The project uses **Vitest** for unit and integration testing.
 ## 4. Development Conventions
 
 - **Code Style:** The project uses ESLint and Prettier for code formatting and linting. Run `npm run lint` to check for issues.
-- **Authentication:** Authentication is handled by NextAuth.js. Configuration is in `Multi-LLM-Platform/lib/auth.ts`. The system supports both OAuth (Google, GitHub) and traditional email/password credentials.
-- **Database:** Prisma is used for database access. The schema is defined in `Multi-LLM-Platform/prisma/schema.prisma`. To apply schema changes, run `npx prisma db push`.
-- **API Routes:** Server-side API logic is located in `Multi-LLM-Platform/app/api/`.
-- **Components:** Reusable UI components are in `Multi-LLM-Platform/components/`. The project heavily utilizes Shadcn UI components.
-- **Services:** Business logic for interacting with APIs, storage, and other services is abstracted into files within the `Multi-LLM-Platform/services/` directory.
-- **Security:** API keys are stored securely using the `secure-storage` library (`Multi-LLM-Platform/lib/secure-storage.ts`), which uses encryption. Never commit API keys or other secrets to version control.
+- **Authentication:** Authentication is handled by NextAuth.js. Configuration is in `lib/auth.ts`. The system supports both OAuth (Google, GitHub) and traditional email/password credentials.
+- **Database:** Prisma is used for database access. The schema is defined in `prisma/schema.prisma`. To apply schema changes, run `npx prisma db push`.
+- **API Routes:** Server-side API logic is located in `app/api/`.
+- **Components:** Reusable UI components are in `components/`. The project heavily utilizes Shadcn UI components.
+- **Services:** Business logic for interacting with APIs, storage, and other services is abstracted into files within the `services/` directory.
+- **Security:** API keys are stored securely using the `secure-storage` library (`lib/secure-storage.ts`), which uses encryption. Never commit API keys or other secrets to version control.
 - **State Management:** Client-side state is managed through a combination of React hooks (`useState`, `useContext`) and custom hooks like `useConversation` and `use-personas`.

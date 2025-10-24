@@ -1,6 +1,21 @@
 import '@testing-library/jest-dom'
-import { beforeAll, afterAll, afterEach, vi } from 'vitest'
+import { beforeAll, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
+import { webcrypto } from 'crypto';
+
+// Polyfill Web Crypto API for test environment
+if (typeof global.crypto === 'undefined') {
+  Object.defineProperty(global, 'crypto', {
+    value: webcrypto,
+    writable: true,
+  });
+}
+
+// Polyfill URL for NextRequest in JSDOM environment
+if (typeof global.URL === 'undefined') {
+  global.URL = require('url').URL;
+}
+
 
 // Cleanup after each test case
 afterEach(() => {
@@ -22,19 +37,6 @@ Object.defineProperty(global, 'performance', {
     measure: vi.fn(),
     getEntriesByName: vi.fn(() => []),
     getEntriesByType: vi.fn(() => []),
-  }
-})
-
-// Mock crypto for test environment
-Object.defineProperty(global, 'crypto', {
-  writable: true,
-  value: {
-    randomUUID: vi.fn(() => '123e4567-e89b-12d3-a456-426614174000'),
-    subtle: {
-      digest: vi.fn(),
-      encrypt: vi.fn(),
-      decrypt: vi.fn(),
-    }
   }
 })
 
@@ -68,6 +70,21 @@ vi.mock('next/navigation', () => ({
   usePathname: mockUsePathname,
   useSearchParams: mockUseSearchParams,
 }))
+
+// Mock Next.js headers and cookies
+vi.mock('next/headers', () => ({
+  headers: vi.fn(() => ({
+    get: vi.fn((name) => {
+      if (name === 'x-forwarded-for') {
+        return '127.0.0.1'; // Mock IP address for rate limiting tests
+      }
+      return null;
+    }),
+  })),
+  cookies: vi.fn(() => ({
+    getAll: vi.fn(() => []),
+  })),
+}));
 
 // Mock next-auth
 vi.mock('next-auth/react', async (importOriginal) => {

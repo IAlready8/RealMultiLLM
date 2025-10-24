@@ -1,3 +1,8 @@
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -8,10 +13,8 @@ const nextConfig = {
   },
   
   // Performance optimizations for Vercel deployment
-  experimental: {
-    // Enable SWC transforms for better performance
-    swcPlugins: [],
-  },
+  // Output file tracing root
+  outputFileTracingRoot: __dirname,
   
   // Compiler optimizations
   compiler: {
