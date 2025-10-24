@@ -2,29 +2,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
-import { decryptApiKey } from '@/lib/encryption';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const apiKey = await prisma.apiKey.findFirst({
+    const apiKey = await prisma.providerConfig.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
-      },
-      include: {
-        costTracking: true,
-        usageLogs: {
-          orderBy: { timestamp: 'desc' },
-          take: 10
-        }
       }
     });
 
@@ -32,8 +27,8 @@ export async function GET(
       return NextResponse.json({ error: 'API key not found' }, { status: 404 });
     }
 
-    // Don't return the encrypted key
-    const { encryptedKey, ...safeKey } = apiKey;
+    // Don't return the encrypted key - mark as unused with _
+    const { apiKey: _encryptedKey, ...safeKey } = apiKey;
     return NextResponse.json(safeKey);
   } catch (error) {
     console.error('Failed to fetch API key:', error);
@@ -46,17 +41,18 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const apiKey = await prisma.apiKey.findFirst({
+    const apiKey = await prisma.providerConfig.findFirst({
       where: {
-        id: params.id,
+        id,
         userId: session.user.id
       }
     });
@@ -66,8 +62,8 @@ export async function DELETE(
     }
 
     // Soft delete by deactivating
-    await prisma.apiKey.update({
-      where: { id: params.id },
+    await prisma.providerConfig.update({
+      where: { id },
       data: { isActive: false }
     });
 
@@ -76,11 +72,10 @@ export async function DELETE(
       data: {
         userId: session.user.id,
         action: 'DELETE_API_KEY',
-        resource: `ApiKey:${params.id}`,
-        details: {
-          provider: apiKey.provider,
-          keyName: apiKey.keyName
-        }
+        resource: `ApiKey:${id}`,
+        details: JSON.stringify({
+          provider: apiKey.provider
+        })
       }
     });
 

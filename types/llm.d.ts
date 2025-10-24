@@ -11,6 +11,8 @@ export interface ChatOptions {
   temperature?: number;
   maxTokens?: number;
   stream?: boolean;
+  apiKey?: string;
+  userId?: string;
 }
 
 export interface StreamResponse {

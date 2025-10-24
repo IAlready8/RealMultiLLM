@@ -42,12 +42,12 @@ interface OpenAIStreamChunk {
   }>
 }
 
-class OpenAIService implements ILLMProvider { // Removed export, implemented ILLMProvider
+class OpenAIService implements ILLMProvider {
   private baseUrl = 'https://api.openai.com/v1'
-  private metadata: ProviderMetadata; // Added metadata property
+  private metadata: ProviderMetadata;
 
-  constructor(private apiKey: string) { // Added constructor
-    this.metadata = { // Initialize metadata
+  constructor(private apiKey: string) {
+    this.metadata = {
       id: 'openai',
       name: 'OpenAI',
       label: 'ChatGPT',
@@ -141,14 +141,14 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
     }
   }
 
-  async chat(request: ChatRequest): Promise<ChatResponse> {
+  async chat(request: ChatRequest, apiKey: string, baseUrl?: string): Promise<ChatResponse> {
     const context = createErrorContext('/services/openai/chat', request.userId, {
       model: request.model,
       messages_count: request.messages.length,
     })
 
     try {
-      const baseUrl = request.baseUrl || this.baseUrl // Use request.baseUrl if provided
+      const effectiveBaseUrl = baseUrl || this.baseUrl // Use provided baseUrl or default
       const model = request.model || 'gpt-3.5-turbo'
 
       if (!this.apiKey) { // Use this.apiKey
@@ -171,7 +171,7 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
           model,
           messages: request.messages,
           temperature: request.temperature ?? 0.7,
-          max_tokens: request.max_tokens ?? 4096,
+          max_tokens: request.maxTokens ?? 4096,
           stream: request.stream ?? false,
         }),
         signal: AbortSignal.timeout(60000), // 60 second timeout
@@ -211,14 +211,14 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
     }
   }
 
-  async *streamChat(request: ChatRequest): AsyncGenerator<ChatChunk> {
+  async *streamChat(request: ChatRequest, apiKey: string, baseUrl?: string): AsyncGenerator<ChatChunk> {
     const context = createErrorContext('/services/openai/stream', request.userId, {
       model: request.model,
       messages_count: request.messages.length,
     })
 
     try {
-      const baseUrl = request.baseUrl || this.baseUrl
+      const effectiveBaseUrl = baseUrl || this.baseUrl
       const model = request.model || 'gpt-3.5-turbo'
 
       if (!this.apiKey) {
@@ -229,18 +229,18 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
         throw new ValidationError('Messages array is required and cannot be empty', 'messages', context)
       }
 
-      const response = await fetch(`${baseUrl}/chat/completions`, {
+      const response = await fetch(`${effectiveBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
           'User-Agent': 'Personal-LLM-Tool/1.0',
         },
         body: JSON.stringify({
           model,
           messages: request.messages,
           temperature: request.temperature ?? 0.7,
-          max_tokens: request.max_tokens ?? 4096,
+          max_tokens: request.maxTokens ?? 4096,
           stream: true,
         }),
       })
@@ -352,5 +352,5 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
   }
 }
 
-// Export as default
+// Single default export
 export default OpenAIService;

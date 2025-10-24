@@ -245,8 +245,8 @@ export class ConfigurationManager {
       // Import the appropriate provider service dynamically
       switch (provider) {
         case 'openai': {
-          const { OpenAIService } = await import('@/services/llm-providers/openai-service')
-          const service = OpenAIService.getInstance()
+          const OpenAIService = (await import('@/services/llm-providers/openai-service')).default
+          const service = new OpenAIService(config.apiKey)
           await service.testConnection(config.apiKey)
           break
         }

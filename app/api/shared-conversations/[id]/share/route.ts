@@ -19,11 +19,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOwner();
+  const { id } = await params;
+    const session = await requireOwner();
   if ('error' in session) return session.error;
 
   try {
-    const { id } = await params;
     const payload = await request.json();
     if (!payload?.userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
@@ -47,11 +47,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOwner();
+    const { id } = await params;
+    const session = await requireOwner();
   if ('error' in session) return session.error;
 
   try {
-    const { id } = await params;
     const url = new URL(request.url);
     const userId = url.searchParams.get('userId');
     const payload = await request.json();
@@ -78,11 +78,11 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOwner();
+    const { id } = await params;
+    const session = await requireOwner();
   if ('error' in session) return session.error;
 
   try {
-    const { id } = await params;
     const url = new URL(request.url);
     const userId = url.searchParams.get('userId');
 

@@ -432,34 +432,41 @@ function ChatBox({
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message, index) => (
+            {messages.map((message, index) => {
+              // Type-safe access to metadata
+              const extendedMessage = message as ExtendedChatMessageSchema;
+              const hasError = extendedMessage.metadata?.error;
+              const metadata = extendedMessage.metadata;
+              
+              return (
               <div
                 key={index}
                 className={`p-3 rounded-lg ${
                   message.role === "user"
                     ? "bg-blue-900 ml-6"
-                    : (message as any).metadata?.error 
+                    : hasError 
                       ? "bg-red-900/30 border border-red-800 mr-6 flex items-center gap-2"
                       : "bg-gray-800 mr-6"
                 }`}
               >
-                {(message as any).metadata?.error && <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />}
+                {hasError && <XCircle className="h-5 w-5 text-red-500 flex-shrink-0" />}
                 {message.content}
-                {(message as any).metadata && !(message as any).metadata.error && (
+                {metadata && !hasError && (
                   <div className="mt-2 text-xs text-gray-400 flex flex-wrap gap-2">
-                    {(message as any).metadata.promptTokens && (
-                      <span>Prompt tokens: {(message as any).metadata.promptTokens}</span>
+                    {metadata.promptTokens && (
+                      <span>Prompt tokens: {metadata.promptTokens}</span>
                     )}
-                    {(message as any).metadata.completionTokens && (
-                      <span>Completion tokens: {(message as any).metadata.completionTokens}</span>
+                    {metadata.completionTokens && (
+                      <span>Completion tokens: {metadata.completionTokens}</span>
                     )}
-                    {(message as any).metadata.totalTokens && (
-                      <span>Total tokens: {(message as any).metadata.totalTokens}</span>
+                    {metadata.totalTokens && (
+                      <span>Total tokens: {metadata.totalTokens}</span>
                     )}
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
             {loading && (
               <div className="p-3 rounded-lg bg-gray-800 mr-6">
                 <div className="flex space-x-2 items-center">

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
-import { decryptApiKey, encryptApiKey } from '@/lib/encryption';
+import { decryptApiKey } from '@/lib/encryption';
 import { testProviderConnection, getProviderModels } from '@/lib/provider-tests';
 import { z } from 'zod';
 
@@ -11,6 +11,8 @@ const CreateApiKeySchema = z.object({
   encryptedKey: z.string().min(1),
   keyName: z.string().optional()
 });
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,25 +23,25 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const provider = searchParams.get('provider');
-    const includeUsage = searchParams.get('includeUsage') === 'true';
+    // includeUsage could be used for future enhancement
+    const _includeUsage = searchParams.get('includeUsage') === 'true';
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = { userId: session.user.id };
     if (provider) {
       where.provider = provider;
     }
 
-    const apiKeys = await prisma.apiKey.findMany({
+    const apiKeys = await prisma.providerConfig.findMany({
       where,
       select: {
         id: true,
         provider: true,
-        keyName: true,
+        settings: true,
         isActive: true,
         createdAt: true,
-        lastUsed: true,
-        usageCount: true,
-        monthlyUsage: true,
-        costTracking: includeUsage
+        lastUsedAt: true,
+        usageCount: true
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if key already exists for this provider
-    const existingKey = await prisma.apiKey.findFirst({
+    const existingKey = await prisma.providerConfig.findFirst({
       where: {
         userId: session.user.id,
         provider: validated.provider,
@@ -96,23 +98,12 @@ export async function POST(request: NextRequest) {
     const models = await getProviderModels(validated.provider, decryptedKey);
 
     // Save to database
-    const apiKey = await prisma.apiKey.create({
+    const apiKey = await prisma.providerConfig.create({
       data: {
         provider: validated.provider,
-        encryptedKey: validated.encryptedKey,
-        keyName: validated.keyName || `${validated.provider} Key`,
-        userId: session.user.id,
-        availableModels: models,
-        costTracking: {
-          create: {
-            totalCost: 0,
-            monthlyCost: 0,
-            requestCount: 0
-          }
-        }
-      },
-      include: {
-        costTracking: true
+        apiKey: validated.encryptedKey,
+        settings: JSON.stringify({ keyName: validated.keyName || `${validated.provider} Key`, availableModels: models }),
+        userId: session.user.id
       }
     });
 
@@ -122,25 +113,24 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         action: 'CREATE_API_KEY',
         resource: `ApiKey:${apiKey.id}`,
-        details: {
+        details: JSON.stringify({
           provider: validated.provider,
           keyName: validated.keyName
-        }
+        })
       }
     });
 
     return NextResponse.json({
       id: apiKey.id,
       provider: apiKey.provider,
-      keyName: apiKey.keyName,
+      settings: apiKey.settings,
       isActive: apiKey.isActive,
-      createdAt: apiKey.createdAt,
-      availableModels: apiKey.availableModels
+      createdAt: apiKey.createdAt
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request body', details: error.errors },
+        { error: 'Invalid request body', details: error.issues },
         { status: 400 }
       );
     }

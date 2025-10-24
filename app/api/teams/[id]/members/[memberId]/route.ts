@@ -3,17 +3,20 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { removeTeamMember, updateTeamMemberRole } from '@/services/team-service';
 
+export const dynamic = 'force-dynamic';
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; memberId: string }> }
 ) {
   try {
+    const { id: teamId, memberId } = await params;
+    
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: teamId, memberId } = await params;
     
     // Validate that memberId is provided
     if (!memberId) {
@@ -37,12 +40,13 @@ export async function PUT(
   { params }: { params: Promise<{ id: string; memberId: string }> }
 ) {
   try {
+    const { id: teamId, memberId } = await params;
+    
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id: teamId, memberId } = await params;
     const body = await request.json();
     
     // Validate that memberId is provided

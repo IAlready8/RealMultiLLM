@@ -5,7 +5,8 @@ import {
   ValidationError,
 } from '@/lib/error-system'
 
-import { OpenAIService } from './llm-providers/openai-service'
+import OpenAIService from './llm-providers/openai-service'
+import OpenAIProvider from './llm-providers/openai-provider'
 import AnthropicProvider from './llm-providers/anthropic-service'
 import GoogleAIProvider from './llm-providers/google-ai-service'
 import OpenRouterProvider from './llm-providers/openrouter-service'
@@ -28,7 +29,7 @@ export interface StreamChatOptions {
 }
 
 const providerServices = {
-  openai: () => OpenAIService.getInstance(),
+  openai: () => new OpenAIProvider(),
   anthropic: () => new AnthropicProvider(),
   'google-ai': () => new GoogleAIProvider(),
   openrouter: () => new OpenRouterProvider(),
@@ -71,7 +72,7 @@ export async function sendChatMessage(
       model: options.model,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-      userId: options.userId,
+      apiKey: options.apiKey,
     })
 
     return {
@@ -136,7 +137,7 @@ export async function streamChatMessage(
       model: options.model,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
-      userId: options.userId,
+      apiKey: options.apiKey,
     })
 
     for await (const chunk of streamResult) {

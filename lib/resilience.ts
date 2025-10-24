@@ -1,6 +1,5 @@
 import { auditLogger } from './audit-logger';
 import { monitoring } from './monitoring';
-import { isProduction } from './env';
 
 /**
  * Enterprise-grade resilience and fault tolerance system

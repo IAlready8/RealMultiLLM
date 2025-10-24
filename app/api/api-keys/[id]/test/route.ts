@@ -5,19 +5,23 @@ import { prisma } from '@/lib/prisma';
 import { decryptApiKey } from '@/lib/encryption';
 import { testProviderConnection } from '@/lib/provider-tests';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+    
     const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const apiKey = await prisma.apiKey.findFirst({
+    const apiKey = await prisma.providerConfig.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id,
         isActive: true
       }
@@ -28,17 +32,20 @@ export async function POST(
     }
 
     // Decrypt and test the key
-    const decryptedKey = await decryptApiKey(apiKey.encryptedKey);
+    if (!apiKey.apiKey) {
+      return NextResponse.json({ error: 'API key is missing' }, { status: 400 });
+    }
+    
+    const decryptedKey = await decryptApiKey(apiKey.apiKey);
     const isValid = await testProviderConnection(apiKey.provider, decryptedKey);
 
     if (isValid) {
       // Update last used timestamp
-      await prisma.apiKey.update({
-        where: { id: params.id },
+      await prisma.providerConfig.update({
+        where: { id: id },
         data: { 
-          lastUsed: new Date(),
-          usageCount: { increment: 1 },
-          monthlyUsage: { increment: 1 }
+          lastUsedAt: new Date(),
+          usageCount: { increment: 1 }
         }
       });
 
@@ -47,11 +54,11 @@ export async function POST(
         data: {
           userId: session.user.id,
           action: 'TEST_API_KEY',
-          resource: `ApiKey:${params.id}`,
-          details: {
+          resource: `ApiKey:${id}`,
+          details: JSON.stringify({
             provider: apiKey.provider,
             result: 'success'
-          }
+          })
         }
       });
     } else {
@@ -60,11 +67,11 @@ export async function POST(
         data: {
           userId: session.user.id,
           action: 'TEST_API_KEY',
-          resource: `ApiKey:${params.id}`,
-          details: {
+          resource: `ApiKey:${id}`,
+          details: JSON.stringify({
             provider: apiKey.provider,
             result: 'failed'
-          }
+          })
         }
       });
     }

@@ -36,6 +36,31 @@ interface EnhancedTestResult {
   };
 }
 
+const DEFAULT_BASE_URL =
+  process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+
+const toApiUrl = (path: string) => {
+  const base =
+    typeof window !== "undefined" && typeof window.location !== "undefined" && window.location.origin &&
+    window.location.origin !== "null" &&
+    window.location.origin !== "about:blank"
+      ? window.location.origin
+      : DEFAULT_BASE_URL;
+
+  return new URL(path, base).toString();
+};
+
+// LLM providers we'll support
+const providers = [
+  { id: "openai", name: "OpenAI", description: "GPT models by OpenAI", icon: "🤖" },
+  { id: "openrouter", name: "OpenRouter", description: "Access to 100+ models", icon: "🌐" },
+  { id: "claude", name: "Claude", description: "Anthropic's Claude models", icon: "🧠" },
+  { id: "google", name: "Google AI", description: "Gemini models by Google", icon: "🔍" },
+  { id: "llama", name: "Llama", description: "Meta's open-source models", icon: "🦙" },
+  { id: "github", name: "GitHub", description: "GitHub Copilot integration", icon: "🐙" },
+  { id: "grok", name: "Grok", description: "xAI's Grok models", icon: "⚡" },
+];
+
 // Enhanced API key validation function
 function validateApiKey(provider: string, key: string): { isValid: boolean; error?: DetailedError } {
   if (!key || key.trim().length === 0) {
@@ -136,31 +161,6 @@ function validateApiKey(provider: string, key: string): { isValid: boolean; erro
 
   return { isValid: true };
 }
-
-const DEFAULT_BASE_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? "http://localhost:3000";
-
-const toApiUrl = (path: string) => {
-  const base =
-    typeof window !== "undefined" && typeof window.location !== "undefined" && window.location.origin &&
-    window.location.origin !== "null" &&
-    window.location.origin !== "about:blank"
-      ? window.location.origin
-      : DEFAULT_BASE_URL;
-
-  return new URL(path, base).toString();
-};
-
-// LLM providers we'll support
-const providers = [
-  { id: "openai", name: "OpenAI", description: "GPT models by OpenAI", icon: "🤖" },
-  { id: "openrouter", name: "OpenRouter", description: "Access to 100+ models", icon: "🌐" },
-  { id: "claude", name: "Claude", description: "Anthropic's Claude models", icon: "🧠" },
-  { id: "google", name: "Google AI", description: "Gemini models by Google", icon: "🔍" },
-  { id: "llama", name: "Llama", description: "Meta's open-source models", icon: "🦙" },
-  { id: "github", name: "GitHub", description: "GitHub Copilot integration", icon: "🐙" },
-  { id: "grok", name: "Grok", description: "xAI's Grok models", icon: "⚡" },
-];
 
 interface LogEntry {
   id: string;

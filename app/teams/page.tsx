@@ -418,9 +418,11 @@ export default function TeamsPage() {
                 <div className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     {selectedTeam.owner.image ? (
-                      <img 
+                      <Image 
                         src={selectedTeam.owner.image} 
                         alt={selectedTeam.owner.name || 'Owner'} 
+                        width={32}
+                        height={32}
                         className="w-8 h-8 rounded-full"
                       />
                     ) : (
@@ -484,9 +486,11 @@ export default function TeamsPage() {
                           <TableCell>
                             <div className="flex items-center gap-3">
                               {member.user.image ? (
-                                <img 
+                                <Image 
                                   src={member.user.image} 
-                                  alt={member.user.name || 'Member'} 
+                                  alt={member.user.name || 'Member'}
+                                  width={32}
+                                  height={32}
                                   className="w-8 h-8 rounded-full"
                                 />
                               ) : (
