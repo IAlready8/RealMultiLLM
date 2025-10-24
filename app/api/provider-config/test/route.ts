@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { provider, apiKey } = testSchema.parse(body);
 
-    let testApiKey: string | undefined;
+    let testApiKey: string | undefined | null;
     
     if (apiKey) {
       // Use the API key provided in the request body

@@ -97,4 +97,15 @@ export class ProviderTestService {
 // Export singleton instance
 export const providerTestService = new ProviderTestService();
 
+/**
+ * Helper function to test provider connectivity
+ * Used by chat-client.ts for API key validation before making requests
+ */
+export async function testProviderConnectivity(
+  provider: string,
+  apiKey: string
+): Promise<ProviderTestResult> {
+  return providerTestService.testProvider(provider, { apiKey });
+}
+
 export default ProviderTestService;
