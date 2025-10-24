@@ -24,6 +24,7 @@
     "db:studio": "prisma studio",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
+    "db:seed": "ts-node prisma/seed.ts",
     "setup": "node setup_project.js",
     "setup:env": "node setup_env.py",
     "build:vercel": "bash scripts/build-vercel.sh",

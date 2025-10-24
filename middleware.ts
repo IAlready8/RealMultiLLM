@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import { hasPermission } from './lib/permissions';
 
 /**
  * Security Headers Configuration
@@ -129,6 +130,14 @@ export async function middleware(request: NextRequest) {
         const url = new URL('/api/auth/signin', request.url);
         url.searchParams.set('callbackUrl', request.nextUrl.pathname);
         return NextResponse.redirect(url);
+      }
+
+      if (request.nextUrl.pathname.startsWith('/admin')) {
+        const hasAdminPermission = await hasPermission(token.sub, 'READ_USER');
+        if (!hasAdminPermission) {
+          const url = new URL('/unauthorized', request.url);
+          return NextResponse.redirect(url);
+        }
       }
 
       // Add user context to response headers (for logging/monitoring)

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
-import { decryptApiKey } from '@/lib/encryption';
+import { encrypt, decrypt } from '@/lib/encryption';
 import { testProviderConnection, getProviderModels } from '@/lib/provider-tests';
 import { z } from 'zod';
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     const validated = CreateApiKeySchema.parse(body);
 
     // Decrypt the key to test it
-    const decryptedKey = await decryptApiKey(validated.encryptedKey);
+    const decryptedKey = decrypt(validated.encryptedKey);
     
     // Test the API key
     const isValid = await testProviderConnection(validated.provider, decryptedKey);
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     const apiKey = await prisma.providerConfig.create({
       data: {
         provider: validated.provider,
-        apiKey: validated.encryptedKey,
+        apiKey: encrypt(validated.encryptedKey),
         settings: JSON.stringify({ keyName: validated.keyName || `${validated.provider} Key`, availableModels: models }),
         userId: session.user.id
       }
