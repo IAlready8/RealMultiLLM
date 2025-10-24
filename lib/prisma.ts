@@ -11,7 +11,7 @@ const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' ||
 
 // Enhanced Prisma configuration with better logging and optimization
 const prisma = isBuildPhase 
-  ? ({} as PrismaClient) 
+  ? (null as unknown as PrismaClient) 
   : (global.prisma || new PrismaClient({
       log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
       datasources: {

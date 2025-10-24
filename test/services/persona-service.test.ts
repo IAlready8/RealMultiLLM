@@ -88,8 +88,10 @@ describe('Persona Service',
       () => {
         const defaults = getDefaultPersonas();
         const first = defaults[0];
-        expect(first).toHaveProperty('name');
-        expect(first).toHaveProperty('systemPrompt');
+        expect(first).toHaveProperty('title');
+        expect(first).toHaveProperty('prompt');
+        expect(first).toHaveProperty('id');
+        expect(first).toHaveProperty('userId');
       });
   });
 });

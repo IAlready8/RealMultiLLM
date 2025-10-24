@@ -6,6 +6,10 @@ import {
 } from '@/lib/error-system'
 
 import OpenAIService from './llm-providers/openai-service'
+<<<<<<< HEAD
+=======
+import OpenAIProvider from './llm-providers/openai-provider'
+>>>>>>> origin/main
 import AnthropicProvider from './llm-providers/anthropic-service'
 import GoogleAIProvider from './llm-providers/google-ai-service'
 import OpenRouterProvider from './llm-providers/openrouter-service'
@@ -28,11 +32,19 @@ export interface StreamChatOptions {
 }
 
 const providerServices = {
+<<<<<<< HEAD
   openai: (apiKey?: string) => new OpenAIService(apiKey || ''),
   anthropic: (apiKey?: string) => new AnthropicProvider(),
   'google-ai': (apiKey?: string) => new GoogleAIProvider(),
   openrouter: (apiKey?: string) => new OpenRouterProvider(),
   grok: (apiKey?: string) => new GrokProvider(),
+=======
+  openai: () => new OpenAIProvider(),
+  anthropic: () => new AnthropicProvider(),
+  'google-ai': () => new GoogleAIProvider(),
+  openrouter: () => new OpenRouterProvider(),
+  grok: () => new GrokProvider(),
+>>>>>>> origin/main
 }
 
 export async function sendChatMessage(
@@ -71,8 +83,12 @@ export async function sendChatMessage(
       model: options.model,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+<<<<<<< HEAD
       userId: options.userId || 'anonymous',
       provider: provider,
+=======
+      apiKey: options.apiKey,
+>>>>>>> origin/main
     })
 
     return {
@@ -137,8 +153,12 @@ export async function streamChatMessage(
       model: options.model,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
+<<<<<<< HEAD
       userId: options.userId || 'anonymous',
       provider: provider,
+=======
+      apiKey: options.apiKey,
+>>>>>>> origin/main
     })
 
     for await (const chunk of streamResult) {

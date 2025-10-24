@@ -29,7 +29,7 @@ export default function Comparison() {
   const [nextPanelId, setNextPanelId] = useState(0);
   const { toast } = useToast(); // Initialize toast
   const [streamingEnabled, setStreamingEnabled] = useState(true)
-  const streamHandlesRef = useRef<Map<string, { abort: (r?: any) => void }>>(new Map())
+  const streamHandlesRef = useRef<Map<string, { abort: (r?: unknown) => void }>>(new Map())
 
   const addComparisonPanel = useCallback(() => {
     setComparisonPanels((prev) => [

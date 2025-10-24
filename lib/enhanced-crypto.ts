@@ -66,10 +66,11 @@ export async function aesGcmEncrypt(key: Uint8Array, data: string): Promise<stri
     // Generate a random initialization vector
     const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit IV for GCM
 
-    // Import the key
+    // Import the key - create proper ArrayBuffer
+    const keyArrayBuffer = new Uint8Array(key).buffer;
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      key.buffer as ArrayBuffer,
+      keyArrayBuffer,
       { name: 'AES-GCM' },
       false,
       ['encrypt']
@@ -121,10 +122,11 @@ export async function aesGcmDecrypt(key: Uint8Array, encryptedData: string): Pro
     const iv = dataBuffer.slice(0, 12);
     const encryptedBytes = dataBuffer.slice(12);
 
-    // Import the key
+    // Import the key - create proper ArrayBuffer
+    const keyArrayBuffer = new Uint8Array(key).buffer;
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      key.buffer as ArrayBuffer,
+      keyArrayBuffer,
       { name: 'AES-GCM' },
       false,
       ['decrypt']

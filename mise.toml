@@ -1,5 +1,15 @@
-# mise.toml - Tool version management
-# Ensures consistent Node.js version across environments
+name = "realmultillm"
+version = "0.1.0"
+description = "RealMultiLLM Next.js application"
+license = "MIT"
 
-[tools]
-node = "18.17.0"
+[tool]
+name = "RealMultiLLM"
+
+[tool.scripts]
+dev = "npm run dev"
+build = "npm run build"
+start = "npm start"
+
+[env]
+NODE_ENV = "development"

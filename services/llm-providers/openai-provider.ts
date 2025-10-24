@@ -39,8 +39,16 @@ class OpenAIProvider implements LLMProvider {
 
   private service: OpenAIService | null = null;
 
+<<<<<<< HEAD
   constructor() {
     // Service will be initialized per request with apiKey
+=======
+  private getService(apiKey: string): OpenAIService {
+    if (!this.service) {
+      this.service = new OpenAIService(apiKey);
+    }
+    return this.service;
+>>>>>>> origin/main
   }
 
   async validateConfig(config: { apiKey: string }): Promise<boolean> {
@@ -49,8 +57,12 @@ class OpenAIProvider implements LLMProvider {
         return false;
       }
       
+<<<<<<< HEAD
       const service = new OpenAIService(config.apiKey);
       const result = await service.testConnection(config.apiKey);
+=======
+      const result = await this.getService(config.apiKey).testConnection(config.apiKey);
+>>>>>>> origin/main
       return result.success;
     } catch (error) {
       console.error('OpenAI config validation error:', error);
@@ -70,6 +82,7 @@ class OpenAIProvider implements LLMProvider {
   async chat(options: ChatOptions): Promise<any> {
     try {
       if (!options.apiKey) {
+<<<<<<< HEAD
         throw new Error('API key is required for chat');
       }
       const service = new OpenAIService(options.apiKey);
@@ -85,6 +98,27 @@ class OpenAIProvider implements LLMProvider {
       return {
         content: response.content,
         finish_reason: response.finishReason,
+=======
+        throw new Error('API key is required');
+      }
+      
+      const response = await this.getService(options.apiKey).chat({
+        userId: options.userId || 'anonymous',
+        provider: 'openai',
+        messages: options.messages.map(m => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content
+        })),
+        model: options.model || this.model,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        stream: false,
+      }, options.apiKey);
+
+      return {
+        content: response.content,
+        finishReason: response.finishReason,
+>>>>>>> origin/main
         usage: response.usage
       };
     } catch (error) {
@@ -96,6 +130,7 @@ class OpenAIProvider implements LLMProvider {
   async streamChat(options: ChatOptions): Promise<AsyncGenerator<any, void, undefined>> {
     try {
       if (!options.apiKey) {
+<<<<<<< HEAD
         throw new Error('API key is required for streamChat');
       }
       const service = new OpenAIService(options.apiKey);
@@ -107,8 +142,33 @@ class OpenAIProvider implements LLMProvider {
         temperature: options.temperature,
         maxTokens: options.maxTokens,
       });
+=======
+        throw new Error('API key is required');
+      }
+      
+      const stream = this.getService(options.apiKey).streamChat({
+        userId: options.userId || 'anonymous',
+        provider: 'openai',
+        messages: options.messages.map(m => ({
+          role: m.role as 'system' | 'user' | 'assistant',
+          content: m.content
+        })),
+        model: options.model || this.model,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        stream: true,
+      }, options.apiKey);
+>>>>>>> origin/main
 
-      return stream;
+      async function* convertToStringGenerator() {
+        for await (const chunk of stream) {
+          if (chunk.content) {
+            yield chunk.content;
+          }
+        }
+      }
+
+      return convertToStringGenerator();
     } catch (error) {
       console.error('OpenAI streaming API error:', error);
       throw error;

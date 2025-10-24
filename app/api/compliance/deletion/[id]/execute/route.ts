@@ -13,7 +13,8 @@ import { hasPermission } from '@/lib/rbac';
  */
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const startTime = Date.now();
+  const { id } = await params;
+    const startTime = Date.now();
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   let userId = 'unknown';
 

@@ -1,5 +1,5 @@
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -100,22 +100,28 @@ model ProviderConfig {
 model ApiKey {
   id              String    @id @default(cuid())
   provider        String
-  encryptedKey    String    // AES-256 encrypted
+  encryptedKey    String // AES-256 encrypted
   keyName         String?
   isActive        Boolean   @default(true)
-  availableModels String[]  // JSON array of available models
+  availableModels String // JSON array of available models as string
   createdAt       DateTime  @default(now())
   lastUsed        DateTime?
   usageCount      Int       @default(0)
   monthlyUsage    Int       @default(0)
-  
+
   // Relations
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  costTracking    CostTracking?
-  usageLogs       ApiUsage[]
-  
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  costTracking CostTracking?
+  usageLogs    ApiUsage[]
+
   @@map("api_keys")
+  @@index([userId])
+  @@index([provider])
+  @@index([isActive])
+  @@index([lastUsed])
+  @@index([createdAt])
+  @@index([usageCount])
 }
 
 model CostTracking {
@@ -124,31 +130,41 @@ model CostTracking {
   monthlyCost  Float    @default(0)
   requestCount Int      @default(0)
   lastReset    DateTime @default(now())
-  
+
   // Relations
-  apiKeyId     String   @unique
-  apiKey       ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  
+  apiKeyId String @unique
+  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
   @@map("cost_tracking")
+  @@index([apiKeyId])
+  @@index([totalCost])
+  @@index([monthlyCost])
+  @@index([requestCount])
 }
 
 model ApiUsage {
-  id          String   @id @default(cuid())
-  timestamp   DateTime @default(now())
-  model       String
-  promptTokens Int?
+  id               String   @id @default(cuid())
+  timestamp        DateTime @default(now())
+  model            String
+  promptTokens     Int?
   completionTokens Int?
-  totalTokens Int?
-  cost        Float?
-  latency     Int?     // Response time in ms
-  success     Boolean  @default(true)
-  errorMessage String?
-  
+  totalTokens      Int?
+  cost             Float?
+  latency          Int? // Response time in ms
+  success          Boolean  @default(true)
+  errorMessage     String?
+
   // Relations
-  apiKeyId    String
-  apiKey      ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
-  
+  apiKeyId String
+  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
   @@map("api_usage")
+  @@index([apiKeyId])
+  @@index([timestamp])
+  @@index([model])
+  @@index([success])
+  @@index([cost])
+  @@index([latency])
 }
 
 model Conversation {
@@ -352,33 +368,33 @@ model ComplianceConfig {
 }
 
 model RetentionPolicy {
-  id                   String   @id @default(cuid())
-  name                 String
-  description          String?
-  retentionPeriodDays  Int      @default(90)
-  appliesTo            String   // JSON array of table names or data categories
-  isActive             Boolean  @default(true)
-  lastRunAt            DateTime?
-  nextRunAt            DateTime?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  String    @id @default(cuid())
+  name                String
+  description         String?
+  retentionPeriodDays Int       @default(90)
+  appliesTo           String // JSON array of table names or data categories
+  isActive            Boolean   @default(true)
+  lastRunAt           DateTime?
+  nextRunAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   // Add opposite relation to RetentionPolicyExecution
-  executions           RetentionPolicyExecution[]
+  executions RetentionPolicyExecution[]
 
   @@index([isActive])
   @@index([nextRunAt])
 }
 
 model RetentionPolicyExecution {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   policyId        String
-  executedAt      DateTime @default(now())
-  recordsDeleted  Int      @default(0)
-  executionTimeMs Int      @default(0)
-  status          String   @default("success")
+  executedAt      DateTime        @default(now())
+  recordsDeleted  Int             @default(0)
+  executionTimeMs Int             @default(0)
+  status          String          @default("success")
   error           String?
-  details         String?  // JSON object with execution details
+  details         String? // JSON object with execution details
   policy          RetentionPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
 
   @@index([policyId])
@@ -389,11 +405,11 @@ model RetentionPolicyExecution {
 model UserConsent {
   id              String    @id @default(cuid())
   userId          String
-  category        String    // Consent category (e.g., "data_processing", "marketing", etc.)
-  regulation      String?   // Compliance regulation (GDPR, CCPA, etc.)
-  consentText     String    // The actual consent text agreed to
-  version         String    // Version of the consent agreement
-  status          String    @default("granted")  // granted, withdrawn, expired
+  category        String // Consent category (e.g., "data_processing", "marketing", etc.)
+  regulation      String? // Compliance regulation (GDPR, CCPA, etc.)
+  consentText     String // The actual consent text agreed to
+  version         String // Version of the consent agreement
+  status          String    @default("granted") // granted, withdrawn, expired
   consentedAt     DateTime  @default(now())
   withdrawnAt     DateTime?
   ipAddress       String?

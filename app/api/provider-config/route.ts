@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { getUserProviderConfigs, storeUserApiKey, deleteUserProviderConfig, updateProviderSettings } from '@/lib/api-key-service';
 import { z } from 'zod';
 
 const validProviders = [
@@ -16,7 +15,8 @@ const validProviders = [
   'grok',
 ] as const;
 
-const providerSchema = z.object({
+// Schema for future validation if needed
+const _providerSchema = z.object({
   provider: z.enum(validProviders),
 });
 
@@ -29,7 +29,8 @@ const configSchema = z.object({
 /**
  * GET /api/provider-config - Get all provider configurations for the user
  */
-export async function GET(request: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function GET(_request: NextRequest) {
   const session = await getServerSession(authOptions);
 
   if (!session || !session.user?.id) {
@@ -198,6 +199,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Prepare update data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = {
       updatedAt: new Date(),
     };
@@ -307,7 +309,7 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error deleting provider configuration';
+    const _message = error instanceof Error ? error.message : 'Unknown error deleting provider configuration';
     
     return NextResponse.json(
       { error: 'Failed to delete provider configuration' }, 

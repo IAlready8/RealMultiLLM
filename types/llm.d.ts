@@ -12,6 +12,7 @@ export interface ChatOptions {
   maxTokens?: number;
   stream?: boolean;
   apiKey?: string;
+  userId?: string;
 }
 
 export interface StreamResponse {
