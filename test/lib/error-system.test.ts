@@ -11,13 +11,17 @@ vi.mock('@/lib/prisma', () => {
   }
 })
 
-vi.mock('@/lib/logger', () => ({
-  logger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  },
-}))
+import { vi } from 'vitest'
+
+vi.mock('@/lib/logger', () => {
+  return {
+    default: {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    },
+  }
+})
 
 import prisma from '@/lib/prisma'
 import {

@@ -41,7 +41,8 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String? // For credential-based authentication
-  role          String    @default("USER")
+  roleId        String
+  role          Role      @relation(fields: [roleId], references: [id])
 
   // Two-Factor Authentication
   twoFactorEnabled     Boolean? @default(false)
@@ -427,4 +428,37 @@ model UserConsent {
   @@index([withdrawnAt])
   @@index([requiresRenewal])
   @@index([renewalDate])
+}
+
+model Role {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  users           User[]
+  rolePermissions RolePermission[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([name])
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  rolePermissions RolePermission[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([name])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
 }
