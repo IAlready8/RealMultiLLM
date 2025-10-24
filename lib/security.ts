@@ -20,7 +20,7 @@ export interface SecurityResult {
 export async function processSecurityRequest(request: Request): Promise<SecurityResult> {
   // Basic security checks
   const origin = request.headers.get('origin');
-  const host = request.headers.get('host');
+  const _host = request.headers.get('host');
   const ip = request.headers.get('x-forwarded-for') || 
              request.headers.get('x-real-ip') || 
              'unknown';
