@@ -186,7 +186,7 @@ export class EnterpriseRateLimiter {
   private memorySlidingWindow(
     key: string,
     config: RateLimitConfig,
-    _now: number,
+    now: number,
     windowStart: number
   ): RateLimitInfo {
     let requests = this.memoryStore.get(key) || [];
