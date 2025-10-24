@@ -1,0 +1,5 @@
+# mise.toml - Tool version management
+# Ensures consistent Node.js version across environments
+
+[tools]
+node = "18.17.0"

@@ -77,10 +77,10 @@ export async function DELETE(
         userId: session.user.id,
         action: 'DELETE_API_KEY',
         resource: `ApiKey:${params.id}`,
-        details: {
+        details: JSON.stringify({
           provider: apiKey.provider,
           keyName: apiKey.keyName
-        }
+        })
       }
     });
 

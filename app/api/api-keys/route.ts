@@ -122,10 +122,10 @@ export async function POST(request: NextRequest) {
         userId: session.user.id,
         action: 'CREATE_API_KEY',
         resource: `ApiKey:${apiKey.id}`,
-        details: {
+        details: JSON.stringify({
           provider: validated.provider,
           keyName: validated.keyName
-        }
+        })
       }
     });
 
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Invalid request body', details: error.errors },
+        { error: 'Invalid request body', details: error.issues },
         { status: 400 }
       );
     }

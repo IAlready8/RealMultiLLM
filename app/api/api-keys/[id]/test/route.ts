@@ -48,10 +48,10 @@ export async function POST(
           userId: session.user.id,
           action: 'TEST_API_KEY',
           resource: `ApiKey:${params.id}`,
-          details: {
+          details: JSON.stringify({
             provider: apiKey.provider,
             result: 'success'
-          }
+          })
         }
       });
     } else {
@@ -61,10 +61,10 @@ export async function POST(
           userId: session.user.id,
           action: 'TEST_API_KEY',
           resource: `ApiKey:${params.id}`,
-          details: {
+          details: JSON.stringify({
             provider: apiKey.provider,
             result: 'failed'
-          }
+          })
         }
       });
     }
