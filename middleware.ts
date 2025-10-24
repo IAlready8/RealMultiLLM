@@ -14,9 +14,6 @@ const SECURITY_HEADERS = {
   // Prevent clickjacking attacks
   'X-Frame-Options': 'DENY',
 
-  // Enable XSS protection in older browsers
-  'X-XSS-Protection': '1; mode=block',
-
   // Prevent MIME type sniffing
   'X-Content-Type-Options': 'nosniff',
 
@@ -32,8 +29,8 @@ const SECURITY_HEADERS = {
   // Content Security Policy
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // Next.js requires unsafe-eval for dev
-    "style-src 'self' 'unsafe-inline'",
+    `script-src 'self' ${process.env.NODE_ENV === 'development' ? "'unsafe-eval' 'unsafe-inline'" : ''}`,
+    `style-src 'self' ${process.env.NODE_ENV === 'development' ? "'unsafe-inline'" : ''}`,
     "img-src 'self' data: https:",
     "font-src 'self' data:",
     "connect-src 'self' https://api.openai.com https://api.anthropic.com https://generativelanguage.googleapis.com https://openrouter.ai",
@@ -43,10 +40,7 @@ const SECURITY_HEADERS = {
   ].join('; '),
 };
 
-/**
- * Rate limiting storage (in-memory for demo, use Redis in production)
- */
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+import Redis from 'ioredis';
 
 /**
  * Rate limit configuration
@@ -58,41 +52,27 @@ const RATE_LIMIT_CONFIG = {
   apiMaxRequests: 30, // 30 API requests per minute
 };
 
+// Initialize Redis client
+const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
+
 /**
- * Check rate limit for a given identifier
+ * Check rate limit for a given identifier using Redis
  */
-function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): boolean {
-  const now = Date.now();
-  const record = rateLimitStore.get(identifier);
+async function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): Promise<boolean> {
+  const key = `rate-limit:${identifier}`;
+  const transaction = redis.multi();
 
-  if (!record || now > record.resetAt) {
-    // Reset or initialize
-    rateLimitStore.set(identifier, {
-      count: 1,
-      resetAt: now + windowMs,
-    });
-    return true;
-  }
+  transaction.incr(key);
+  transaction.expire(key, windowMs / 1000); // Set expiration in seconds
 
-  if (record.count >= maxRequests) {
+  const [count] = await transaction.exec();
+
+  if (count && count[1] > maxRequests) {
     return false;
   }
 
-  record.count++;
   return true;
 }
-
-/**
- * Clean up expired rate limit records periodically
- */
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of rateLimitStore.entries()) {
-    if (now > value.resetAt) {
-      rateLimitStore.delete(key);
-    }
-  }
-}, 60 * 1000); // Clean up every minute
 
 /**
  * Main middleware function
@@ -117,7 +97,7 @@ export async function middleware(request: NextRequest) {
   const windowMs = isApiRoute ? RATE_LIMIT_CONFIG.apiWindowMs : RATE_LIMIT_CONFIG.windowMs;
 
   const identifier = `${ip}-${request.nextUrl.pathname}`;
-  const allowed = checkRateLimit(identifier, maxRequests, windowMs);
+  const allowed = await checkRateLimit(identifier, maxRequests, windowMs);
 
   if (!allowed) {
     return new NextResponse('Too Many Requests', {
@@ -139,13 +119,35 @@ export async function middleware(request: NextRequest) {
   );
 
   if (isProtectedPath) {
-    const token = await getToken({
-      req: request,
-      secret: process.env.NEXTAUTH_SECRET,
-    });
+    try {
+      const token = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+      });
 
-    if (!token) {
-      const url = new URL('/api/auth/signin', request.url);
+      if (!token) {
+        const url = new URL('/api/auth/signin', request.url);
+        url.searchParams.set('callbackUrl', request.nextUrl.pathname);
+        return NextResponse.redirect(url);
+      }
+
+      // Add user context to response headers (for logging/monitoring)
+      response.headers.set('X-User-Id', token.sub || '');
+      response.headers.set('X-User-Role', String(token.role || 'USER'));
+    } catch (error) {
+      console.error('Error retrieving token:', error);
+      // Handle the error appropriately, e.g., redirect to an error page
+      const url = new URL('/auth/error', request.url);
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Add request ID for tracing
+  const requestId = crypto.randomUUID();
+  response.headers.set('X-Request-ID', requestId);
+
+  return response;
+}
       url.searchParams.set('callbackUrl', request.nextUrl.pathname);
       return NextResponse.redirect(url);
     }

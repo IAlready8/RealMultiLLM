@@ -8,8 +8,8 @@ const __dirname = path.dirname(__filename);
 const nextConfig = {
   // ESLint configuration for build
   eslint: {
-    // Allow production builds to complete even if there are ESLint errors/warnings
-    ignoreDuringBuilds: process.env.NODE_ENV === 'production',
+    // Fail the build on ESLint errors
+    ignoreDuringBuilds: false,
   },
   
   // Performance optimizations for Vercel deployment
@@ -97,37 +97,6 @@ const nextConfig = {
     }
     
     return config;
-  },
-  
-  // Additional security headers
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY', // Or 'SAMEORIGIN' if you need same-origin framing
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Permissions-Policy',
-            value: 'geolocation=(), microphone=(), camera=()',
-          },
-        ],
-      },
-    ];
   },
   
   // Optional: redirects for better UX
