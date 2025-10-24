@@ -243,7 +243,7 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
   openai: {
     metadata: PROVIDER_METADATA.openai,
     getInstance: async (apiKey: string) => {
-      return new OpenAIModule.OpenAIProvider(apiKey) as unknown as ILLMProvider;
+      return new OpenAIModule(apiKey) as unknown as ILLMProvider;
     }
   },
   anthropic: {

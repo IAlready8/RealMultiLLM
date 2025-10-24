@@ -6,9 +6,10 @@ import { decryptApiKey } from '@/lib/encryption';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -16,7 +17,7 @@ export async function GET(
 
     const apiKey = await prisma.apiKey.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id
       },
       include: {
@@ -46,9 +47,10 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -56,7 +58,7 @@ export async function DELETE(
 
     const apiKey = await prisma.apiKey.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id
       }
     });
@@ -67,7 +69,7 @@ export async function DELETE(
 
     // Soft delete by deactivating
     await prisma.apiKey.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { isActive: false }
     });
 
@@ -76,7 +78,7 @@ export async function DELETE(
       data: {
         userId: session.user.id,
         action: 'DELETE_API_KEY',
-        resource: `ApiKey:${params.id}`,
+        resource: `ApiKey:${id}`,
         details: JSON.stringify({
           provider: apiKey.provider,
           keyName: apiKey.keyName

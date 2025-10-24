@@ -2,7 +2,7 @@
 // This service handles communication with OpenAI's models
 
 import { LLMProvider, Message, ChatOptions } from '@/types/llm';
-import { OpenAIService } from './openai-service';
+import OpenAIService from './openai-service';
 
 class OpenAIProvider implements LLMProvider {
   id = 'openai';
@@ -37,10 +37,10 @@ class OpenAIProvider implements LLMProvider {
     }
   ];
 
-  private service: OpenAIService;
+  private service: OpenAIService | null = null;
 
   constructor() {
-    this.service = OpenAIService.getInstance();
+    // Service will be initialized per request with apiKey
   }
 
   async validateConfig(config: { apiKey: string }): Promise<boolean> {
@@ -49,7 +49,8 @@ class OpenAIProvider implements LLMProvider {
         return false;
       }
       
-      return await this.service.testConnection(config.apiKey);
+      const service = new OpenAIService(config.apiKey);
+      return await service.testConnection(config.apiKey);
     } catch (error) {
       console.error('OpenAI config validation error:', error);
       return false;
