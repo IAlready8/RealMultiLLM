@@ -61,19 +61,16 @@ jobs:
       - name: Apply Database Migrations
         run: npx prisma migrate deploy
       
-      - name: Lint Code (Allow Warnings)
-        run: npm run lint || echo "Linting completed with warnings"
-        continue-on-error: true
+      - name: Lint Code (STRICT - No Warnings Allowed)
+        run: npm run lint -- --max-warnings 0
       
-      - name: Type Check
-        run: npm run type-check || echo "Type checking completed with warnings"
-        continue-on-error: true
+      - name: Type Check (STRICT - Must Pass)
+        run: npm run type-check
       
-      - name: Run Tests
-        run: npm run test:run || echo "Tests completed"
-        continue-on-error: true
+      - name: Run Tests (STRICT - All Must Pass)
+        run: npm run test:run
       
-      - name: Build Project
+      - name: Build Project (STRICT - Must Build)
         run: npm run build
 
   deploy:
