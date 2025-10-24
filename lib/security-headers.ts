@@ -293,7 +293,7 @@ export function securityMiddleware(request: Request): {
 } {
   const userAgent = request.headers.get('user-agent') || '';
   const origin = request.headers.get('origin');
-  const referer = request.headers.get('referer');
+  const _referer = request.headers.get('referer');
 
   // Basic bot detection and blocking
   const suspiciousBots = [

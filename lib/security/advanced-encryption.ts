@@ -9,14 +9,13 @@
  */
 
 import crypto from 'crypto';
-import { z } from 'zod';
 
 // ✅ OPTIMIZATION: Use native crypto for maximum performance
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
 const SALT_LENGTH = 64; // 512 bits
-const AUTH_TAG_LENGTH = 16; // 128 bits
+const _AUTH_TAG_LENGTH = 16; // 128 bits
 const ITERATIONS = 600000; // OWASP recommendation for PBKDF2
 
 // Key rotation configuration

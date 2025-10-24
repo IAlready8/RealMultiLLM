@@ -1,4 +1,4 @@
-import { PrismaClient, Team, TeamMembership, User } from '@prisma/client';
+import { PrismaClient, Team, TeamMembership } from '@prisma/client';
 import { AppError } from '@/lib/error-system';
 import { hasPermission } from '@/lib/rbac';
 

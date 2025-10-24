@@ -5,7 +5,6 @@
 
 import { NextApiRequest, NextApiResponse } from 'next';
 import { Logger } from '../observability/logger';
-import { configManager } from '../config';
 
 // Security configuration interface
 export interface SecurityConfig {

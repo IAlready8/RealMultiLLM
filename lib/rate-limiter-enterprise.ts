@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { getValidatedEnv, getRateLimitConfig, isProduction } from './env';
+import { getValidatedEnv, isProduction } from './env';
 import { auditLogger } from './audit-logger';
 
 /**
@@ -186,7 +186,7 @@ export class EnterpriseRateLimiter {
   private memorySlidingWindow(
     key: string,
     config: RateLimitConfig,
-    now: number,
+    _now: number,
     windowStart: number
   ): RateLimitInfo {
     let requests = this.memoryStore.get(key) || [];
@@ -438,7 +438,7 @@ export class EnterpriseRateLimiter {
   /**
    * Check for distributed attack patterns
    */
-  private async checkDistributedAttack(ip: string): Promise<number> {
+  private async checkDistributedAttack(_ip: string): Promise<number> {
     // This would analyze patterns across multiple IPs
     // For now, just a placeholder
     return 0;
