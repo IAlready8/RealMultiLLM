@@ -148,7 +148,7 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
     })
 
     try {
-      const baseUrl = request.baseUrl || this.baseUrl // Use request.baseUrl if provided
+      const baseUrl = this.baseUrl
       const model = request.model || 'gpt-3.5-turbo'
 
       if (!this.apiKey) { // Use this.apiKey
@@ -171,7 +171,7 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
           model,
           messages: request.messages,
           temperature: request.temperature ?? 0.7,
-          max_tokens: request.max_tokens ?? 4096,
+          max_tokens: request.maxTokens ?? 4096,
           stream: request.stream ?? false,
         }),
         signal: AbortSignal.timeout(60000), // 60 second timeout
@@ -218,7 +218,7 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
     })
 
     try {
-      const baseUrl = request.baseUrl || this.baseUrl
+      const baseUrl = this.baseUrl
       const model = request.model || 'gpt-3.5-turbo'
 
       if (!this.apiKey) {
@@ -240,7 +240,7 @@ class OpenAIService implements ILLMProvider { // Removed export, implemented ILL
           model,
           messages: request.messages,
           temperature: request.temperature ?? 0.7,
-          max_tokens: request.max_tokens ?? 4096,
+          max_tokens: request.maxTokens ?? 4096,
           stream: true,
         }),
       })

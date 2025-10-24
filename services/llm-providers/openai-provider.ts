@@ -50,7 +50,8 @@ class OpenAIProvider implements LLMProvider {
       }
       
       const service = new OpenAIService(config.apiKey);
-      return await service.testConnection(config.apiKey);
+      const result = await service.testConnection(config.apiKey);
+      return result.success;
     } catch (error) {
       console.error('OpenAI config validation error:', error);
       return false;
@@ -68,17 +69,22 @@ class OpenAIProvider implements LLMProvider {
 
   async chat(options: ChatOptions): Promise<any> {
     try {
-      const response = await this.service.chat({
+      if (!options.apiKey) {
+        throw new Error('API key is required for chat');
+      }
+      const service = new OpenAIService(options.apiKey);
+      const response = await service.chat({
+        userId: 'anonymous',
+        provider: 'openai',
         messages: options.messages,
         model: options.model || this.model,
         temperature: options.temperature,
-        max_tokens: options.maxTokens,
-        stream: false,
+        maxTokens: options.maxTokens,
       });
 
       return {
         content: response.content,
-        finish_reason: response.finish_reason,
+        finish_reason: response.finishReason,
         usage: response.usage
       };
     } catch (error) {
@@ -87,14 +93,19 @@ class OpenAIProvider implements LLMProvider {
     }
   }
 
-  async streamChat(options: ChatOptions): Promise<AsyncGenerator<string, void, undefined>> {
+  async streamChat(options: ChatOptions): Promise<AsyncGenerator<any, void, undefined>> {
     try {
-      const stream = this.service.streamChat({
+      if (!options.apiKey) {
+        throw new Error('API key is required for streamChat');
+      }
+      const service = new OpenAIService(options.apiKey);
+      const stream = service.streamChat({
+        userId: 'anonymous',
+        provider: 'openai',
         messages: options.messages,
         model: options.model || this.model,
         temperature: options.temperature,
-        max_tokens: options.maxTokens,
-        stream: true,
+        maxTokens: options.maxTokens,
       });
 
       return stream;

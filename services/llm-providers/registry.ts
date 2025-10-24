@@ -251,7 +251,7 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
     getInstance: async (apiKey: string) => {
       if (!anthropicServiceCache[apiKey]) {
         const module = await import('./anthropic-service');
-        anthropicServiceCache[apiKey] = new module.default(apiKey);
+        anthropicServiceCache[apiKey] = new module.default() as unknown as ILLMProvider;
       }
       return anthropicServiceCache[apiKey];
     }
@@ -261,7 +261,7 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
     getInstance: async (apiKey: string) => {
       if (!googleAIServiceCache[apiKey]) {
         const module = await import('./google-ai-service');
-        googleAIServiceCache[apiKey] = new module.default(apiKey);
+        googleAIServiceCache[apiKey] = new module.default() as unknown as ILLMProvider;
       }
       return googleAIServiceCache[apiKey];
     }
@@ -271,7 +271,7 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
     getInstance: async (apiKey: string) => {
       if (!grokServiceCache[apiKey]) {
         const module = await import('./grok-service');
-        grokServiceCache[apiKey] = new module.default(apiKey);
+        grokServiceCache[apiKey] = new module.default() as unknown as ILLMProvider;
       }
       return grokServiceCache[apiKey];
     }
@@ -281,7 +281,7 @@ const PROVIDER_FACTORIES: Record<string, ProviderFactory> = {
     getInstance: async (apiKey: string) => {
       if (!openRouterServiceCache[apiKey]) {
         const module = await import('./openrouter-service');
-        openRouterServiceCache[apiKey] = new module.default(apiKey);
+        openRouterServiceCache[apiKey] = new module.default() as unknown as ILLMProvider;
       }
       return openRouterServiceCache[apiKey];
     }
