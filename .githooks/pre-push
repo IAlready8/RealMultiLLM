@@ -1,0 +1,58 @@
+#!/bin/bash
+# Pre-push hook - FULL validation before push
+
+set -e
+
+echo "🚀 Running pre-push validation..."
+echo "================================"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+FAILED=0
+
+print_status() {
+    if [ $1 -eq 0 ]; then
+        echo -e "${GREEN}✓ $2${NC}"
+    else
+        echo -e "${RED}✗ $2${NC}"
+        FAILED=1
+    fi
+}
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "📌 Branch: $BRANCH"
+echo ""
+
+echo "🔍 TypeScript type check..."
+npm run type-check
+print_status $? "Type check"
+
+echo ""
+echo "🔍 ESLint check..."
+npm run lint -- --max-warnings 0
+print_status $? "Lint (no warnings)"
+
+echo ""
+echo "🧪 Running FULL test suite..."
+npm run test:run
+print_status $? "All tests"
+
+echo ""
+echo "🏗️  Production build check..."
+npm run build
+print_status $? "Build"
+
+echo ""
+echo "================================"
+
+if [ $FAILED -eq 1 ]; then
+    echo -e "${RED}❌ Pre-push validation FAILED!${NC}"
+    echo "Your code will NOT pass CI. Fix issues before pushing."
+    echo "To bypass: git push --no-verify"
+    exit 1
+else
+    echo -e "${GREEN}✅ All pre-push checks PASSED! Safe to push.${NC}"
+    exit 0
+fi

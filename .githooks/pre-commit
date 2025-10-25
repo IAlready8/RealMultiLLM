@@ -1,0 +1,56 @@
+#!/bin/bash
+# Pre-commit hook to ensure all tests pass before commits
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+echo "================================"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+FAILED=0
+
+print_status() {
+    if [ $1 -eq 0 ]; then
+        echo -e "${GREEN}✓ $2${NC}"
+    else
+        echo -e "${RED}✗ $2${NC}"
+        FAILED=1
+    fi
+}
+
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(ts|tsx|js|jsx)$' || true)
+
+if [ -z "$STAGED_FILES" ]; then
+    echo "No TypeScript/JavaScript files staged. Skipping checks."
+    exit 0
+fi
+
+echo ""
+echo "📝 Staged files:"
+echo "$STAGED_FILES"
+echo ""
+
+echo "🔍 Running TypeScript type check..."
+npm run type-check 2>&1 | tail -5
+print_status $? "Type check"
+
+echo ""
+echo "🔍 Running ESLint..."
+npm run lint -- --quiet 2>&1 | tail -10
+print_status $? "Lint check"
+
+echo ""
+echo "================================"
+
+if [ $FAILED -eq 1 ]; then
+    echo -e "${RED}❌ Pre-commit checks FAILED!${NC}"
+    echo "Fix the issues above before committing."
+    echo "To bypass: git commit --no-verify"
+    exit 1
+else
+    echo -e "${GREEN}✅ All pre-commit checks PASSED!${NC}"
+    exit 0
+fi

@@ -1,0 +1,184 @@
+name: Strict CI - All Tests Must Pass
+
+on:
+  push:
+    branches: [main, develop, 'feat/**', 'fix/**']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# Cancel in-progress runs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_OPTIONS: "--max-old-space-size=4096"
+  NEXTAUTH_SECRET: "test-secret-ci-only"
+  NEXTAUTH_URL: "http://localhost:3000"
+  JWT_SECRET: "test-jwt-secret-ci-only"
+
+jobs:
+  # Stage 1: Fast quality checks
+  quality:
+    name: 🔍 Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.17.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: 🔍 TypeScript Type Check (STRICT)
+        run: npm run type-check
+
+      - name: 🔍 ESLint (STRICT - No Warnings)
+        run: npm run lint -- --max-warnings 0
+
+  # Stage 2: Full test suite
+  test:
+    name: 🧪 Test Suite (ALL MUST PASS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: "postgresql://testuser:testpassword@localhost:5432/testdb"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.17.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run Database Migrations
+        run: npx prisma migrate deploy
+
+      - name: 🧪 Run ALL Tests (MUST PASS)
+        run: npm run test:run
+
+      - name: 📊 Upload Test Coverage
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: false
+
+  # Stage 3: Build verification
+  build:
+    name: 🏗️ Build Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [quality, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.17.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: 🏗️ Build Production Bundle
+        run: npm run build
+
+      - name: 📦 Check Bundle Size
+        run: |
+          if [ -d ".next" ]; then
+            echo "✅ Build successful"
+            du -sh .next
+          else
+            echo "❌ Build failed - .next directory not found"
+            exit 1
+          fi
+
+  # Stage 4: Security audit
+  security:
+    name: 🔒 Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.17.0'
+          cache: 'npm'
+
+      - name: 🔒 Run npm audit
+        run: npm audit --audit-level=moderate
+
+      - name: 🔍 Check for secrets
+        run: |
+          if grep -r "sk-[a-zA-Z0-9]" --exclude-dir=node_modules --exclude-dir=.git .; then
+            echo "❌ Found potential API keys in code!"
+            exit 1
+          fi
+          echo "✅ No secrets found"
+
+  # Final stage: All checks passed
+  all-checks-passed:
+    name: ✅ All Checks Passed
+    runs-on: ubuntu-latest
+    needs: [quality, test, build, security]
+    if: always()
+
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.quality.result }}" != "success" ] || \
+             [ "${{ needs.test.result }}" != "success" ] || \
+             [ "${{ needs.build.result }}" != "success" ] || \
+             [ "${{ needs.security.result }}" != "success" ]; then
+            echo "❌ Some checks failed!"
+            exit 1
+          fi
+          echo "✅ ALL CHECKS PASSED! Safe to merge."
