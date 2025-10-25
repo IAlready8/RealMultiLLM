@@ -13,7 +13,6 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    
     const session = await getServerSession();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -21,7 +20,7 @@ export async function POST(
 
     const apiKey = await prisma.providerConfig.findFirst({
       where: {
-        id: id,
+        id,
         userId: session.user.id,
         isActive: true
       }
@@ -42,7 +41,7 @@ export async function POST(
     if (isValid) {
       // Update last used timestamp
       await prisma.providerConfig.update({
-        where: { id: id },
+        where: { id },
         data: { 
           lastUsedAt: new Date(),
           usageCount: { increment: 1 }

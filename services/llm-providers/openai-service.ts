@@ -148,7 +148,11 @@ class OpenAIService implements ILLMProvider {
     })
 
     try {
+<<<<<<< HEAD
+      const baseUrl = this.baseUrl
+=======
       const effectiveBaseUrl = baseUrl || this.baseUrl // Use provided baseUrl or default
+>>>>>>> origin/main
       const model = request.model || 'gpt-3.5-turbo'
 
       if (!this.apiKey) { // Use this.apiKey
@@ -218,7 +222,11 @@ class OpenAIService implements ILLMProvider {
     })
 
     try {
+<<<<<<< HEAD
+      const baseUrl = this.baseUrl
+=======
       const effectiveBaseUrl = baseUrl || this.baseUrl
+>>>>>>> origin/main
       const model = request.model || 'gpt-3.5-turbo'
 
       if (!this.apiKey) {

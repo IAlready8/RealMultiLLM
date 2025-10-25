@@ -46,5 +46,5 @@ export interface LLMProvider {
   validateConfig(config: { apiKey: string }): Promise<boolean>;
   getModels(): Promise<any[]>;
   chat(options: ChatOptions): Promise<StreamResponse>;
-  streamChat(options: ChatOptions): Promise<AsyncGenerator<string, void, undefined>>;
+  streamChat(options: ChatOptions): Promise<AsyncGenerator<any, void, undefined>>;
 }
