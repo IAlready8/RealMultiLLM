@@ -10,29 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { 
   Shield, 
-  FileText, 
   Trash2, 
-  Clock, 
   AlertTriangle, 
   CheckCircle, 
-  XCircle,
   Download,
-  Eye,
-  EyeOff,
   Calendar,
-  User,
-  Key,
-  Database,
-  Server,
   BarChart3,
-  Activity,
-  Users,
-  Zap,
   Save as SaveIcon,
   RotateCcw as RotateCcwIcon
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { format } from 'date-fns';
 
 /**
  * Compliance Settings Component
@@ -690,47 +677,6 @@ function Loader2(props: React.SVGProps<SVGSVGElement>) {
       strokeLinejoin="round"
     >
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}
-
-function RotateCcw(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-    </svg>
-  );
-}
-
-function Save(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-      <polyline points="17 21 17 13 7 13 7 21" />
-      <polyline points="7 3 7 8 15 8" />
     </svg>
   );
 }

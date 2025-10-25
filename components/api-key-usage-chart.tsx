@@ -21,8 +21,7 @@ import {
   TrendingDown, 
   DollarSign, 
   Zap, 
-  Activity,
-  Calendar
+  Activity
 } from 'lucide-react';
 
 interface UsageData {

@@ -29,7 +29,7 @@ export function ExportImportDialog({
   const [importData, setImportData] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [exportedData, setExportedData] = useState("");
+  const [_exportedData, setExportedData] = useState("");
   
   const handleExport = async () => {
     if (!exportPassword) {

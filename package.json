@@ -27,13 +27,12 @@
     "setup": "node setup_project.js",
     "setup:env": "node setup_env.py",
     "setup:hooks": "bash scripts/setup-hooks.sh",
-    "validate": "npm run type-check && npm run lint -- --max-warnings 0 && npm run test:run && npm run build",
+    "validate": "npm run lint && npm run type-check && npm run test:run",
     "validate:quick": "npm run type-check && npm run lint",
     "build:vercel": "bash scripts/build-vercel.sh",
     "db:migration": "bash scripts/db-migration-simple.sh",
     "env:validation": "bash scripts/env-validation-simple.sh",
     "env:validate": "bash scripts/validate-env.sh",
-    "validate": "npm run lint && npm run type-check && npm run test:run",
     "validate:prod": "npm run env:validate && npm run build && npm run test:run",
     "security:audit": "bash scripts/security-audit-simple.sh",
     "preinstall": "npx only-allow npm"
@@ -95,6 +94,7 @@
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
+    "vercel": "^48.2.9",
     "xss": "^1.0.15",
     "zod": "^4.1.3"
   },

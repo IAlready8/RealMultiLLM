@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Save, Trash2, Clock } from 'lucide-react';
+import { Trash2, Clock } from 'lucide-react';
 import { useConversation } from '@/hooks/use-conversation';
 import { formatTimestamp } from '@/lib/utils';
 import type { Conversation, ConversationData } from '@/types/app';
@@ -21,8 +21,6 @@ export function ConversationManager<T extends Conversation['type']>({
   onLoad,
   buttonVariant = "outline" 
 }: ConversationManagerProps<T>) {
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [conversationTitle, setConversationTitle] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   
   // The hook is now called with the generic type, ensuring type safety.

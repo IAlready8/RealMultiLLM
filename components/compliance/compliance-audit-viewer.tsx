@@ -16,16 +16,13 @@ import {
   Server, 
   Shield,
   AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Clock,
   Key,
   Users,
   Bot as BotIcon
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { format, parseISO } from 'date-fns';
-import { ComplianceAuditService, ComplianceAuditEntry } from '@/lib/compliance-audit';
+import { ComplianceAuditEntry } from '@/lib/compliance-audit';
 
 /**
  * Compliance Audit Log Viewer Component
