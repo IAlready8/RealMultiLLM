@@ -19,13 +19,10 @@ import {
   EyeOff, 
   RefreshCw, 
   Shield, 
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
   Clock,
   TrendingUp
 } from 'lucide-react';
-import { encryptApiKey, decryptApiKey } from '@/lib/encryption';
+import { encryptApiKey } from '@/lib/encryption';
 import { testProviderConnection } from '@/lib/provider-tests';
 import { ApiKeyUsageChart } from './api-key-usage-chart';
 
