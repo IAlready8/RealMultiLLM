@@ -25,12 +25,16 @@ function canUseSW(): boolean {
 
 async function registerSW() {
   try {
+    // Ensure we're in a browser context
+    if (typeof window === "undefined" || typeof location === "undefined") {
+      return null;
+    }
+
     // Ensure secure context (localhost allowed)
     const isLocalhost =
-      typeof location !== "undefined" &&
-      (location.hostname === "localhost" ||
-        location.hostname === "127.0.0.1" ||
-        location.hostname === "::1");
+      location.hostname === "localhost" ||
+      location.hostname === "127.0.0.1" ||
+      location.hostname === "::1";
 
     if (!(location.protocol === "https:" || isLocalhost)) {
       return null; // SW requires HTTPS (except localhost)
